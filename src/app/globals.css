@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-dark: #07090c;
+    --bg-surface: #0f1319;
+    --bg-card: #141922;
+    --border-color: #1f2a3a;
+    --neon-lime: #39FF14;
+  }
+
+  body {
+    background-color: var(--bg-dark);
+    color: #ffffff;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom Utilities for Neon Glows & Aesthetics */
+.neon-border {
+  border: 1px solid rgba(57, 255, 20, 0.3);
+  box-shadow: 0 0 12px rgba(57, 255, 20, 0.2);
+}
+
+.neon-border:hover {
+  border-color: rgba(57, 255, 20, 0.8);
+  box-shadow: 0 0 20px rgba(57, 255, 20, 0.5);
+}
+
+.neon-glow-btn {
+  background-color: #39FF14;
+  color: #07090c;
+  font-weight: 700;
+  box-shadow: 0 0 15px rgba(57, 255, 20, 0.5);
+  transition: all 0.3s ease;
+}
+
+.neon-glow-btn:hover {
+  background-color: #4dfa2c;
+  box-shadow: 0 0 25px rgba(57, 255, 20, 0.85);
+  transform: translateY(-2px);
+}
+
+.neon-text-glow {
+  text-shadow: 0 0 12px rgba(57, 255, 20, 0.6);
+}
+
+.glass-panel {
+  background: rgba(15, 19, 25, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #07090c;
+}
+::-webkit-scrollbar-thumb {
+  background: #1f2a3a;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #39FF14;
+}
