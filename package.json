@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npx prisma generate --schema=./src/backend/schema.prisma && npx prisma db push --schema=./src/backend/schema.prisma --accept-data-loss && next build",
+    "build": "npx prisma generate --schema=./src/backend/schema.prisma && next build",
     "start": "next start",
     "lint": "eslint"
   },
