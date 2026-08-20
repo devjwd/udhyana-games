@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { registerOnlineUser } from '@/backend/actions';
 import styles from './AuthModal.module.css';
 
 interface AuthModalProps {
@@ -74,7 +75,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       return;
     }
 
-    const { registerOnlineUser } = await import('@/backend/actions');
     await registerOnlineUser({ username, password, email, phone, fullName });
 
     resetForm();
