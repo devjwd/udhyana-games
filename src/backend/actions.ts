@@ -217,19 +217,27 @@ export async function registerOnlineUser(data: {
   if (!fullName.trim()) throw new Error('Full name is required.');
 
   const hashedPassword = await bcrypt.hash(password, 12);
-  const user = await prisma.user.create({
-    data: {
-      username: username.trim(),
-      password: hashedPassword,
-      email: email.trim().toLowerCase(),
-      phone: phone.trim(),
-      fullName: fullName.trim(),
-      name: fullName.trim(),
-      status: 'PENDING',
+  
+  try {
+    const user = await prisma.user.create({
+      data: {
+        username: username.trim(),
+        password: hashedPassword,
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
+        fullName: fullName.trim(),
+        name: fullName.trim(),
+        status: 'PENDING',
+      }
+    });
+    return { success: true, userId: user.id };
+  } catch (err: any) {
+    if (err.code === 'P2002') {
+      throw new Error('This Gamer Tag or Email is already registered.');
     }
-  });
-
-  return user;
+    console.error('Registration error:', err);
+    throw new Error('Registration failed. Please try again later.');
+  }
 }
 
 export async function getPendingUsers() {
