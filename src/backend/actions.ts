@@ -258,6 +258,24 @@ export async function approveUser(userId: string) {
   return updated;
 }
 
+export async function promoteUserToStaff(userId: string, role: string) {
+  // If no admins exist, we allow anyone to do this (bootstrapping). Otherwise require admin.
+  const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
+  if (adminCount > 0) {
+    const session = await getServerSession(authOptions);
+    if ((session?.user as any)?.role !== 'ADMIN') {
+      throw new Error('Only ADMIN can promote users.');
+    }
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { role, status: 'APPROVED' }
+  });
+  revalidatePath('/admin');
+  return updated;
+}
+
 // ========================
 // BOOKINGS
 // ========================

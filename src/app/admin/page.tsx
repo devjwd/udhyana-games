@@ -62,6 +62,9 @@ export default function BackendAdmin() {
   const [newConsoleImage, setNewConsoleImage] = useState('');
   const [newConsoleSpecs, setNewConsoleSpecs] = useState('');
 
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
+  const [staffSearchResults, setStaffSearchResults] = useState<any[]>([]);
+
   useEffect(() => {
     async function loadData() {
       await seedInitialData(); 
@@ -490,6 +493,71 @@ export default function BackendAdmin() {
     );
   };
 
+  const handleSearchStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { searchUsers } = await import('@/backend/actions');
+    const results = await searchUsers(staffSearchQuery);
+    setStaffSearchResults(results);
+  };
+
+  const handlePromote = async (userId: string, role: string) => {
+    try {
+      const { promoteUserToStaff } = await import('@/backend/actions');
+      await promoteUserToStaff(userId, role);
+      alert(`User promoted to ${role} successfully! You can now log into Reception.`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to promote user');
+    }
+  };
+
+  const renderStaffTab = () => (
+    <div className={styles.panel}>
+      <div className={styles.panelHeader}>
+        <span>Staff Management</span>
+      </div>
+      <p style={{ color: 'rgba(255,255,255,0.7)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+        Search for an existing user account to promote them to RECEPTIONIST or ADMIN.
+        <br />
+        <strong>Note:</strong> If this is your first time setting up, promote your own account to ADMIN.
+      </p>
+      
+      <form onSubmit={handleSearchStaff} style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+        <input 
+          type="text" 
+          className={styles.input} 
+          placeholder="Search by username, name, or phone" 
+          value={staffSearchQuery}
+          onChange={e => setStaffSearchQuery(e.target.value)}
+        />
+        <button type="submit" className={styles.btn}>Search Users</button>
+      </form>
+
+      {staffSearchResults.length > 0 && (
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th className={styles.th}>Name</th>
+              <th className={styles.th}>Username</th>
+              <th className={styles.th}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {staffSearchResults.map(u => (
+              <tr key={u.id} className={styles.tr}>
+                <td className={styles.td}>{u.fullName}</td>
+                <td className={styles.td}>@{u.username}</td>
+                <td className={styles.td} style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button className={styles.actionBtn} onClick={() => handlePromote(u.id, 'RECEPTIONIST')}>Make Receptionist</button>
+                  <button className={styles.actionBtn} onClick={() => handlePromote(u.id, 'ADMIN')}>Make Admin</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+
   if (isLoading) {
     return <div style={{ color: 'white', padding: '2rem' }}>Loading Database...</div>;
   }
@@ -525,6 +593,12 @@ export default function BackendAdmin() {
           >
             Games Availability
           </div>
+          <div
+            className={`${styles.navItem} ${activeTab === 'staff' ? styles.navItemActive : ''}`}
+            onClick={() => setActiveTab('staff')}
+          >
+            Staff & Roles
+          </div>
         </nav>
       </aside>
 
@@ -535,6 +609,7 @@ export default function BackendAdmin() {
             {activeTab === 'products' && 'Shop Inventory'}
             {activeTab === 'screens' && 'Hardware Configuration'}
             {activeTab === 'games' && 'Game Deployments'}
+            {activeTab === 'staff' && 'Staff Management'}
           </h1>
         </header>
 
@@ -543,6 +618,7 @@ export default function BackendAdmin() {
           {activeTab === 'products' && renderProductsTab()}
           {activeTab === 'screens' && renderScreensTab()}
           {activeTab === 'games' && renderGamesTab()}
+          {activeTab === 'staff' && renderStaffTab()}
         </div>
       </main>
     </div>
