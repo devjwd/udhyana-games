@@ -5,10 +5,13 @@ import Link from 'next/link';
 import styles from './page.module.css';
 import { 
   getSnacks, addSnack, deleteSnack, 
-  getConsoles, toggleConsoleGame, 
+  getConsoles, toggleConsoleGame, addConsole, deleteConsole,
   getBaseHourlyRate, setBaseHourlyRate,
   getExtraControllerRate, setExtraControllerRate,
-  seedInitialData
+  seedInitialData,
+  getProducts, addProduct, deleteProduct,
+  getAnalyticsData,
+  searchUsers, promoteUserToStaff
 } from '@/backend/actions';
 
 type SnackItem = {
@@ -69,7 +72,7 @@ export default function BackendAdmin() {
     async function loadData() {
       await seedInitialData(); 
       
-      const { getProducts, getAnalyticsData } = await import('@/backend/actions');
+      await seedInitialData();
 
       const [rate, extraRate, fetchedSnacks, fetchedConsoles, fetchedProducts, fetchedAnalytics] = await Promise.all([
         getBaseHourlyRate(),
@@ -101,7 +104,7 @@ export default function BackendAdmin() {
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { addProduct } = await import('@/backend/actions');
+    e.preventDefault();
     const newProduct = await addProduct({
       name: newProductName,
       price: parseFloat(newProductPrice),
@@ -116,7 +119,6 @@ export default function BackendAdmin() {
 
   const handleDeleteProduct = async (id: string) => {
     if (confirm('Delete this product?')) {
-      const { deleteProduct } = await import('@/backend/actions');
       await deleteProduct(id);
       setProducts(products.filter(p => p.id !== id));
     }
@@ -124,7 +126,7 @@ export default function BackendAdmin() {
 
   const handleAddConsole = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { addConsole } = await import('@/backend/actions');
+    e.preventDefault();
     const newConsole = await addConsole({
       id: newConsoleSlug,
       hardwareTitle: newConsoleTitle,
@@ -140,7 +142,6 @@ export default function BackendAdmin() {
 
   const handleDeleteConsole = async (id: string) => {
     if (confirm('Delete this console? This will remove all associated games.')) {
-      const { deleteConsole } = await import('@/backend/actions');
       await deleteConsole(id);
       setConsoles(consoles.filter(c => c.id !== id));
     }
@@ -495,14 +496,13 @@ export default function BackendAdmin() {
 
   const handleSearchStaff = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { searchUsers } = await import('@/backend/actions');
+    e.preventDefault();
     const results = await searchUsers(staffSearchQuery);
     setStaffSearchResults(results);
   };
 
   const handlePromote = async (userId: string, role: string) => {
     try {
-      const { promoteUserToStaff } = await import('@/backend/actions');
       await promoteUserToStaff(userId, role);
       alert(`User promoted to ${role} successfully! You can now log into Reception.`);
     } catch (err: any) {
