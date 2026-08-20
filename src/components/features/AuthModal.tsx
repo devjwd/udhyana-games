@@ -59,7 +59,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       if (result?.error === 'PENDING') {
         setError('Your account is pending verification. Please visit the reception desk with a valid ID to activate it.');
       } else {
-        setError('Invalid Gamer Tag or Password. Please try again.');
+        setError('Invalid credentials. Please try again.');
       }
     }
   };
@@ -174,13 +174,15 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           )}
 
           <div className={styles.inputGroup}>
-            <label className={styles.label}>Gamer Tag</label>
+            <label className={styles.label}>
+              {mode === 'login' ? 'Gamer Tag, Email, or Phone' : 'Gamer Tag'}
+            </label>
             <input
               type="text"
               className={styles.input}
               value={username}
               onChange={e => setUsername(e.target.value)}
-              placeholder="e.g. VIP_GAMER"
+              placeholder={mode === 'login' ? 'e.g. VIP_GAMER or you@example.com' : 'e.g. VIP_GAMER'}
               required
               autoComplete="username"
               minLength={3}
