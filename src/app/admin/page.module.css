@@ -1,0 +1,235 @@
+.container {
+  min-height: 100vh;
+  background-color: #060608;
+  display: flex;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 280px;
+  background-color: #0B0C10;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.logoArea {
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--primary-accent);
+  font-weight: 900;
+  font-size: 1.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0;
+}
+
+.navItem {
+  padding: 1rem 2rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: all 0.2s;
+}
+
+.navItem:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+  color: #fff;
+}
+
+.navItemActive {
+  background-color: rgba(193, 255, 28, 0.05);
+  color: var(--primary-accent);
+  border-left-color: var(--primary-accent);
+}
+
+/* Main Content */
+.main {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  height: 72px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  padding: 0 3rem;
+  background-color: #060608;
+}
+
+.pageTitle {
+  color: #fff;
+  font-weight: 900;
+  font-size: 1.25rem;
+  text-transform: uppercase;
+}
+
+.content {
+  padding: 2rem 3rem;
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+/* Common UI Elements */
+.panel {
+  background-color: #121212;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.panelHeader {
+  color: #fff;
+  font-weight: 900;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fieldFull {
+  grid-column: 1 / -1;
+}
+
+.label {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.input, .select {
+  background-color: #0B0C10;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.input:focus, .select:focus {
+  border-color: var(--primary-accent);
+}
+
+.btn {
+  background-color: var(--primary-accent);
+  color: #000;
+  font-weight: 900;
+  text-transform: uppercase;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.85rem;
+  border: none;
+  cursor: pointer;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  transition: all 0.3s ease;
+}
+
+.btn:hover {
+  background-color: #d4ff3d;
+}
+
+/* Table */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.th {
+  text-align: left;
+  padding: 1rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.td {
+  padding: 1rem;
+  color: #fff;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.tr:hover .td {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.actionBtn {
+  background: transparent;
+  color: var(--primary-accent);
+  border: 1px solid rgba(193, 255, 28, 0.3);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  margin-right: 0.5rem;
+}
+
+.actionBtn:hover {
+  background-color: rgba(193, 255, 28, 0.1);
+  border-color: var(--primary-accent);
+}
+
+.actionBtnDelete {
+  color: #ff4d4d;
+  border-color: rgba(255, 77, 77, 0.3);
+}
+
+.actionBtnDelete:hover {
+  background-color: rgba(255, 77, 77, 0.1);
+  border-color: #ff4d4d;
+}
+
+.checkboxGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.checkbox {
+  accent-color: var(--primary-accent);
+  width: 16px;
+  height: 16px;
+}

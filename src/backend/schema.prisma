@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+model Settings {
+  key       String   @id
+  value     String
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  price       Float
+  category    String
+  imageUrl    String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+model Snack {
+  id        String   @id @default(uuid())
+  name      String
+  price     Float
+  icon      String
+  createdAt DateTime @default(now())
+}
+
+model Console {
+  id            String         @id
+  hardwareTitle String
+  hardwareSlug  String?        @unique
+  hourlyRate    Float?
+  imagePath     String?
+  specs         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @default(now()) @updatedAt
+  games         ConsoleGames[]
+  bookings      Booking[]
+  gameSessions  GameSession[]
+}
+
+model Game {
+  id        String         @id @default(uuid())
+  name      String         @unique
+  createdAt DateTime       @default(now())
+  consoles  ConsoleGames[]
+}
+
+model ConsoleGames {
+  consoleId   String
+  gameId      String
+  console     Console  @relation(fields: [consoleId], references: [id], onDelete: Cascade)
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  installedAt DateTime @default(now())
+
+  @@id([consoleId, gameId])
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  
+  // Custom gaming profile fields
+  username      String?   @unique
+  password      String?   // Hashed PIN or password
+  fullName      String?
+  role          String    @default("USER") // USER, RECEPTIONIST, ADMIN
+  phone         String?
+  status        String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  rank          String    @default("Beginner")
+  sessionsCount Int       @default(0)
+  playtimeHours Int       @default(0)
+  loyaltyPoints Int       @default(0)
+  
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  bookings      Booking[]
+  gameSessions  GameSession[]
+  orders        Order[]
+}
+
+model GameSession {
+  id          String   @id @default(cuid())
+  userId      String?
+  guestName   String?
+  consoleId   String
+  startTime   DateTime @default(now())
+  endTime     DateTime
+  status      String   @default("ACTIVE") // ACTIVE, COMPLETED
+  
+  user        User?    @relation(fields: [userId], references: [id])
+  console     Console  @relation(fields: [consoleId], references: [id])
+}
+
+model Booking {
+  id          String   @id @default(cuid())
+  userId      String
+  consoleId   String
+  startTime   DateTime
+  endTime     DateTime
+  status      String   @default("CONFIRMED") // CONFIRMED, CANCELLED, COMPLETED
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+  console     Console  @relation(fields: [consoleId], references: [id])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  userId        String?
+  totalAmount   Float
+  paymentMethod String      @default("cash")
+  status        String      @default("COMPLETED")
+  createdAt     DateTime    @default(now())
+  
+  user          User?       @relation(fields: [userId], references: [id])
+  items         OrderItem[]
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  name      String
+  price     Float
+  quantity  Int      @default(1)
+  type      String   // 'session', 'snack', 'product'
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Waitlist {
+  id        String   @id @default(cuid())
+  name      String
+  requested String   // specific console or "Any Console"
+  status    String   @default("WAITING") // WAITING, ASSIGNED, CANCELLED
+  createdAt DateTime @default(now())
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

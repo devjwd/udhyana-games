@@ -1,0 +1,275 @@
+/* ══════════════════════════════════
+   PROFILE PAGE
+   ══════════════════════════════════ */
+
+.main {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: clamp(3rem, 5vw, 4.5rem) clamp(1.5rem, 5vw, 5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.dashboard {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+/* ── Identity card ── */
+.profileCard {
+  background-color: var(--surface-1);
+  border-radius: var(--radius-card);
+  padding: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  border: 1px solid var(--border);
+  position: relative;
+}
+
+.avatarWrapper {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--accent);
+  margin-bottom: 1.5rem;
+  box-shadow: 0 0 24px var(--accent-glow);
+}
+
+.avatar {
+  object-fit: cover;
+  width: 100%;
+  height: 100%;
+}
+
+.username {
+  color: var(--text-primary);
+  font-weight: 900;
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.04em;
+}
+
+.rank {
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  background: var(--accent-dim);
+  padding: 0.4rem 1rem;
+  border: 1px solid rgba(193,255,28,0.2);
+  border-radius: 100px;
+}
+
+.stats {
+  margin-top: 2rem;
+  display: flex;
+  width: 100%;
+  justify-content: space-around;
+  border-top: 1px solid var(--border);
+  padding-top: 2rem;
+}
+
+.statBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.statValue {
+  color: var(--text-primary);
+  font-weight: 900;
+  font-size: 1.4rem;
+}
+
+.statLabel {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.editLink {
+  display: inline-block;
+  margin-top: 1.5rem;
+  padding: 0.55rem 1.25rem;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: border-color 0.2s ease, color 0.2s ease;
+  text-decoration: none;
+}
+
+.editLink:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Activity section ── */
+.activitySection {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.sectionHeader {
+  color: var(--text-primary);
+  font-weight: 800;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.sectionHeader::before {
+  content: '';
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.gridSection {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+/* ── Activity blocks (bookings, sessions, orders) ── */
+.activityBlock {
+  background-color: var(--surface-1);
+  border-radius: var(--radius-card);
+  padding: 1.5rem 2rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  transition: background-color 0.2s ease;
+}
+
+.activityBlock:hover {
+  background-color: var(--surface-2);
+}
+
+.activityInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.activityTitle {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.activityDetail {
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 0.82rem;
+}
+
+.activityStatus {
+  background-color: var(--accent-dim);
+  color: var(--accent);
+  padding: 0.35rem 0.875rem;
+  border-radius: 100px;
+  font-weight: 700;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+.emptyNote {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-style: italic;
+  padding: 1rem 0;
+  border-left: 2px solid var(--border);
+  padding-left: 1rem;
+}
+
+.emptyLink {
+  color: var(--accent);
+  text-decoration: none;
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* ── Chart ── */
+.chartContainer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  height: 180px;
+  background-color: var(--surface-1);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  padding: 1.5rem 1rem 1rem 1rem;
+  gap: 0.5rem;
+}
+
+.chartBarWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  flex: 1;
+  gap: 0.4rem;
+}
+
+.chartValue {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.chartBar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 4px;
+}
+
+.chartBar:hover {
+  filter: brightness(1.2);
+}
+
+.chartLabel {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .gridSection {
+    grid-template-columns: 1fr;
+  }
+}

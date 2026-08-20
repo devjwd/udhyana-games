@@ -1,0 +1,155 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--accent);
+  transition: all 0.2s ease;
+  font-family: inherit;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Sizes */
+.sm .inner {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+.md .inner {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+}
+
+.lg .inner {
+  padding: 1rem 2.5rem;
+  font-size: 1.125rem;
+}
+
+.icon .inner {
+  padding: 0.75rem;
+  aspect-ratio: 1;
+}
+
+/* The Brackets */
+.bracketTl, .bracketBr {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  transition: all 0.2s ease;
+}
+
+.bracketTl {
+  top: -4px;
+  left: -4px;
+}
+
+.bracketBr {
+  bottom: -4px;
+  right: -4px;
+}
+
+/* Expand brackets slightly on hover for an interactive effect */
+.button:not(:disabled):hover .bracketTl {
+  transform: translate(-2px, -2px);
+}
+.button:not(:disabled):hover .bracketBr {
+  transform: translate(2px, 2px);
+}
+
+.inner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 100%;
+  /* The chamfer is 12px horizontally and vertically */
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+
+.content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* --- Solid Variant --- */
+.solid {
+  color: var(--accent); /* brackets are accent colored */
+}
+
+.solid .inner {
+  background-color: var(--accent);
+  color: #111111; /* black text */
+}
+
+.solid:not(:disabled):hover .inner {
+  background-color: var(--accent-hover);
+  transform: scale(0.98);
+}
+
+/* --- Outline Variant --- */
+.outline {
+  color: var(--accent);
+}
+
+.outline .inner {
+  background-color: var(--accent); /* acts as border */
+  color: var(--accent); /* text color */
+}
+
+.outlineInner {
+  position: absolute;
+  /* 2px inner border thickness */
+  inset: 2px;
+  background-color: #1a1a1a; /* var(--surface-1) */
+  /* Calculate inner clip path based on inset to maintain parallel lines */
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  z-index: 0;
+  transition: background-color 0.2s ease;
+}
+
+.outline:not(:disabled):hover .outlineInner {
+  background-color: #222222; /* var(--surface-2) */
+}
+
+.outline:not(:disabled):hover .inner {
+  transform: scale(0.98);
+}
+
+/* --- Ghost Variant --- */
+.ghost {
+  color: var(--accent);
+}
+
+.ghost .inner {
+  background-color: transparent;
+  color: var(--text-primary);
+  clip-path: none;
+}
+
+.ghost .bracketTl,
+.ghost .bracketBr {
+  opacity: 0; /* Hide brackets for ghost */
+}
+
+.ghost:not(:disabled):hover .inner {
+  background-color: var(--surface-2);
+}

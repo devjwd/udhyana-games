@@ -1,0 +1,249 @@
+.header {
+  position: sticky;
+  top: 1.5rem;
+  z-index: 999;
+  width: 92%;
+  max-width: 1400px;
+  margin: 1.5rem auto;
+  background-color: #1a1d24;
+  border-radius: 6px;
+  padding: 0 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 72px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ── Desktop Nav ── */
+.nav {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+}
+
+.navLink {
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: opacity 0.2s ease;
+}
+
+.navLink:hover {
+  opacity: 0.65;
+}
+
+/* ── LOUNGE Dropdown ── */
+.dropdownWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.navDropdownBtn {
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  font-family: inherit;
+  transition: opacity 0.2s ease;
+}
+
+.navDropdownBtn:hover {
+  opacity: 0.65;
+}
+
+.chevron {
+  transition: transform 0.2s ease;
+  margin-top: 1px;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.dropdownMenu {
+  position: absolute;
+  top: calc(100% + 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1d24;
+  border: 1px solid rgba(214, 255, 1, 0.15);
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  animation: dropFade 0.15s ease;
+}
+
+@keyframes dropFade {
+  from { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.dropdownItem {
+  padding: 0.85rem 1.4rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  transition: color 0.15s, background 0.15s;
+}
+
+.dropdownItem:last-child {
+  border-bottom: none;
+}
+
+.dropdownItem:hover {
+  color: var(--accent);
+  background: rgba(214, 255, 1, 0.05);
+}
+
+/* ── Actions (icons) ── */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.bookBtn {
+  display: none;
+}
+
+.icon,
+.cart {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+
+.icon:hover,
+.cart:hover {
+  opacity: 0.65;
+}
+
+.cartBadge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  background: var(--accent);
+  color: #000;
+  font-size: 0.6rem;
+  font-weight: 900;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hamburger {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+/* ── Mobile ── */
+@media (max-width: 1024px) {
+  .nav {
+    display: none;
+  }
+
+  .hamburger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* ── Mobile Nav Panel ── */
+.mobileNav {
+  position: fixed;
+  top: 80px;
+  left: 0;
+  right: 0;
+  z-index: 998;
+  background-color: #121316;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0;
+}
+
+.mobileNavLink {
+  padding: 1rem clamp(1.5rem, 5vw, 5rem);
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  border-bottom: 1px solid var(--border);
+  transition: opacity 0.2s ease;
+  display: block;
+}
+
+.mobileNavLink:last-child {
+  border-bottom: none;
+}
+
+.mobileNavLink:hover {
+  opacity: 0.65;
+}
+
+.mobileNavGroup {
+  border-bottom: 1px solid var(--border);
+}
+
+.mobileNavLabel {
+  display: block;
+  padding: 1rem clamp(1.5rem, 5vw, 5rem) 0.5rem;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.mobileNavSub {
+  display: block;
+  padding: 0.65rem clamp(2.5rem, 7vw, 7rem);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: color 0.2s;
+}
+
+.mobileNavSub:hover {
+  color: var(--accent);
+}

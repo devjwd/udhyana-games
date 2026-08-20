@@ -1,69 +1,75 @@
-@import "tailwindcss";
+:root {
+  /* Backgrounds */
+  --page-bg:      #111111;
+  --surface-1:    #1a1a1a;
+  --surface-2:    #222222;
 
-@layer base {
-  :root {
-    --bg-dark: #07090c;
-    --bg-surface: #0f1319;
-    --bg-card: #141922;
-    --border-color: #1f2a3a;
-    --neon-lime: #39FF14;
-  }
+  /* Borders */
+  --border:       rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
 
-  body {
-    background-color: var(--bg-dark);
-    color: #ffffff;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    overflow-x: hidden;
-  }
-}
+  /* Accent */
+  --accent:       #d6ff01;
+  --accent-hover: #b5d800;
+  --accent-dim:   rgba(214, 255, 1, 0.15);
+  --accent-glow:  rgba(214, 255, 1, 0.40);
 
-/* Custom Utilities for Neon Glows & Aesthetics */
-.neon-border {
-  border: 1px solid rgba(57, 255, 20, 0.3);
-  box-shadow: 0 0 12px rgba(57, 255, 20, 0.2);
-}
+  /* Text */
+  --text-primary:   #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.70);
+  --text-muted:     rgba(255, 255, 255, 0.40);
 
-.neon-border:hover {
-  border-color: rgba(57, 255, 20, 0.8);
-  box-shadow: 0 0 20px rgba(57, 255, 20, 0.5);
-}
+  /* Legacy aliases — keep for components not yet updated */
+  --primary-bg:        var(--surface-1);
+  --primary-accent:    var(--accent);
+  --secondary-accent:  #58bb43;
 
-.neon-glow-btn {
-  background-color: #39FF14;
-  color: #07090c;
-  font-weight: 700;
-  box-shadow: 0 0 15px rgba(57, 255, 20, 0.5);
-  transition: all 0.3s ease;
+  /* Layout */
+  --container:    1280px;
+  --section-pad:  clamp(4rem, 8vw, 8rem) clamp(1.5rem, 5vw, 5rem);
+  --radius-card:  0px; /* Sharp corners for M80 feel */
+  --radius-sm:    0px;
 }
 
-.neon-glow-btn:hover {
-  background-color: #4dfa2c;
-  box-shadow: 0 0 25px rgba(57, 255, 20, 0.85);
-  transform: translateY(-2px);
+*, *::before, *::after {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
 }
 
-.neon-text-glow {
-  text-shadow: 0 0 12px rgba(57, 255, 20, 0.6);
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
-.glass-panel {
-  background: rgba(15, 19, 25, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+body {
+  max-width: 100vw;
+  font-family: var(--font-outfit), sans-serif;
+  background-color: var(--page-bg);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
+a {
+  color: inherit;
+  text-decoration: none;
 }
-::-webkit-scrollbar-track {
-  background: #07090c;
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
 }
-::-webkit-scrollbar-thumb {
-  background: #1f2a3a;
-  border-radius: 4px;
+
+/* ── Utility: section container ── */
+.container {
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: clamp(1.5rem, 5vw, 5rem);
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #39FF14;
+
+section {
+  background-color: var(--page-bg);
+  padding: 4rem clamp(1.5rem, 5vw, 5rem);
 }
