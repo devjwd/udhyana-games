@@ -50,12 +50,7 @@ export async function setExtraControllerRate(rate: number) {
 // ========================
 // USER QUERIES
 // ========================
-export async function getUserByUsername(username: string) {
-  return await prisma.user.findUnique({
-    where: { username },
-    select: { id: true, username: true }
-  });
-}
+
 
 export async function searchUsers(query: string) {
   if (!query || query.length < 2) return [];
@@ -196,37 +191,13 @@ export async function seedInitialData() {
 // ========================
 // USER PROFILE
 // ========================
-export async function getUserProfile(userId: string) {
-  return await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, username: true, fullName: true, email: true, phone: true, rank: true, sessionsCount: true, playtimeHours: true, image: true, status: true }
-  });
-}
+
 
 // ========================
 // USER REGISTRATION & APPROVAL
 // ========================
 
-/** Called from reception dashboard to create a pre-approved walk-in account. */
-export async function registerReceptionUser(username: string, phone?: string) {
-  await requireReceptionAuth();
-  if (!username.trim()) {
-    throw new Error('Username is required.');
-  }
 
-  const user = await prisma.user.create({
-    data: {
-      username: username.trim(),
-      name: username.trim(),
-      fullName: username.trim(),
-      status: 'APPROVED', // Reception-created accounts are immediately active
-      ...(phone ? { phone: phone.trim() } : {})
-    }
-  });
-
-  revalidatePath('/reception');
-  return user;
-}
 
 /** Called from the public sign-up form. Account is PENDING until approved at reception. */
 export async function registerOnlineUser(data: {
@@ -347,47 +318,7 @@ export async function getBookedSlots(consoleId: string, date: string) {
 // ACTIVE SESSIONS (GameSession)
 // ========================
 
-export async function startGameSession(guestName: string, consoleId: string, durationSeconds: number, userId?: string) {
-  await requireReceptionAuth();
-  
-  // Transactional availability check
-  const session = await prisma.$transaction(async (tx) => {
-    const now = new Date();
-    const endTime = new Date(now.getTime() + durationSeconds * 1000);
-    
-    // Check if console is currently active
-    const active = await tx.gameSession.findFirst({
-      where: { consoleId, status: 'ACTIVE' }
-    });
-    
-    if (active) throw new Error('Console is currently occupied.');
-    
-    // Check overlapping bookings
-    const overlappingBooking = await tx.booking.findFirst({
-      where: {
-        consoleId,
-        status: 'CONFIRMED',
-        startTime: { lt: endTime },
-        endTime: { gt: now }
-      }
-    });
-    
-    if (overlappingBooking) throw new Error('Console is booked for this time.');
-    
-    return await tx.gameSession.create({
-      data: {
-        userId: userId || null,
-        guestName,
-        consoleId,
-        endTime,
-        status: 'ACTIVE'
-      }
-    });
-  });
-  
-  revalidatePath('/reception');
-  return session;
-}
+
 
 export async function getActiveSessions() {
   const activeSessions = await prisma.gameSession.findMany({
