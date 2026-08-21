@@ -370,7 +370,7 @@ export default function ReceptionPortal() {
 
     try {
       toast.loading('Processing order...', { id: 'checkout' });
-      await processPosCheckout(
+      const res = await processPosCheckout(
         orderItems, 
         totalAmount, 
         paymentMethod, 
@@ -379,6 +379,10 @@ export default function ReceptionPortal() {
         walkInPhone, 
         existingUserId
       );
+
+      if (res && res.error) {
+        throw new Error(res.error);
+      }
       
       await fetchPending();
       toast.success(`Payment of PKR ${totalAmount} completed via ${paymentMethod}!`, { id: 'checkout' });

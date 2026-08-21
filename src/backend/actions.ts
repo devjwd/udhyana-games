@@ -537,105 +537,109 @@ export async function processPosCheckout(
   walkInPhone?: string,
   existingUserId?: string
 ) {
-  await requireReceptionAuth();
-  
-  const result = await prisma.$transaction(async (tx) => {
-    let userId = existingUserId;
+  try {
+    await requireReceptionAuth();
+    
+    const result = await prisma.$transaction(async (tx) => {
+      let userId = existingUserId;
 
-    if (!userId && walkInName) {
-      let user = await tx.user.findUnique({ where: { username: walkInName.trim() } });
-      if (!user) {
-        user = await tx.user.create({
+      if (!userId && walkInName) {
+        let user = await tx.user.findUnique({ where: { username: walkInName.trim() } });
+        if (!user) {
+          user = await tx.user.create({
+            data: {
+              username: walkInName.trim(),
+              name: walkInName.trim(),
+              fullName: walkInName.trim(),
+              status: 'APPROVED',
+              ...(walkInPhone ? { phone: walkInPhone.trim() } : {})
+            }
+          });
+        }
+        userId = user.id;
+      }
+
+      const now = new Date();
+
+      // Verify all sessions
+      for (const item of sessionItems) {
+        const endTime = new Date(now.getTime() + item.durationSeconds * 1000);
+        
+        const active = await tx.gameSession.findFirst({
+          where: { consoleId: item.consoleId, status: 'ACTIVE' }
+        });
+        if (active) throw new Error(`Console is currently occupied.`);
+        
+        const overlappingBooking = await tx.booking.findFirst({
+          where: {
+            consoleId: item.consoleId,
+            status: 'CONFIRMED',
+            startTime: { lt: endTime },
+            endTime: { gt: now }
+          }
+        });
+        if (overlappingBooking) throw new Error(`Console is booked for this time.`);
+      }
+
+      // Create Order
+      const order = await tx.order.create({
+        data: {
+          userId: userId || null,
+          totalAmount,
+          paymentMethod,
+          items: {
+            create: orderItems.map(item => ({
+              name: item.name,
+              price: item.price,
+              type: item.type,
+              quantity: 1
+            }))
+          }
+        }
+      });
+
+      if (userId) {
+        const pointsEarned = Math.floor(totalAmount / 10);
+        const user = await tx.user.update({
+          where: { id: userId },
+          data: { loyaltyPoints: { increment: pointsEarned } }
+        });
+
+        let newRank = user.rank;
+        if (user.loyaltyPoints > 1000) newRank = 'Elite';
+        else if (user.loyaltyPoints > 500) newRank = 'Pro';
+        else if (user.loyaltyPoints > 100) newRank = 'Regular';
+
+        if (newRank !== user.rank) {
+          await tx.user.update({
+            where: { id: user.id },
+            data: { rank: newRank }
+          });
+        }
+      }
+
+      // Create Sessions
+      for (const item of sessionItems) {
+        const endTime = new Date(now.getTime() + item.durationSeconds * 1000);
+        await tx.gameSession.create({
           data: {
-            username: walkInName.trim(),
-            name: walkInName.trim(),
-            fullName: walkInName.trim(),
-            status: 'APPROVED',
-            ...(walkInPhone ? { phone: walkInPhone.trim() } : {})
+            userId: userId || null,
+            guestName: item.guestName,
+            consoleId: item.consoleId,
+            endTime,
+            status: 'ACTIVE'
           }
         });
       }
-      userId = user.id;
-    }
 
-    const now = new Date();
-
-    // Verify all sessions
-    for (const item of sessionItems) {
-      const endTime = new Date(now.getTime() + item.durationSeconds * 1000);
-      
-      const active = await tx.gameSession.findFirst({
-        where: { consoleId: item.consoleId, status: 'ACTIVE' }
-      });
-      if (active) throw new Error(`Console is currently occupied.`);
-      
-      const overlappingBooking = await tx.booking.findFirst({
-        where: {
-          consoleId: item.consoleId,
-          status: 'CONFIRMED',
-          startTime: { lt: endTime },
-          endTime: { gt: now }
-        }
-      });
-      if (overlappingBooking) throw new Error(`Console is booked for this time.`);
-    }
-
-    // Create Order
-    const order = await tx.order.create({
-      data: {
-        userId: userId || null,
-        totalAmount,
-        paymentMethod,
-        items: {
-          create: orderItems.map(item => ({
-            name: item.name,
-            price: item.price,
-            type: item.type,
-            quantity: 1
-          }))
-        }
-      }
+      return { success: true, orderId: order.id };
     });
 
-    if (userId) {
-      const pointsEarned = Math.floor(totalAmount / 10);
-      const user = await tx.user.update({
-        where: { id: userId },
-        data: { loyaltyPoints: { increment: pointsEarned } }
-      });
-
-      let newRank = user.rank;
-      if (user.loyaltyPoints > 1000) newRank = 'Elite';
-      else if (user.loyaltyPoints > 500) newRank = 'Pro';
-      else if (user.loyaltyPoints > 100) newRank = 'Regular';
-
-      if (newRank !== user.rank) {
-        await tx.user.update({
-          where: { id: user.id },
-          data: { rank: newRank }
-        });
-      }
-    }
-
-    // Create Sessions
-    for (const item of sessionItems) {
-      const endTime = new Date(now.getTime() + item.durationSeconds * 1000);
-      await tx.gameSession.create({
-        data: {
-          userId: userId || null,
-          guestName: item.guestName,
-          consoleId: item.consoleId,
-          endTime,
-          status: 'ACTIVE'
-        }
-      });
-    }
-
-    return { success: true, orderId: order.id };
-  });
-
-  revalidatePath('/reception');
-  return result;
+    revalidatePath('/reception');
+    return result;
+  } catch (error: any) {
+    return { error: error.message || 'An error occurred during checkout.' };
+  }
 }
 
 export async function getRecentSales() {
