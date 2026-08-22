@@ -70,10 +70,10 @@ type CartItem = {
 };
 
 const DEFAULT_SNACKS: SnackItem[] = [
-  { id: '1', name: 'Energy Drink', icon: '⚡', price: 500 },
-  { id: '2', name: 'Soda Can', icon: '🥤', price: 150 },
-  { id: '3', name: 'Chips / Lays', icon: '🥔', price: 200 },
-  { id: '4', name: 'Chocolate', icon: '🍫', price: 300 },
+  { id: '1', name: 'Energy Drink', icon: '', price: 500 },
+  { id: '2', name: 'Soda Can', icon: '', price: 150 },
+  { id: '3', name: 'Chips / Lays', icon: '', price: 200 },
+  { id: '4', name: 'Chocolate', icon: '', price: 300 },
 ];
 
 const INITIAL_SESSIONS: Session[] = [
@@ -190,7 +190,7 @@ export default function ReceptionPortal() {
       if (rem <= 0 && s.status === 'ACTIVE' && !expiredNotified.current.has(s.id)) {
         expiredNotified.current.add(s.id);
         playTimeUpChime();
-        toast.error(`⏰ Time is UP for ${s.console.hardwareTitle} (${s.guestName || s.user?.fullName || s.user?.username})!`, { duration: 6000 });
+        toast.error(`Time expired: ${s.console.hardwareTitle} (${s.guestName || s.user?.fullName || s.user?.username})`, { duration: 6000 });
       }
     });
   };
@@ -383,7 +383,7 @@ export default function ReceptionPortal() {
       toast.success(`Session resumed for ${session.console.hardwareTitle}`);
     } else {
       await pauseGameSession(session.id, remaining);
-      toast(`Session paused for ${session.console.hardwareTitle}`, { icon: '⏸️' });
+      toast.success(`Session paused for ${session.console.hardwareTitle}`);
     }
     await fetchPending();
   };
@@ -579,8 +579,8 @@ export default function ReceptionPortal() {
               <div className={styles.field} style={{ position: 'relative' }}>
                 <label className={styles.label}>
                   Gamer Tag / Name 
-                  {!selectedUserId && formData.name.length > 2 && <span style={{fontSize:'0.7rem', color:'var(--primary-accent)', marginLeft:'0.5rem'}}>(New Account Will Be Created)</span>}
-                  {selectedUserId && <span style={{fontSize:'0.7rem', color:'#c1ff1c', marginLeft:'0.5rem'}}>✓ Existing User</span>}
+                  {!selectedUserId && formData.name.length > 2 && <span style={{fontSize:'0.7rem', color:'var(--primary-accent)', marginLeft:'0.5rem'}}>(New Account)</span>}
+                  {selectedUserId && <span style={{fontSize:'0.7rem', color:'#c1ff1c', marginLeft:'0.5rem'}}>[Verified Member]</span>}
                 </label>
                 <input type="text" name="name" value={formData.name} onChange={handleNameChange} className={styles.input} placeholder="Search by name or phone, or enter new name" required autoComplete="off" />
                 
@@ -723,20 +723,20 @@ export default function ReceptionPortal() {
                         className={`${styles.submitBtn} ${isSelectedConsoleUnavailable ? styles.submitBtnDisabled : ''}`}
                         title={isSelectedConsoleUnavailable ? 'Station is occupied. Use Add to Waitlist instead.' : 'Add to Order'}
                       >
-                        {isSelectedConsoleUnavailable ? '🚫 Station Occupied' : 'Add to Order'}
+                        {isSelectedConsoleUnavailable ? 'Station Occupied' : 'Add to Order'}
                       </button>
                       <button 
                         type="button" 
                         className={`${styles.waitlistBtn} ${isSelectedConsoleUnavailable ? styles.waitlistBtnPrimary : ''}`} 
                         onClick={handleWaitlist}
                       >
-                        {isSelectedConsoleUnavailable ? '⚡ Add to Waitlist' : 'Add to Waitlist'}
+                        Add to Waitlist
                       </button>
                     </div>
 
                     {isSelectedConsoleUnavailable && (
                       <div style={{ fontSize: '0.8rem', color: '#ffb400', marginTop: '0.5rem', textAlign: 'center', background: 'rgba(255, 180, 0, 0.08)', padding: '0.6rem 1rem', borderRadius: '6px', border: '1px dashed rgba(255, 180, 0, 0.3)' }}>
-                        ⚠️ <strong>{selectedConsoleName}</strong> is <strong>{selectedConsoleAvailability.reason}</strong>. Click <strong>Add to Waitlist</strong> to queue the player.
+                        <strong>Station In-Use:</strong> {selectedConsoleName} is {selectedConsoleAvailability.reason}. Use <strong>Add to Waitlist</strong> to queue player.
                       </div>
                     )}
                   </>
@@ -753,7 +753,7 @@ export default function ReceptionPortal() {
             <div className={styles.snackGrid}>
               {snacks.map(snack => (
                 <button key={snack.id} type="button" className={styles.snackBtn} onClick={() => handleAddSnackToCart(snack.name, snack.price)}>
-                  {snack.icon} {snack.name}<br/><span>PKR {snack.price}</span>
+                  {snack.name}<br/><span>PKR {snack.price}</span>
                 </button>
               ))}
             </div>
@@ -797,21 +797,21 @@ export default function ReceptionPortal() {
                     className={`${styles.paymentBtn} ${paymentMethod === 'cash' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setPaymentMethod('cash')}
                   >
-                    💵 Cash
+                    Cash
                   </button>
                   <button 
                     type="button" 
                     className={`${styles.paymentBtn} ${paymentMethod === 'card' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setPaymentMethod('card')}
                   >
-                    💳 Card
+                    Card
                   </button>
                   <button 
                     type="button" 
                     className={`${styles.paymentBtn} ${paymentMethod === 'account' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setPaymentMethod('account')}
                   >
-                    👤 Account
+                    Account
                   </button>
                 </div>
               </div>
@@ -987,10 +987,10 @@ export default function ReceptionPortal() {
                     + Time
                   </button>
                   <button className={`${styles.actionBtn} ${styles.actionBtnWarning}`} onClick={() => handleTogglePause(session)}>
-                    {isPaused ? '▶️ Resume' : '⏸️ Pause'}
+                    {isPaused ? 'Resume' : 'Pause'}
                   </button>
                   <button className={`${styles.actionBtn}`} onClick={() => { setTransferModalSession(session); setTargetTransferConsole(''); }}>
-                    🔄 Transfer
+                    Transfer
                   </button>
                   <button className={`${styles.actionBtn} ${styles.actionBtnDanger}`} onClick={() => handleEndSession(session.id)}>
                     End
@@ -1164,7 +1164,7 @@ export default function ReceptionPortal() {
             </div>
 
             <button type="submit" disabled={isLoggingIn} className={styles.loginBtn}>
-              {isLoggingIn ? 'Authenticating...' : '🔑 Access Reception Portal'}
+              {isLoggingIn ? 'Authenticating...' : 'Access Reception Desk'}
             </button>
 
             {session?.user && (
@@ -1212,7 +1212,7 @@ export default function ReceptionPortal() {
             <span className={styles.staffEmail}>{session?.user?.email}</span>
           </div>
           <button onClick={() => signOut()} className={styles.logoutBtn}>
-            🚪 Log Out / Switch Staff
+            Sign Out Staff Account
           </button>
         </div>
       </aside>
@@ -1255,7 +1255,7 @@ export default function ReceptionPortal() {
               </div>
 
               <div style={{ textAlign: 'center', marginBottom: '2rem', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', fontSize: '1.1rem', textTransform: 'capitalize' }}>
-                Payment Method: <strong style={{ color: 'var(--primary-accent)' }}>{paymentMethod === 'card' ? '💳 Card' : paymentMethod === 'cash' ? '💵 Cash' : '👤 Account'}</strong>
+                Payment Method: <strong style={{ color: 'var(--primary-accent)' }}>{paymentMethod}</strong>
               </div>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1281,7 +1281,7 @@ export default function ReceptionPortal() {
                   onClick={() => handlePrintReceipt()} 
                   style={{ background: 'rgba(255,255,255,0.08)', color: 'white', padding: '0.85rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' }}
                 >
-                  🖨️ Print Receipt / Slip
+                  Print Receipt / Slip
                 </button>
 
                 <button 
@@ -1333,21 +1333,21 @@ export default function ReceptionPortal() {
                     className={`${styles.paymentBtn} ${checkInPaymentMethod === 'cash' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setCheckInPaymentMethod('cash')}
                   >
-                    💵 Cash
+                    Cash
                   </button>
                   <button 
                     type="button" 
                     className={`${styles.paymentBtn} ${checkInPaymentMethod === 'card' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setCheckInPaymentMethod('card')}
                   >
-                    💳 Card
+                    Card
                   </button>
                   <button 
                     type="button" 
                     className={`${styles.paymentBtn} ${checkInPaymentMethod === 'account' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setCheckInPaymentMethod('account')}
                   >
-                    👤 Account
+                    Account
                   </button>
                 </div>
               </div>
@@ -1358,7 +1358,7 @@ export default function ReceptionPortal() {
                   disabled={isCheckingIn}
                   className={styles.submitBtn}
                 >
-                  {isCheckingIn ? 'Activating Station...' : '✅ Mark Paid & Activate Station'}
+                  {isCheckingIn ? 'Activating Station...' : 'Confirm Payment & Start Session'}
                 </button>
                 <button 
                   type="button"
@@ -1400,7 +1400,7 @@ export default function ReceptionPortal() {
                       const avail = checkConsoleAvailability(c.id, 1800);
                       return (
                         <option key={c.id} value={c.id} disabled={!avail.available}>
-                          {c.name} {!avail.available ? `(${avail.reason})` : '✓ Available'}
+                          {c.name} {!avail.available ? `(${avail.reason})` : '(Available)'}
                         </option>
                       );
                     })
@@ -1415,7 +1415,7 @@ export default function ReceptionPortal() {
                   className={styles.submitBtn}
                   style={{ background: '#ffb400', color: '#000' }}
                 >
-                  {isTransferring ? 'Moving Station...' : '🔄 Confirm Transfer'}
+                  {isTransferring ? 'Moving Station...' : 'Confirm Station Transfer'}
                 </button>
                 <button 
                   type="button"

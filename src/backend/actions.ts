@@ -207,10 +207,10 @@ export async function seedInitialData() {
   if (snacks === 0) {
     await prisma.snack.createMany({
       data: [
-        { name: 'Energy Drink', icon: '⚡', price: 500 },
-        { name: 'Soda Can', icon: '🥤', price: 150 },
-        { name: 'Chips / Lays', icon: '🥔', price: 200 },
-        { name: 'Chocolate', icon: '🍫', price: 300 },
+        { name: 'Energy Drink', icon: '', price: 500 },
+        { name: 'Soda Can', icon: '', price: 150 },
+        { name: 'Chips / Lays', icon: '', price: 200 },
+        { name: 'Chocolate', icon: '', price: 300 },
       ]
     });
   }
