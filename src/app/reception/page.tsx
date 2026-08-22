@@ -222,8 +222,18 @@ export default function ReceptionPortal() {
 
   const checkConsoleAvailability = (consoleId: string, durationSeconds: number) => {
     // 1. Check active sessions (Walk-ins with valid remaining time)
-    const isActive = dbSessions.some(s => s.consoleId === consoleId && getRemainingSeconds(s.endTime) > 0);
-    if (isActive) return { available: false, reason: 'OCCUPIED' };
+    const activeSession = dbSessions.find(s => s.consoleId === consoleId && getRemainingSeconds(s.endTime) > 0);
+    if (activeSession) {
+      const remSec = getRemainingSeconds(activeSession.endTime);
+      const minsLeft = Math.ceil(remSec / 60);
+      return { 
+        available: false, 
+        reason: `OCCUPIED (${minsLeft}m left)`,
+        remainingSeconds: remSec,
+        isOccupied: true,
+        isReserved: false
+      };
+    }
 
     // 2. Check upcoming online bookings
     const now = new Date();
@@ -238,10 +248,15 @@ export default function ReceptionPortal() {
     if (overlappingBooking) {
       const bStart = new Date(overlappingBooking.startTime);
       const timeStr = bStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      return { available: false, reason: `RESERVED AT ${timeStr}` };
+      return { 
+        available: false, 
+        reason: `RESERVED AT ${timeStr}`,
+        isOccupied: false,
+        isReserved: true 
+      };
     }
 
-    return { available: true, reason: '' };
+    return { available: true, reason: '', isOccupied: false, isReserved: false };
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -278,14 +293,7 @@ export default function ReceptionPortal() {
     const availability = checkConsoleAvailability(formData.consoleId, durationObj.seconds);
     if (!availability.available) {
       const selectedConsoleName = consoles.find(c => c.id === formData.consoleId)?.name || 'Any Console';
-      
-      if (confirm(`Cannot start session: ${availability.reason}. Do you want to add ${formData.name} to the waitlist instead?`)) {
-        await addWaitlistEntry(formData.name, selectedConsoleName);
-        await fetchPending();
-        setFormData({ name: '', phone: '', consoleId: '', duration: '3600', additionalControllers: 0, payment: 'card' });
-        setGameSearchQuery('');
-        return;
-      }
+      toast.error(`Cannot start session: ${availability.reason}. Use 'Add to Waitlist' instead.`);
       return;
     }
 
@@ -515,16 +523,30 @@ export default function ReceptionPortal() {
                 <div className={styles.gridOptions}>
                   {consoles.map(c => {
                     const durationObj = DURATIONS.find(d => d.id === formData.duration);
-                    const availability = durationObj ? checkConsoleAvailability(c.id, durationObj.seconds) : { available: true, reason: '' };
+                    const availability = durationObj ? checkConsoleAvailability(c.id, durationObj.seconds) : { available: true, reason: '', isOccupied: false, isReserved: false };
                     const isAvailable = availability.available;
+                    const isSelected = formData.consoleId === c.id;
                     
                     const hasGame = gameSearchQuery.trim() !== '' 
                       ? c.games.some(g => g.toLowerCase().includes(gameSearchQuery.toLowerCase()))
                       : false;
 
                     let btnClass = styles.optionBtn;
-                    if (formData.consoleId === c.id) btnClass += ' ' + styles.optionBtnActive;
-                    else if (!isAvailable) btnClass += ' ' + styles.optionBtnDisabled;
+                    if (isSelected) {
+                      if (availability.isOccupied) {
+                        btnClass += ' ' + styles.optionBtnOccupiedActive;
+                      } else if (availability.isReserved) {
+                        btnClass += ' ' + styles.optionBtnReservedActive;
+                      } else {
+                        btnClass += ' ' + styles.optionBtnActive;
+                      }
+                    } else {
+                      if (availability.isOccupied) {
+                        btnClass += ' ' + styles.optionBtnOccupied;
+                      } else if (availability.isReserved) {
+                        btnClass += ' ' + styles.optionBtnReserved;
+                      }
+                    }
 
                     return (
                       <button 
@@ -532,13 +554,24 @@ export default function ReceptionPortal() {
                         type="button" 
                         className={btnClass}
                         onClick={() => setFormData({ ...formData, consoleId: c.id })}
-                        disabled={!isAvailable}
                       >
                         {c.name.split(' - ')[0]}<br/><span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{c.name.split(' - ')[1]}</span>
-                        {!isAvailable && <span style={{ fontSize: '0.65rem', color: '#ff4d4d', marginTop: '0.25rem', fontWeight: 900 }}>{availability.reason}</span>}
+                        {!isAvailable && (
+                          <span style={{ 
+                            fontSize: '0.65rem', 
+                            color: availability.isOccupied ? '#ff4d4d' : '#60a5fa', 
+                            marginTop: '0.25rem', 
+                            fontWeight: 900,
+                            background: availability.isOccupied ? 'rgba(255, 77, 77, 0.15)' : 'rgba(96, 165, 250, 0.15)',
+                            padding: '0.1rem 0.4rem',
+                            borderRadius: '3px'
+                          }}>
+                            {availability.reason}
+                          </span>
+                        )}
                         {hasGame && <span style={{ fontSize: '0.65rem', color: 'var(--primary-accent)', marginTop: '0.25rem', fontWeight: 900 }}>GAME FOUND</span>}
                       </button>
-                    )
+                    );
                   })}
                 </div>
               </div>
@@ -575,10 +608,42 @@ export default function ReceptionPortal() {
                 </div>
               </div>
 
-              <div className={styles.btnGroup}>
-                <button type="submit" className={styles.submitBtn}>Add to Order</button>
-                <button type="button" className={styles.waitlistBtn} onClick={handleWaitlist}>Add to Waitlist</button>
-              </div>
+              {(() => {
+                const selectedDurationObj = DURATIONS.find(d => d.id === formData.duration);
+                const selectedConsoleAvailability = formData.consoleId && selectedDurationObj
+                  ? checkConsoleAvailability(formData.consoleId, selectedDurationObj.seconds)
+                  : { available: true, reason: '', isOccupied: false, isReserved: false };
+                const isSelectedConsoleUnavailable = formData.consoleId ? !selectedConsoleAvailability.available : false;
+                const selectedConsoleName = consoles.find(c => c.id === formData.consoleId)?.name || 'Selected Station';
+
+                return (
+                  <>
+                    <div className={styles.btnGroup}>
+                      <button 
+                        type="submit" 
+                        disabled={isSelectedConsoleUnavailable}
+                        className={`${styles.submitBtn} ${isSelectedConsoleUnavailable ? styles.submitBtnDisabled : ''}`}
+                        title={isSelectedConsoleUnavailable ? 'Station is occupied. Use Add to Waitlist instead.' : 'Add to Order'}
+                      >
+                        {isSelectedConsoleUnavailable ? '🚫 Station Occupied' : 'Add to Order'}
+                      </button>
+                      <button 
+                        type="button" 
+                        className={`${styles.waitlistBtn} ${isSelectedConsoleUnavailable ? styles.waitlistBtnPrimary : ''}`} 
+                        onClick={handleWaitlist}
+                      >
+                        {isSelectedConsoleUnavailable ? '⚡ Add to Waitlist' : 'Add to Waitlist'}
+                      </button>
+                    </div>
+
+                    {isSelectedConsoleUnavailable && (
+                      <div style={{ fontSize: '0.8rem', color: '#ffb400', marginTop: '0.5rem', textAlign: 'center', background: 'rgba(255, 180, 0, 0.08)', padding: '0.6rem 1rem', borderRadius: '6px', border: '1px dashed rgba(255, 180, 0, 0.3)' }}>
+                        ⚠️ <strong>{selectedConsoleName}</strong> is <strong>{selectedConsoleAvailability.reason}</strong>. Click <strong>Add to Waitlist</strong> to queue the player.
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </form>
           </div>
 
