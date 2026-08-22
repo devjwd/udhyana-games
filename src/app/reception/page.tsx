@@ -4,12 +4,14 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSession, signIn, signOut } from 'next-auth/react';
 import styles from './page.module.css';
 import { 
   getPendingUsers, getUpcomingBookings, getActiveSessions, getRecentSales, getWaitlist,
   getSnacks, getConsoles, getBaseHourlyRate, getExtraControllerRate,
   approveUser, addWaitlistEntry, endGameSession, addTimeToSession, 
-  processPosCheckout, searchUsers, removeWaitlistEntry, assignWaitlistEntry
+  processPosCheckout, searchUsers, removeWaitlistEntry, assignWaitlistEntry,
+  seedAdminUser
 } from '@/backend/actions';
 import { Toaster, toast } from 'react-hot-toast';
 
@@ -117,7 +119,15 @@ export default function ReceptionPortal() {
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
   const [upcomingBookings, setUpcomingBookings] = useState<any[]>([]);
   const [dbWaitlist, setDbWaitlist] = useState<any[]>([]);
+  const { data: session, status: authStatus } = useSession();
+  const [loginEmail, setLoginEmail] = useState('devjwdo@gmail.com');
+  const [loginPassword, setLoginPassword] = useState('Matta1234cad');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isStaff = session?.user && ((session.user as any).role === 'ADMIN' || (session.user as any).role === 'RECEPTIONIST');
 
   const DURATIONS = [
     { id: '1800', name: `30 Mins (PKR ${baseRate * 0.5})`, seconds: 1800, price: baseRate * 0.5 },
@@ -143,6 +153,7 @@ export default function ReceptionPortal() {
 
   useEffect(() => {
     async function loadData() {
+      await seedAdminUser();
       const [rate, extraRate, fetchedSnacks, fetchedConsoles] = await Promise.all([
         getBaseHourlyRate(),
         getExtraControllerRate(),
@@ -404,6 +415,35 @@ export default function ReceptionPortal() {
   const handleRemoveWaitlist = async (id: string) => {
     await removeWaitlistEntry(id);
     await fetchPending();
+  };
+
+  const handleStaffLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    setIsLoggingIn(true);
+    try {
+      await seedAdminUser();
+      const result = await signIn('credentials', {
+        redirect: false,
+        username: loginEmail.trim(),
+        password: loginPassword,
+      });
+
+      if (result?.ok) {
+        toast.success('Logged in to Reception Desk!');
+        await fetchPending();
+      } else {
+        if (result?.error === 'PENDING') {
+          setLoginError('This account is pending verification and cannot access reception.');
+        } else {
+          setLoginError('Invalid credentials. Please verify email and password.');
+        }
+      }
+    } catch (err: any) {
+      setLoginError(err?.message || 'Login failed. Please try again.');
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   const handleAssignWaitlist = async (waiter: any) => {
@@ -839,6 +879,107 @@ export default function ReceptionPortal() {
     </div>
   );
 
+  if (authStatus === 'loading') {
+    return (
+      <div className={styles.loginContainer}>
+        <div className={styles.loadingSpinner}></div>
+      </div>
+    );
+  }
+
+  if (!isStaff) {
+    return (
+      <div className={styles.loginContainer}>
+        <Toaster position="top-right" />
+        <div className={styles.loginCard}>
+          <div className={styles.loginHeader}>
+            <h1 className={styles.loginBrand}>M80 // Reception</h1>
+            <p className={styles.loginSubtitle}>Staff & Admin Portal Authentication</p>
+          </div>
+
+          <div className={styles.credHintBox}>
+            <div className={styles.credHintTitle}>
+              <span>Default Admin Access</span>
+              <button 
+                type="button" 
+                className={styles.autofillBtn}
+                onClick={() => {
+                  setLoginEmail('devjwdo@gmail.com');
+                  setLoginPassword('Matta1234cad');
+                }}
+              >
+                Autofill
+              </button>
+            </div>
+            <div className={styles.credHintDetails}>
+              Email: <strong>devjwdo@gmail.com</strong><br />
+              Password: <strong>Matta1234cad</strong>
+            </div>
+          </div>
+
+          {session?.user && (
+            <div className={styles.loginError} style={{ borderColor: 'rgba(255, 180, 0, 0.4)', background: 'rgba(255, 180, 0, 0.1)', color: '#ffb400' }}>
+              Logged in as <strong>{session.user.name || session.user.email}</strong> (Role: {(session.user as any).role || 'USER'}).<br />
+              This account does not have Receptionist or Admin privileges.
+            </div>
+          )}
+
+          {loginError && <div className={styles.loginError}>{loginError}</div>}
+
+          <form onSubmit={handleStaffLogin} className={styles.form}>
+            <div className={styles.field}>
+              <label className={styles.label}>Staff Email / Gamer Tag</label>
+              <input
+                type="text"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                className={styles.input}
+                placeholder="e.g. devjwdo@gmail.com"
+                required
+              />
+            </div>
+
+            <div className={styles.field}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label className={styles.label}>Password</label>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', cursor: 'pointer' }}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className={styles.input}
+                placeholder="Enter password"
+                required
+              />
+            </div>
+
+            <button type="submit" disabled={isLoggingIn} className={styles.loginBtn}>
+              {isLoggingIn ? 'Authenticating...' : '🔑 Access Reception Portal'}
+            </button>
+
+            {session?.user && (
+              <button
+                type="button"
+                onClick={() => signOut()}
+                className={styles.logoutBtn}
+                style={{ marginTop: '0.5rem' }}
+              >
+                Sign Out Current Account
+              </button>
+            )}
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.container}>
       <Toaster position="top-right" />
@@ -860,6 +1001,17 @@ export default function ReceptionPortal() {
             Data Dashboard
           </div>
         </nav>
+
+        <div className={styles.sidebarFooter}>
+          <div className={styles.staffInfo}>
+            <span className={styles.staffRole}>{(session?.user as any)?.role || 'STAFF'}</span>
+            <span className={styles.staffName}>{session?.user?.name || session?.user?.email}</span>
+            <span className={styles.staffEmail}>{session?.user?.email}</span>
+          </div>
+          <button onClick={() => signOut()} className={styles.logoutBtn}>
+            🚪 Log Out / Switch Staff
+          </button>
+        </div>
       </aside>
 
       <main className={styles.main}>

@@ -160,7 +160,49 @@ export async function toggleConsoleGame(consoleId: string, gameName: string) {
   revalidatePath('/reception');
 }
 
+export async function seedAdminUser() {
+  const adminEmail = 'devjwdo@gmail.com';
+  const hashedPassword = await bcrypt.hash('Matta1234cad', 10);
+
+  const existingAdmin = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: adminEmail },
+        { username: 'devjwdo' }
+      ]
+    }
+  });
+
+  if (!existingAdmin) {
+    await prisma.user.create({
+      data: {
+        email: adminEmail,
+        username: 'devjwdo',
+        fullName: 'Admin',
+        name: 'Admin',
+        password: hashedPassword,
+        role: 'ADMIN',
+        status: 'APPROVED',
+        rank: 'Elite'
+      }
+    });
+  } else {
+    // Ensure admin credentials and role are always active
+    await prisma.user.update({
+      where: { id: existingAdmin.id },
+      data: {
+        email: adminEmail,
+        role: 'ADMIN',
+        status: 'APPROVED',
+        password: hashedPassword
+      }
+    });
+  }
+}
+
 export async function seedInitialData() {
+  await seedAdminUser();
+
   const snacks = await prisma.snack.count();
   if (snacks === 0) {
     await prisma.snack.createMany({
