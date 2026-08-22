@@ -962,3 +962,205 @@ export async function getAnalyticsData() {
     revenueByDay: Object.entries(revenueByDay).map(([date, amount]) => ({ date, amount }))
   };
 }
+
+// ========================
+// RECEPTION ADVANCED ACTIONS
+// ========================
+
+export async function checkInOnlineBooking(bookingId: string, paymentMethod: string = 'card') {
+  await requireReceptionAuth();
+  
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { user: true, console: true }
+  });
+
+  if (!booking || booking.status !== 'CONFIRMED') {
+    return { error: 'Booking not found or not in confirmed status.' };
+  }
+
+  const now = new Date();
+  const durationMs = booking.endTime.getTime() - booking.startTime.getTime();
+  const durationSeconds = Math.max(1800, Math.floor(durationMs / 1000));
+  const durationHours = durationSeconds / 3600;
+
+  const baseRate = await getBaseHourlyRate();
+  const totalAmount = Math.round(durationHours * baseRate);
+
+  // Check if console is currently occupied
+  const activeSession = await prisma.gameSession.findFirst({
+    where: { consoleId: booking.consoleId, status: 'ACTIVE', endTime: { gt: now } }
+  });
+
+  if (activeSession) {
+    return { error: `Cannot check in: Station ${booking.console.hardwareTitle} is currently occupied.` };
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    // 1. Create order
+    const order = await tx.order.create({
+      data: {
+        userId: booking.userId,
+        totalAmount,
+        paymentMethod,
+        items: {
+          create: [{
+            name: `${booking.user.fullName || booking.user.username} - ${durationHours} Hr Booking`,
+            price: totalAmount,
+            type: 'session',
+            quantity: 1
+          }]
+        }
+      }
+    });
+
+    // 2. Spawn GameSession
+    const sessionEndTime = new Date(now.getTime() + durationSeconds * 1000);
+    const session = await tx.gameSession.create({
+      data: {
+        userId: booking.userId,
+        guestName: booking.user.fullName || booking.user.username,
+        consoleId: booking.consoleId,
+        startTime: now,
+        endTime: sessionEndTime,
+        status: 'ACTIVE'
+      }
+    });
+
+    // 3. Mark booking COMPLETED
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: { status: 'COMPLETED' }
+    });
+
+    // 4. Update user loyalty points
+    const pointsEarned = Math.floor(totalAmount / 10);
+    await tx.user.update({
+      where: { id: booking.userId },
+      data: { loyaltyPoints: { increment: pointsEarned } }
+    });
+
+    return { success: true, sessionId: session.id, orderId: order.id };
+  });
+
+  revalidatePath('/reception');
+  return result;
+}
+
+export async function transferGameSession(sessionId: string, newConsoleId: string) {
+  await requireReceptionAuth();
+
+  const session = await prisma.gameSession.findUnique({
+    where: { id: sessionId },
+    include: { console: true }
+  });
+
+  if (!session || (session.status !== 'ACTIVE' && session.status !== 'PAUSED')) {
+    return { error: 'Active session not found.' };
+  }
+
+  if (session.consoleId === newConsoleId) {
+    return { error: 'Session is already on this station.' };
+  }
+
+  const now = new Date();
+  // Check if destination station is occupied
+  const destActive = await prisma.gameSession.findFirst({
+    where: { consoleId: newConsoleId, status: 'ACTIVE', endTime: { gt: now } }
+  });
+
+  if (destActive) {
+    return { error: 'Target station is currently occupied.' };
+  }
+
+  // Ensure target console exists in database
+  const destConsole = await prisma.console.findUnique({ where: { id: newConsoleId } });
+  if (!destConsole) {
+    await txCreateConsole(newConsoleId);
+  }
+
+  const updated = await prisma.gameSession.update({
+    where: { id: sessionId },
+    data: { consoleId: newConsoleId }
+  });
+
+  revalidatePath('/reception');
+  return { success: true, session: updated };
+}
+
+async function txCreateConsole(consoleId: string) {
+  await prisma.console.create({
+    data: { id: consoleId, hardwareTitle: consoleId.toUpperCase() }
+  });
+}
+
+export async function pauseGameSession(sessionId: string, remainingSeconds: number) {
+  await requireReceptionAuth();
+
+  const updated = await prisma.gameSession.update({
+    where: { id: sessionId },
+    data: { 
+      status: 'PAUSED',
+      endTime: new Date(Date.now() + remainingSeconds * 1000)
+    }
+  });
+
+  revalidatePath('/reception');
+  return { success: true, session: updated };
+}
+
+export async function resumeGameSession(sessionId: string, remainingSeconds: number) {
+  await requireReceptionAuth();
+
+  const newEndTime = new Date(Date.now() + remainingSeconds * 1000);
+  const updated = await prisma.gameSession.update({
+    where: { id: sessionId },
+    data: {
+      status: 'ACTIVE',
+      endTime: newEndTime
+    }
+  });
+
+  revalidatePath('/reception');
+  return { success: true, session: updated };
+}
+
+export async function getDailyShiftSummary() {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date();
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const todayOrders = await prisma.order.findMany({
+    where: {
+      createdAt: { gte: startOfDay, lte: endOfDay }
+    },
+    include: { items: true }
+  });
+
+  let cashTotal = 0;
+  let cardTotal = 0;
+  let accountTotal = 0;
+  let grandTotal = 0;
+
+  todayOrders.forEach(o => {
+    grandTotal += o.totalAmount;
+    if (o.paymentMethod === 'cash') cashTotal += o.totalAmount;
+    else if (o.paymentMethod === 'card') cardTotal += o.totalAmount;
+    else accountTotal += o.totalAmount;
+  });
+
+  const activeSessionsCount = await prisma.gameSession.count({
+    where: { status: 'ACTIVE', endTime: { gt: new Date() } }
+  });
+
+  return {
+    grandTotal,
+    cashTotal,
+    cardTotal,
+    accountTotal,
+    orderCount: todayOrders.length,
+    activeSessionsCount
+  };
+}

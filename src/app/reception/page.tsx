@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/purity */
 /* eslint-disable react-hooks/set-state-in-effect */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import styles from './page.module.css';
@@ -11,7 +11,8 @@ import {
   getSnacks, getConsoles, getBaseHourlyRate, getExtraControllerRate,
   approveUser, addWaitlistEntry, endGameSession, addTimeToSession, 
   processPosCheckout, searchUsers, removeWaitlistEntry, assignWaitlistEntry,
-  seedAdminUser
+  seedAdminUser, checkInOnlineBooking, transferGameSession, pauseGameSession, resumeGameSession,
+  getDailyShiftSummary
 } from '@/backend/actions';
 import { Toaster, toast } from 'react-hot-toast';
 
@@ -127,6 +128,16 @@ export default function ReceptionPortal() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Advanced features state
+  const [shiftSummary, setShiftSummary] = useState<any>(null);
+  const [transferModalSession, setTransferModalSession] = useState<any>(null);
+  const [targetTransferConsole, setTargetTransferConsole] = useState('');
+  const [checkInModalBooking, setCheckInModalBooking] = useState<any>(null);
+  const [checkInPaymentMethod, setCheckInPaymentMethod] = useState('card');
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const [isTransferring, setIsTransferring] = useState(false);
+  const expiredNotified = useRef<Set<string>>(new Set());
+
   const isStaff = session?.user && ((session.user as any).role === 'ADMIN' || (session.user as any).role === 'RECEPTIONIST');
 
   const DURATIONS = [
@@ -136,19 +147,52 @@ export default function ReceptionPortal() {
     { id: '10800', name: `3 Hours (PKR ${baseRate * 3})`, seconds: 10800, price: baseRate * 3 },
   ];
 
+  const playTimeUpChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.6);
+    } catch (err) {
+      // Browser autoplay policy might silence initial audio until user clicks
+    }
+  };
+
   const fetchPending = async () => {
-    const [users, bookings, activeSess, sales, wl] = await Promise.all([
+    const [users, bookings, activeSess, sales, wl, shift] = await Promise.all([
       getPendingUsers(),
       getUpcomingBookings(),
       getActiveSessions(),
       getRecentSales(),
-      getWaitlist()
+      getWaitlist(),
+      getDailyShiftSummary()
     ]);
     setPendingUsers(users);
     setUpcomingBookings(bookings);
     setDbSessions(activeSess);
     setRecentSales(sales);
     setDbWaitlist(wl);
+    setShiftSummary(shift);
+
+    // Check for expired sessions and play audio chime
+    activeSess.forEach((s: any) => {
+      const rem = getRemainingSeconds(s.endTime);
+      if (rem <= 0 && s.status === 'ACTIVE' && !expiredNotified.current.has(s.id)) {
+        expiredNotified.current.add(s.id);
+        playTimeUpChime();
+        toast.error(`⏰ Time is UP for ${s.console.hardwareTitle} (${s.guestName || s.user?.fullName || s.user?.username})!`, { duration: 6000 });
+      }
+    });
   };
 
   useEffect(() => {
@@ -329,6 +373,59 @@ export default function ReceptionPortal() {
     await fetchPending();
     setFormData({ name: '', phone: '', consoleId: '', duration: '3600', additionalControllers: 0, payment: 'card' });
     setGameSearchQuery('');
+  };
+
+  const handleTogglePause = async (session: any) => {
+    const remaining = getRemainingSeconds(session.endTime);
+    if (session.status === 'PAUSED') {
+      await resumeGameSession(session.id, remaining);
+      toast.success(`Session resumed for ${session.console.hardwareTitle}`);
+    } else {
+      await pauseGameSession(session.id, remaining);
+      toast(`Session paused for ${session.console.hardwareTitle}`, { icon: '⏸️' });
+    }
+    await fetchPending();
+  };
+
+  const handleCheckInSubmit = async () => {
+    if (!checkInModalBooking) return;
+    setIsCheckingIn(true);
+    try {
+      const res = await checkInOnlineBooking(checkInModalBooking.id, checkInPaymentMethod);
+      if (res && 'error' in res && res.error) {
+        throw new Error(res.error);
+      }
+      toast.success(`Booking checked in! Station activated.`);
+      setCheckInModalBooking(null);
+      await fetchPending();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to check in booking.');
+    } finally {
+      setIsCheckingIn(false);
+    }
+  };
+
+  const handleTransferSubmit = async () => {
+    if (!transferModalSession || !targetTransferConsole) return;
+    setIsTransferring(true);
+    try {
+      const res = await transferGameSession(transferModalSession.id, targetTransferConsole);
+      if (res && 'error' in res && res.error) {
+        throw new Error(res.error);
+      }
+      toast.success('Session transferred successfully!');
+      setTransferModalSession(null);
+      setTargetTransferConsole('');
+      await fetchPending();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to transfer station.');
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
+  const handlePrintReceipt = () => {
+    window.print();
   };
 
   const handleEndSession = async (id: string) => {
@@ -737,6 +834,30 @@ export default function ReceptionPortal() {
 
   const renderDataTab = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      {/* Shift Summary KPIs */}
+      <div className={styles.kpiGrid}>
+        <div className={styles.kpiCard}>
+          <span className={styles.kpiLabel}>Today's Revenue</span>
+          <span className={styles.kpiValue} style={{ color: 'var(--primary-accent)' }}>PKR {shiftSummary?.grandTotal || 0}</span>
+          <span className={styles.kpiSub}>{shiftSummary?.orderCount || 0} Total Orders</span>
+        </div>
+        <div className={styles.kpiCard}>
+          <span className={styles.kpiLabel}>Cash In Register</span>
+          <span className={styles.kpiValue}>PKR {shiftSummary?.cashTotal || 0}</span>
+          <span className={styles.kpiSub}>Drawer Balance</span>
+        </div>
+        <div className={styles.kpiCard}>
+          <span className={styles.kpiLabel}>Card Payments</span>
+          <span className={styles.kpiValue}>PKR {shiftSummary?.cardTotal || 0}</span>
+          <span className={styles.kpiSub}>POS Terminal</span>
+        </div>
+        <div className={styles.kpiCard}>
+          <span className={styles.kpiLabel}>Active Occupancy</span>
+          <span className={styles.kpiValue} style={{ color: '#60a5fa' }}>{dbSessions.length} / {consoles.length}</span>
+          <span className={styles.kpiSub}>Stations In-Use</span>
+        </div>
+      </div>
+
       {/* Pending Approvals Panel */}
       <div className={styles.panel}>
         <h2 className={styles.panelHeader} style={{ borderColor: 'var(--primary-accent)', color: 'var(--primary-accent)' }}>Pending Account Approvals</h2>
@@ -781,6 +902,7 @@ export default function ReceptionPortal() {
               <th className={styles.th}>Station</th>
               <th className={styles.th}>Time</th>
               <th className={styles.th}>Status</th>
+              <th className={styles.th}>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -811,12 +933,20 @@ export default function ReceptionPortal() {
                       {b.status}
                     </span>
                   </td>
+                  <td className={styles.td}>
+                    <button 
+                      className={styles.checkinBtn} 
+                      onClick={() => setCheckInModalBooking(b)}
+                    >
+                      Check-In & Start
+                    </button>
+                  </td>
                 </tr>
               );
             })}
             {upcomingBookings.length === 0 && (
               <tr>
-                <td colSpan={4} style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.5)' }}>No upcoming reservations.</td>
+                <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.5)' }}>No upcoming reservations.</td>
               </tr>
             )}
           </tbody>
@@ -829,14 +959,15 @@ export default function ReceptionPortal() {
         <div className={styles.sessionGrid}>
           {dbSessions.map(session => {
             const remainingSeconds = getRemainingSeconds(session.endTime);
-            const status = getStatus(remainingSeconds);
-            const isDanger = remainingSeconds <= 0;
+            const status = session.status === 'PAUSED' ? 'Paused' : getStatus(remainingSeconds);
+            const isDanger = remainingSeconds <= 0 && session.status !== 'PAUSED';
+            const isPaused = session.status === 'PAUSED';
 
             return (
               <div key={session.id} className={`${styles.sessionCard} ${isDanger ? styles.sessionCardDanger : ''}`}>
                 <div className={styles.sessionCardHeader}>
                   <h3 style={{ margin: 0 }}>{session.console.hardwareTitle}</h3>
-                  <span className={isDanger ? styles.statusDanger : styles.statusActive}>
+                  <span className={isPaused ? styles.statusPaused : isDanger ? styles.statusDanger : styles.statusActive}>
                     {status}
                   </span>
                 </div>
@@ -850,12 +981,18 @@ export default function ReceptionPortal() {
                   {formatTime(remainingSeconds)}
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                  <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => handleAddTime(session.id)} style={{ flex: 1 }}>
+                <div className={styles.sessionControls}>
+                  <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => handleAddTime(session.id)}>
                     + Time
                   </button>
-                  <button className={`${styles.actionBtn} ${styles.actionBtnDanger}`} onClick={() => handleEndSession(session.id)} style={{ flex: 1 }}>
-                    Checkout
+                  <button className={`${styles.actionBtn} ${styles.actionBtnWarning}`} onClick={() => handleTogglePause(session)}>
+                    {isPaused ? '▶️ Resume' : '⏸️ Pause'}
+                  </button>
+                  <button className={`${styles.actionBtn}`} onClick={() => { setTransferModalSession(session); setTargetTransferConsole(''); }}>
+                    🔄 Transfer
+                  </button>
+                  <button className={`${styles.actionBtn} ${styles.actionBtnDanger}`} onClick={() => handleEndSession(session.id)}>
+                    End
                   </button>
                 </div>
               </div>
@@ -1137,12 +1274,155 @@ export default function ReceptionPortal() {
                 >
                   {isSubmitting ? 'Processing Order...' : 'Mark as Paid & Confirm'}
                 </button>
+                
+                <button 
+                  type="button"
+                  onClick={() => handlePrintReceipt()} 
+                  style={{ background: 'rgba(255,255,255,0.08)', color: 'white', padding: '0.85rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  🖨️ Print Receipt / Slip
+                </button>
+
                 <button 
                   onClick={() => setIsSlipModalOpen(false)} 
                   disabled={isSubmitting}
-                  style={{ background: 'transparent', color: 'white', padding: '1rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', fontSize: '1rem', fontWeight: 600, cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
+                  style={{ background: 'transparent', color: 'white', padding: '0.85rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', fontSize: '1rem', fontWeight: 600, cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
                 >
                   Cancel / Return
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Check-In Reservation Modal */}
+        {checkInModalBooking && (
+          <div className={styles.modalOverlay}>
+            <div className={styles.modalContent}>
+              <h2 style={{ fontSize: '1.75rem', marginBottom: '1.5rem', textAlign: 'center', color: '#60a5fa' }}>
+                Check-In Reservation
+              </h2>
+
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', padding: '1.5rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Player Name:</span>
+                  <strong>{checkInModalBooking.user.fullName || checkInModalBooking.user.username}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Station:</span>
+                  <strong>{checkInModalBooking.console.hardwareTitle}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Reserved Time:</span>
+                  <span>{new Date(checkInModalBooking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.75rem', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                  <span>Total Due:</span>
+                  <span style={{ color: 'var(--primary-accent)' }}>
+                    PKR {Math.round(((new Date(checkInModalBooking.endTime).getTime() - new Date(checkInModalBooking.startTime).getTime()) / (1000 * 3600)) * baseRate)}
+                  </span>
+                </div>
+              </div>
+
+              <div className={styles.field} style={{ marginBottom: '1.5rem' }}>
+                <label className={styles.label}>Collect Payment Method</label>
+                <div className={styles.paymentOptions}>
+                  <button 
+                    type="button" 
+                    className={`${styles.paymentBtn} ${checkInPaymentMethod === 'card' ? styles.paymentBtnActive : ''}`}
+                    onClick={() => setCheckInPaymentMethod('card')}
+                  >
+                    💳 Card
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`${styles.paymentBtn} ${checkInPaymentMethod === 'cash' ? styles.paymentBtnActive : ''}`}
+                    onClick={() => setCheckInPaymentMethod('cash')}
+                  >
+                    💵 Cash
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`${styles.paymentBtn} ${checkInPaymentMethod === 'account' ? styles.paymentBtnActive : ''}`}
+                    onClick={() => setCheckInPaymentMethod('account')}
+                  >
+                    👤 Account
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <button 
+                  onClick={handleCheckInSubmit} 
+                  disabled={isCheckingIn}
+                  className={styles.submitBtn}
+                >
+                  {isCheckingIn ? 'Activating Station...' : '✅ Mark Paid & Activate Station'}
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setCheckInModalBooking(null)}
+                  disabled={isCheckingIn}
+                  className={styles.waitlistBtn}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Transfer Station Modal */}
+        {transferModalSession && (
+          <div className={styles.modalOverlay}>
+            <div className={styles.modalContent}>
+              <h2 style={{ fontSize: '1.75rem', marginBottom: '1.5rem', textAlign: 'center', color: '#ffb400' }}>
+                Transfer Station
+              </h2>
+
+              <p style={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginBottom: '1.5rem' }}>
+                Move <strong>{transferModalSession.guestName || transferModalSession.user?.fullName || transferModalSession.user?.username}</strong> from <strong>{transferModalSession.console.hardwareTitle}</strong> to another station with remaining time intact.
+              </p>
+
+              <div className={styles.field} style={{ marginBottom: '1.5rem' }}>
+                <label className={styles.label}>Select Destination Station</label>
+                <select 
+                  value={targetTransferConsole}
+                  onChange={(e) => setTargetTransferConsole(e.target.value)}
+                  className={styles.select}
+                  required
+                >
+                  <option value="">— Select Open Station —</option>
+                  {consoles
+                    .filter(c => c.id !== transferModalSession.consoleId)
+                    .map(c => {
+                      const avail = checkConsoleAvailability(c.id, 1800);
+                      return (
+                        <option key={c.id} value={c.id} disabled={!avail.available}>
+                          {c.name} {!avail.available ? `(${avail.reason})` : '✓ Available'}
+                        </option>
+                      );
+                    })
+                  }
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <button 
+                  onClick={handleTransferSubmit} 
+                  disabled={!targetTransferConsole || isTransferring}
+                  className={styles.submitBtn}
+                  style={{ background: '#ffb400', color: '#000' }}
+                >
+                  {isTransferring ? 'Moving Station...' : '🔄 Confirm Transfer'}
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setTransferModalSession(null)}
+                  disabled={isTransferring}
+                  className={styles.waitlistBtn}
+                >
+                  Cancel
                 </button>
               </div>
             </div>

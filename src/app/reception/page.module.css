@@ -744,3 +744,149 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Shift Summary KPIs */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .kpiGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.kpiCard {
+  background: #121212;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpiCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--primary-accent);
+}
+
+.kpiLabel {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.kpiValue {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #fff;
+}
+
+.kpiSub {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Session Controls */
+.sessionControls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.actionBtnWarning {
+  background: rgba(255, 180, 0, 0.1);
+  border: 1px solid rgba(255, 180, 0, 0.3);
+  color: #ffb400;
+}
+
+.actionBtnWarning:hover {
+  background: rgba(255, 180, 0, 0.25);
+  border-color: #ffb400;
+  color: #fff;
+}
+
+.statusPaused {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 180, 0, 0.15);
+  color: #ffb400;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+/* Check In Button in Reservations Table */
+.checkinBtn {
+  background: var(--primary-accent);
+  color: #000;
+  border: none;
+  font-weight: 900;
+  padding: 0.4rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.checkinBtn:hover {
+  background: #d4ff3d;
+  box-shadow: 0 0 10px rgba(193, 255, 28, 0.4);
+}
+
+/* Transfer Station Modal */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modalContent {
+  background: #16161a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 2.5rem;
+  width: 520px;
+  max-width: 90%;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9);
+}
+
+/* Print Receipt Styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printableReceipt, .printableReceipt * {
+    visibility: visible;
+  }
+  .printableReceipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    color: #000 !important;
+    background: #fff !important;
+    padding: 10mm;
+    font-family: monospace;
+  }
+}
