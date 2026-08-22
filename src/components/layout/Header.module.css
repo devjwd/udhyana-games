@@ -1,17 +1,18 @@
 .header {
   position: sticky;
-  top: 1.5rem;
+  top: 1.25rem;
   z-index: 999;
-  width: 92%;
+  width: 94%;
   max-width: 1400px;
-  margin: 1.5rem auto;
-  background-color: #1a1d24;
-  border-radius: 6px;
+  margin: 1.25rem auto 1.25rem;
+  background-color: #141a20;
+  border: 1px solid #22272c;
+  border-radius: 4px;
   padding: 0 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 72px;
+  height: 70px;
 }
 
 .logo {
@@ -23,21 +24,21 @@
 /* ── Desktop Nav ── */
 .nav {
   display: flex;
-  gap: 2rem;
+  gap: 2.2rem;
   align-items: center;
 }
 
 .navLink {
-  color: var(--accent);
+  color: #d6ff01;
   font-weight: 800;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  transition: opacity 0.2s ease;
+  transition: color 0.2s ease;
 }
 
 .navLink:hover {
-  opacity: 0.65;
+  color: #ffffff;
 }
 
 /* ── LOUNGE Dropdown ── */

@@ -1,0 +1,323 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   HERO SECTION — Exact M80.gg Layout, Sizes & Placement
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.hero {
+  padding: 0 0 3rem;
+  background: var(--page-bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.heroContainer {
+  display: flex;
+  gap: 1.25rem;
+  width: 94%;
+  max-width: 1400px;
+  margin: 0 auto;
+  height: clamp(560px, 70vh, 700px);
+  align-items: stretch;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   LEFT: FULL-BLEED POSTER SLIDER (63% width)
+   ────────────────────────────────────────────────────────────────────────── */
+.posterWrapper {
+  flex: 0 0 63%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  border-radius: 4px;
+}
+
+.posterCard {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-1);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid var(--border);
+  transition: background-image 0.5s ease-in-out;
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - 20px),
+    calc(100% - 20px) 100%,
+    0 100%
+  );
+}
+
+/* Subtle bottom gradient for action button contrast */
+.posterCard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.15) 0%,
+    transparent 50%,
+    rgba(0, 0, 0, 0.75) 100%
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Top-Left Nav Buttons */
+.posterNavButtons {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 20;
+  display: flex;
+  gap: 6px;
+}
+
+.navBtn {
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  color: #000000;
+  border: none;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.navBtn:hover {
+  background: #ffffff;
+  transform: scale(1.06);
+}
+
+/* Bottom Action Button */
+.posterBottomBar {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  z-index: 20;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #000000;
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.8rem 2rem;
+  border-radius: 2px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.actionBtn:hover {
+  background: #ffffff;
+  transform: translateY(-2px);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   RIGHT: FULL-BLEED FEATURED CARD (~37% width)
+   ────────────────────────────────────────────────────────────────────────── */
+.featureCardWrapper {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.featureCard {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-1);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid var(--border);
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - 20px),
+    calc(100% - 20px) 100%,
+    0 100%
+  );
+}
+
+/* Dark gradient overlay */
+.featureCard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.1) 0%,
+    transparent 50%,
+    rgba(0, 0, 0, 0.85) 100%
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Corner Emblem */
+.cardEmblem {
+  position: absolute;
+  bottom: 22px;
+  right: 20px;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.emblemShield {
+  width: 42px;
+  height: 42px;
+  background: var(--accent);
+  color: #000000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: 950;
+  line-height: 0.9;
+  border-radius: 50%;
+}
+
+.emblemShield span {
+  font-size: 1.05rem;
+}
+
+.emblemShield small {
+  font-size: 0.52rem;
+}
+
+/* Bottom Control Bar on Feature Card */
+.featureBottomBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2.5rem 1.6rem 1.4rem;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.92) 0%,
+    rgba(0, 0, 0, 0.6) 60%,
+    transparent 100%
+  );
+}
+
+.progressSegments {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.segmentBar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.22);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.25s ease;
+}
+
+.segmentBar:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.segmentActive {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+/* Navigation Arrow Controls */
+.featureNavArrows {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-bottom: 2px;
+}
+
+.featureArrowBtn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.featureArrowBtn:hover {
+  color: var(--accent);
+  transform: scale(1.25);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   RESPONSIVE DESIGN
+   ────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .heroContainer {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .posterWrapper {
+    flex: none;
+    width: 100%;
+    height: 460px;
+  }
+
+  .featureCardWrapper {
+    flex: none;
+    width: 100%;
+    height: 480px;
+  }
+}
+
+@media (max-width: 680px) {
+  .hero {
+    padding: 0 0 1.5rem;
+  }
+
+  .posterWrapper {
+    height: 350px;
+  }
+
+  .featureCardWrapper {
+    height: 390px;
+  }
+
+  .posterBottomBar {
+    bottom: 16px;
+    left: 16px;
+  }
+
+  .actionBtn {
+    padding: 0.7rem 1.5rem;
+    font-size: 0.78rem;
+  }
+}

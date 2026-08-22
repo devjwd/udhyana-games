@@ -10,7 +10,7 @@ async function requireReceptionAuth() {
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role;
   if (role !== 'ADMIN' && role !== 'RECEPTIONIST') {
-    throw new Error('Unauthorized access');
+    throw new Error('Unauthorized access: Only Admin or Receptionist accounts can perform this action.');
   }
 }
 
@@ -543,33 +543,69 @@ export async function processPosCheckout(
     const result = await prisma.$transaction(async (tx) => {
       let userId = existingUserId;
 
-      if (!userId && walkInName) {
-        let user = await tx.user.findUnique({ where: { username: walkInName.trim() } });
+      if (!userId && walkInName && walkInName.trim()) {
+        const cleanName = walkInName.trim();
+        let user = await tx.user.findFirst({
+          where: {
+            OR: [
+              { username: { equals: cleanName, mode: 'insensitive' } },
+              { fullName: { equals: cleanName, mode: 'insensitive' } },
+              ...(walkInPhone?.trim() ? [{ phone: walkInPhone.trim() }] : [])
+            ]
+          }
+        });
+
         if (!user) {
-          user = await tx.user.create({
-            data: {
-              username: walkInName.trim(),
-              name: walkInName.trim(),
-              fullName: walkInName.trim(),
-              status: 'APPROVED',
-              ...(walkInPhone ? { phone: walkInPhone.trim() } : {})
-            }
-          });
+          try {
+            user = await tx.user.create({
+              data: {
+                username: cleanName,
+                name: cleanName,
+                fullName: cleanName,
+                status: 'APPROVED',
+                ...(walkInPhone?.trim() ? { phone: walkInPhone.trim() } : {})
+              }
+            });
+          } catch (err: any) {
+            // In case of unique constraint collision from concurrent creation, fetch by username
+            user = await tx.user.findFirst({
+              where: { username: { equals: cleanName, mode: 'insensitive' } }
+            });
+          }
         }
-        userId = user.id;
+        if (user) {
+          userId = user.id;
+        }
       }
 
       const now = new Date();
 
-      // Verify all sessions
+      // Auto-complete any past active sessions that have already expired
+      await tx.gameSession.updateMany({
+        where: {
+          status: 'ACTIVE',
+          endTime: { lte: now }
+        },
+        data: { status: 'COMPLETED' }
+      });
+
+      // Verify and guarantee console existence for each requested session
       for (const item of sessionItems) {
         const endTime = new Date(now.getTime() + item.durationSeconds * 1000);
         
+        // Check if station is actively occupied (with valid remaining time)
         const active = await tx.gameSession.findFirst({
-          where: { consoleId: item.consoleId, status: 'ACTIVE' }
+          where: {
+            consoleId: item.consoleId,
+            status: 'ACTIVE',
+            endTime: { gt: now }
+          }
         });
-        if (active) throw new Error(`Console is currently occupied.`);
+        if (active) {
+          throw new Error(`Console is currently occupied until ${active.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`);
+        }
         
+        // Check for conflicting online reservations
         const overlappingBooking = await tx.booking.findFirst({
           where: {
             consoleId: item.consoleId,
@@ -578,7 +614,20 @@ export async function processPosCheckout(
             endTime: { gt: now }
           }
         });
-        if (overlappingBooking) throw new Error(`Console is booked for this time.`);
+        if (overlappingBooking) {
+          throw new Error(`Console is booked for a reservation at ${overlappingBooking.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`);
+        }
+
+        // Ensure console record exists in database to satisfy foreign key relation
+        const consoleRecord = await tx.console.findUnique({ where: { id: item.consoleId } });
+        if (!consoleRecord) {
+          await tx.console.create({
+            data: {
+              id: item.consoleId,
+              hardwareTitle: item.consoleId.toUpperCase()
+            }
+          });
+        }
       }
 
       // Create Order
@@ -738,6 +787,103 @@ export async function getLeaderboard() {
 // ========================
 // ADMIN ANALYTICS
 // ========================
+
+// ========================
+// HERO SECTION
+// ========================
+
+export type HeroTrendingSlide = {
+  id: string;
+  badge: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  ctaText: string;
+  ctaLink: string;
+  imageUrl: string;
+};
+
+export type HeroGalleryImage = {
+  id: string;
+  imageUrl: string;
+  label: string;
+};
+
+const DEFAULT_TRENDING: HeroTrendingSlide[] = [
+  {
+    id: '1',
+    badge: 'NOW OPEN',
+    title: 'UDHYANA',
+    subtitle: 'GAMES',
+    description: 'The ultimate gaming lounge experience. Book your session today.',
+    ctaText: 'BOOK NOW',
+    ctaLink: '/book',
+    imageUrl: '/images/hero_main.jpg',
+  },
+  {
+    id: '2',
+    badge: 'NEW ARRIVAL',
+    title: 'PS5 PRO',
+    subtitle: 'AVAILABLE',
+    description: 'Experience next-gen gaming on our PS5 Pro stations.',
+    ctaText: 'VIEW CONSOLES',
+    ctaLink: '/consoles',
+    imageUrl: '/images/hero_slide2.jpg',
+  },
+  {
+    id: '3',
+    badge: 'SHOP',
+    title: 'MERCH',
+    subtitle: 'DROP',
+    description: 'Check out our latest gaming peripherals and accessories.',
+    ctaText: 'SHOP NOW',
+    ctaLink: '/shop',
+    imageUrl: '/images/hero_slide3.jpg',
+  },
+];
+
+const DEFAULT_GALLERY: HeroGalleryImage[] = [
+  { id: '1', imageUrl: '/images/hero_side.jpg', label: 'GAMING LOUNGE' },
+  { id: '2', imageUrl: '/images/champs.jpg', label: 'CHAMPIONS' },
+  { id: '3', imageUrl: '/images/lounge_interior.png', label: 'THE SETUP' },
+  { id: '4', imageUrl: '/images/strip1_single.jpg', label: 'TOURNAMENT' },
+];
+
+export async function getHeroTrending(): Promise<HeroTrendingSlide[]> {
+  const setting = await prisma.settings.findUnique({ where: { key: 'hero_trending' } });
+  if (setting) {
+    try { return JSON.parse(setting.value); } catch { /* fall through */ }
+  }
+  return DEFAULT_TRENDING;
+}
+
+export async function setHeroTrending(data: HeroTrendingSlide[]) {
+  await prisma.settings.upsert({
+    where: { key: 'hero_trending' },
+    update: { value: JSON.stringify(data) },
+    create: { key: 'hero_trending', value: JSON.stringify(data) },
+  });
+  revalidatePath('/');
+  revalidatePath('/admin');
+}
+
+export async function getHeroGallery(): Promise<HeroGalleryImage[]> {
+  const setting = await prisma.settings.findUnique({ where: { key: 'hero_gallery' } });
+  if (setting) {
+    try { return JSON.parse(setting.value); } catch { /* fall through */ }
+  }
+  return DEFAULT_GALLERY;
+}
+
+export async function setHeroGallery(data: HeroGalleryImage[]) {
+  await prisma.settings.upsert({
+    where: { key: 'hero_gallery' },
+    update: { value: JSON.stringify(data) },
+    create: { key: 'hero_gallery', value: JSON.stringify(data) },
+  });
+  revalidatePath('/');
+  revalidatePath('/admin');
+}
 
 export async function getAnalyticsData() {
   const orders = await prisma.order.findMany({

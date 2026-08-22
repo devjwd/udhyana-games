@@ -11,7 +11,9 @@ import {
   seedInitialData,
   getProducts, addProduct, deleteProduct,
   getAnalyticsData,
-  searchUsers, promoteUserToStaff
+  searchUsers, promoteUserToStaff,
+  getHeroTrending, setHeroTrending, getHeroGallery, setHeroGallery,
+  type HeroTrendingSlide, type HeroGalleryImage
 } from '@/backend/actions';
 
 type SnackItem = {
@@ -68,19 +70,27 @@ export default function BackendAdmin() {
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
   const [staffSearchResults, setStaffSearchResults] = useState<any[]>([]);
 
+  // Hero section state
+  const [heroTrending, setHeroTrendingState] = useState<HeroTrendingSlide[]>([]);
+  const [heroGallery, setHeroGalleryState] = useState<HeroGalleryImage[]>([]);
+  const [newSlide, setNewSlide] = useState({ badge: '', title: '', subtitle: '', description: '', ctaText: '', ctaLink: '', imageUrl: '' });
+  const [newGalleryImg, setNewGalleryImg] = useState({ imageUrl: '', label: '' });
+
   useEffect(() => {
     async function loadData() {
       await seedInitialData(); 
       
       await seedInitialData();
 
-      const [rate, extraRate, fetchedSnacks, fetchedConsoles, fetchedProducts, fetchedAnalytics] = await Promise.all([
+      const [rate, extraRate, fetchedSnacks, fetchedConsoles, fetchedProducts, fetchedAnalytics, fetchedTrending, fetchedGallery] = await Promise.all([
         getBaseHourlyRate(),
         getExtraControllerRate(),
         getSnacks(),
         getConsoles(),
         getProducts(),
-        getAnalyticsData()
+        getAnalyticsData(),
+        getHeroTrending(),
+        getHeroGallery()
       ]);
 
       setBaseHourlyRateState(rate);
@@ -89,6 +99,8 @@ export default function BackendAdmin() {
       setConsoles(fetchedConsoles as any);
       setProducts(fetchedProducts as any);
       setAnalytics(fetchedAnalytics);
+      setHeroTrendingState(fetchedTrending);
+      setHeroGalleryState(fetchedGallery);
       if (fetchedConsoles.length > 0) setSelectedConsoleId(fetchedConsoles[0].id);
       setIsLoading(false);
     }
@@ -510,6 +522,41 @@ export default function BackendAdmin() {
     }
   };
 
+  // ── Hero Section Handlers ──
+  const handleAddSlide = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const slide: HeroTrendingSlide = { ...newSlide, id: Date.now().toString() };
+    const updated = [...heroTrending, slide];
+    setHeroTrendingState(updated);
+    await setHeroTrending(updated);
+    setNewSlide({ badge: '', title: '', subtitle: '', description: '', ctaText: '', ctaLink: '', imageUrl: '' });
+    alert('Trending slide added!');
+  };
+
+  const handleDeleteSlide = async (id: string) => {
+    if (!confirm('Delete this slide?')) return;
+    const updated = heroTrending.filter(s => s.id !== id);
+    setHeroTrendingState(updated);
+    await setHeroTrending(updated);
+  };
+
+  const handleAddGalleryImg = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const img: HeroGalleryImage = { ...newGalleryImg, id: Date.now().toString() };
+    const updated = [...heroGallery, img];
+    setHeroGalleryState(updated);
+    await setHeroGallery(updated);
+    setNewGalleryImg({ imageUrl: '', label: '' });
+    alert('Gallery image added!');
+  };
+
+  const handleDeleteGalleryImg = async (id: string) => {
+    if (!confirm('Delete this gallery image?')) return;
+    const updated = heroGallery.filter(g => g.id !== id);
+    setHeroGalleryState(updated);
+    await setHeroGallery(updated);
+  };
+
   const renderStaffTab = () => (
     <div className={styles.panel}>
       <div className={styles.panelHeader}>
@@ -558,6 +605,136 @@ export default function BackendAdmin() {
     </div>
   );
 
+  const renderHeroTab = () => (
+    <>
+      {/* Trending Slides Manager */}
+      <div className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Add Trending Slide</span>
+        </div>
+        <form className={styles.formGrid} onSubmit={handleAddSlide}>
+          <div className={styles.field}>
+            <label className={styles.label}>Badge Text</label>
+            <input type="text" className={styles.input} value={newSlide.badge} onChange={e => setNewSlide({ ...newSlide, badge: e.target.value })} placeholder="e.g. NOW OPEN" required />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Title (Line 1)</label>
+            <input type="text" className={styles.input} value={newSlide.title} onChange={e => setNewSlide({ ...newSlide, title: e.target.value })} placeholder="e.g. AVAILABLE" required />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Subtitle (Line 2, accented)</label>
+            <input type="text" className={styles.input} value={newSlide.subtitle} onChange={e => setNewSlide({ ...newSlide, subtitle: e.target.value })} placeholder="e.g. NOW" required />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>CTA Button Text</label>
+            <input type="text" className={styles.input} value={newSlide.ctaText} onChange={e => setNewSlide({ ...newSlide, ctaText: e.target.value })} placeholder="e.g. SHOP NOW" required />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>CTA Link URL</label>
+            <input type="text" className={styles.input} value={newSlide.ctaLink} onChange={e => setNewSlide({ ...newSlide, ctaLink: e.target.value })} placeholder="/shop" required />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Background Image URL</label>
+            <input type="text" className={styles.input} value={newSlide.imageUrl} onChange={e => setNewSlide({ ...newSlide, imageUrl: e.target.value })} placeholder="/images/hero_main.jpg" required />
+          </div>
+          <div className={`${styles.field} ${styles.fieldFull}`}>
+            <label className={styles.label}>Description</label>
+            <textarea className={styles.input} rows={3} value={newSlide.description} onChange={e => setNewSlide({ ...newSlide, description: e.target.value })} placeholder="Short description..." />
+          </div>
+          <div className={`${styles.field} ${styles.fieldFull}`} style={{ alignItems: 'flex-start' }}>
+            <button type="submit" className={styles.btn}>Add Slide</button>
+          </div>
+        </form>
+      </div>
+
+      <div className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Current Trending Slides ({heroTrending.length})</span>
+        </div>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th className={styles.th}>Badge</th>
+              <th className={styles.th}>Title</th>
+              <th className={styles.th}>CTA</th>
+              <th className={styles.th}>Image</th>
+              <th className={styles.th}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {heroTrending.map(slide => (
+              <tr key={slide.id} className={styles.tr}>
+                <td className={styles.td}>{slide.badge}</td>
+                <td className={styles.td}>{slide.title} {slide.subtitle}</td>
+                <td className={styles.td}>{slide.ctaText}</td>
+                <td className={styles.td} style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slide.imageUrl}</td>
+                <td className={styles.td}>
+                  <button className={`${styles.actionBtn} ${styles.actionBtnDelete}`} onClick={() => handleDeleteSlide(slide.id)}>Delete</button>
+                </td>
+              </tr>
+            ))}
+            {heroTrending.length === 0 && (
+              <tr>
+                <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.5)' }}>No trending slides. Defaults will be used.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Gallery Images Manager */}
+      <div className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Add Gallery Image</span>
+        </div>
+        <form className={styles.formGrid} onSubmit={handleAddGalleryImg}>
+          <div className={styles.field}>
+            <label className={styles.label}>Image URL / Path</label>
+            <input type="text" className={styles.input} value={newGalleryImg.imageUrl} onChange={e => setNewGalleryImg({ ...newGalleryImg, imageUrl: e.target.value })} placeholder="/images/hero_side.jpg" required />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Label</label>
+            <input type="text" className={styles.input} value={newGalleryImg.label} onChange={e => setNewGalleryImg({ ...newGalleryImg, label: e.target.value })} placeholder="e.g. CHAMPIONS" required />
+          </div>
+          <div className={`${styles.field} ${styles.fieldFull}`} style={{ alignItems: 'flex-start' }}>
+            <button type="submit" className={styles.btn}>Add Gallery Image</button>
+          </div>
+        </form>
+      </div>
+
+      <div className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Current Gallery Images ({heroGallery.length})</span>
+        </div>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th className={styles.th}>Label</th>
+              <th className={styles.th}>Image URL</th>
+              <th className={styles.th}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {heroGallery.map(img => (
+              <tr key={img.id} className={styles.tr}>
+                <td className={styles.td}>{img.label}</td>
+                <td className={styles.td} style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{img.imageUrl}</td>
+                <td className={styles.td}>
+                  <button className={`${styles.actionBtn} ${styles.actionBtnDelete}`} onClick={() => handleDeleteGalleryImg(img.id)}>Delete</button>
+                </td>
+              </tr>
+            ))}
+            {heroGallery.length === 0 && (
+              <tr>
+                <td colSpan={3} style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.5)' }}>No gallery images. Defaults will be used.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+
   if (isLoading) {
     return <div style={{ color: 'white', padding: '2rem' }}>Loading Database...</div>;
   }
@@ -599,6 +776,12 @@ export default function BackendAdmin() {
           >
             Staff & Roles
           </div>
+          <div
+            className={`${styles.navItem} ${activeTab === 'hero' ? styles.navItemActive : ''}`}
+            onClick={() => setActiveTab('hero')}
+          >
+            Hero Section
+          </div>
         </nav>
       </aside>
 
@@ -610,6 +793,7 @@ export default function BackendAdmin() {
             {activeTab === 'screens' && 'Hardware Configuration'}
             {activeTab === 'games' && 'Game Deployments'}
             {activeTab === 'staff' && 'Staff Management'}
+            {activeTab === 'hero' && 'Hero Section'}
           </h1>
         </header>
 
@@ -619,6 +803,7 @@ export default function BackendAdmin() {
           {activeTab === 'screens' && renderScreensTab()}
           {activeTab === 'games' && renderGamesTab()}
           {activeTab === 'staff' && renderStaffTab()}
+          {activeTab === 'hero' && renderHeroTab()}
         </div>
       </main>
     </div>

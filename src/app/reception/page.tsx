@@ -117,6 +117,7 @@ export default function ReceptionPortal() {
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
   const [upcomingBookings, setUpcomingBookings] = useState<any[]>([]);
   const [dbWaitlist, setDbWaitlist] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const DURATIONS = [
     { id: '1800', name: `30 Mins (PKR ${baseRate * 0.5})`, seconds: 1800, price: baseRate * 0.5 },
@@ -209,8 +210,8 @@ export default function ReceptionPortal() {
   };
 
   const checkConsoleAvailability = (consoleId: string, durationSeconds: number) => {
-    // 1. Check active sessions (Walk-ins)
-    const isActive = dbSessions.some(s => s.consoleId === consoleId);
+    // 1. Check active sessions (Walk-ins with valid remaining time)
+    const isActive = dbSessions.some(s => s.consoleId === consoleId && getRemainingSeconds(s.endTime) > 0);
     if (isActive) return { available: false, reason: 'OCCUPIED' };
 
     // 2. Check upcoming online bookings
@@ -352,6 +353,7 @@ export default function ReceptionPortal() {
 
   const handleConfirmPayment = async () => {
     if (cart.length === 0) return toast.error('Cart is empty!');
+    if (isSubmitting) return;
     
     const totalAmount = cart.reduce((sum, item) => sum + item.price, 0);
     const sessionItems = cart
@@ -368,6 +370,7 @@ export default function ReceptionPortal() {
     const walkInPhone = walkInSession?.phone;
     const existingUserId = cart.find(item => item.userId)?.userId;
 
+    setIsSubmitting(true);
     try {
       toast.loading('Processing order...', { id: 'checkout' });
       const res = await processPosCheckout(
@@ -380,7 +383,7 @@ export default function ReceptionPortal() {
         existingUserId
       );
 
-      if (res && res.error) {
+      if (res && 'error' in res && res.error) {
         throw new Error(res.error);
       }
       
@@ -391,6 +394,8 @@ export default function ReceptionPortal() {
       setIsSlipModalOpen(false);
     } catch (err: any) {
       toast.error(err.message || 'Failed to process checkout.', { id: 'checkout' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -901,13 +906,24 @@ export default function ReceptionPortal() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <button 
                   onClick={() => handleConfirmPayment()} 
-                  style={{ background: 'var(--primary-accent)', color: 'black', padding: '1rem', border: 'none', borderRadius: '8px', fontSize: '1.2rem', fontWeight: 900, cursor: 'pointer' }}
+                  disabled={isSubmitting}
+                  style={{ 
+                    background: isSubmitting ? '#666' : 'var(--primary-accent)', 
+                    color: isSubmitting ? '#aaa' : 'black', 
+                    padding: '1rem', 
+                    border: 'none', 
+                    borderRadius: '8px', 
+                    fontSize: '1.2rem', 
+                    fontWeight: 900, 
+                    cursor: isSubmitting ? 'not-allowed' : 'pointer' 
+                  }}
                 >
-                  Mark as Paid & Confirm
+                  {isSubmitting ? 'Processing Order...' : 'Mark as Paid & Confirm'}
                 </button>
                 <button 
                   onClick={() => setIsSlipModalOpen(false)} 
-                  style={{ background: 'transparent', color: 'white', padding: '1rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', fontSize: '1rem', fontWeight: 600, cursor: 'pointer' }}
+                  disabled={isSubmitting}
+                  style={{ background: 'transparent', color: 'white', padding: '1rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', fontSize: '1rem', fontWeight: 600, cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
                 >
                   Cancel / Return
                 </button>

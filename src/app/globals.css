@@ -1,23 +1,23 @@
 :root {
   /* Backgrounds */
-  --page-bg:      #111111;
-  --surface-1:    #1a1a1a;
-  --surface-2:    #222222;
+  --page-bg:      #0c1016;
+  --surface-1:    #141a20;
+  --surface-2:    #1b222a;
 
   /* Borders */
-  --border:       rgba(255, 255, 255, 0.1);
-  --border-strong: rgba(255, 255, 255, 0.2);
+  --border:       #22272c;
+  --border-strong: #41464e;
 
   /* Accent */
   --accent:       #d6ff01;
-  --accent-hover: #b5d800;
+  --accent-hover: #ffffff;
   --accent-dim:   rgba(214, 255, 1, 0.15);
-  --accent-glow:  rgba(214, 255, 1, 0.40);
+  --accent-glow:  rgba(214, 255, 1, 0.35);
 
   /* Text */
   --text-primary:   #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.70);
-  --text-muted:     rgba(255, 255, 255, 0.40);
+  --text-secondary: #7f8388;
+  --text-muted:     #555a60;
 
   /* Legacy aliases — keep for components not yet updated */
   --primary-bg:        var(--surface-1);
