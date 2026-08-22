@@ -101,7 +101,7 @@ export default function ReceptionPortal() {
     consoleId: '',
     duration: '3600',
     additionalControllers: 0,
-    payment: 'card'
+    payment: 'cash'
   });
 
   const [selectedUserId, setSelectedUserId] = useState<string | undefined>(undefined);
@@ -113,7 +113,7 @@ export default function ReceptionPortal() {
   const [snacks, setSnacks] = useState<SnackItem[]>(DEFAULT_SNACKS);
   const [consoles, setConsoles] = useState(ALL_CONSOLES);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState('card');
+  const [paymentMethod, setPaymentMethod] = useState('cash');
   const [orderUsername, setOrderUsername] = useState('');
   const [isSlipModalOpen, setIsSlipModalOpen] = useState(false);
   const [recentSales, setRecentSales] = useState<any[]>([]);
@@ -133,7 +133,7 @@ export default function ReceptionPortal() {
   const [transferModalSession, setTransferModalSession] = useState<any>(null);
   const [targetTransferConsole, setTargetTransferConsole] = useState('');
   const [checkInModalBooking, setCheckInModalBooking] = useState<any>(null);
-  const [checkInPaymentMethod, setCheckInPaymentMethod] = useState('card');
+  const [checkInPaymentMethod, setCheckInPaymentMethod] = useState('cash');
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
   const expiredNotified = useRef<Set<string>>(new Set());
@@ -359,8 +359,9 @@ export default function ReceptionPortal() {
     };
 
     setCart([...cart, newItem]);
-    setFormData({ name: '', phone: '', consoleId: '', duration: '3600', additionalControllers: 0, payment: 'card' });
+    setFormData({ name: '', phone: '', consoleId: '', duration: '3600', additionalControllers: 0, payment: 'cash' });
     setGameSearchQuery('');
+    toast.success(`Session for ${selectedConsole.name} added to order!`);
   };
 
   const handleWaitlist = async (e: React.MouseEvent) => {
@@ -371,7 +372,7 @@ export default function ReceptionPortal() {
 
     await addWaitlistEntry(formData.name, req);
     await fetchPending();
-    setFormData({ name: '', phone: '', consoleId: '', duration: '3600', additionalControllers: 0, payment: 'card' });
+    setFormData({ name: '', phone: '', consoleId: '', duration: '3600', additionalControllers: 0, payment: 'cash' });
     setGameSearchQuery('');
   };
 
@@ -558,7 +559,7 @@ export default function ReceptionPortal() {
       consoleId: '', 
       duration: '3600',
       additionalControllers: 0,
-      payment: 'card'
+      payment: 'cash'
     });
     
     await assignWaitlistEntry(waiter.id);
@@ -793,17 +794,17 @@ export default function ReceptionPortal() {
                 <div className={styles.paymentOptions}>
                   <button 
                     type="button" 
-                    className={`${styles.paymentBtn} ${paymentMethod === 'card' ? styles.paymentBtnActive : ''}`}
-                    onClick={() => setPaymentMethod('card')}
-                  >
-                    💳 Card
-                  </button>
-                  <button 
-                    type="button" 
                     className={`${styles.paymentBtn} ${paymentMethod === 'cash' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setPaymentMethod('cash')}
                   >
                     💵 Cash
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`${styles.paymentBtn} ${paymentMethod === 'card' ? styles.paymentBtnActive : ''}`}
+                    onClick={() => setPaymentMethod('card')}
+                  >
+                    💳 Card
                   </button>
                   <button 
                     type="button" 
@@ -1329,17 +1330,17 @@ export default function ReceptionPortal() {
                 <div className={styles.paymentOptions}>
                   <button 
                     type="button" 
-                    className={`${styles.paymentBtn} ${checkInPaymentMethod === 'card' ? styles.paymentBtnActive : ''}`}
-                    onClick={() => setCheckInPaymentMethod('card')}
-                  >
-                    💳 Card
-                  </button>
-                  <button 
-                    type="button" 
                     className={`${styles.paymentBtn} ${checkInPaymentMethod === 'cash' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setCheckInPaymentMethod('cash')}
                   >
                     💵 Cash
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`${styles.paymentBtn} ${checkInPaymentMethod === 'card' ? styles.paymentBtnActive : ''}`}
+                    onClick={() => setCheckInPaymentMethod('card')}
+                  >
+                    💳 Card
                   </button>
                   <button 
                     type="button" 
