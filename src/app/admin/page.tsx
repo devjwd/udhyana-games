@@ -2,19 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import styles from './page.module.css';
 import { 
   getSnacks, addSnack, deleteSnack, 
   getConsoles, toggleConsoleGame, addConsole, deleteConsole,
   getBaseHourlyRate, setBaseHourlyRate,
   getExtraControllerRate, setExtraControllerRate,
-  seedInitialData,
+  getLoyaltyRates, setLoyaltyRates, adjustUserLoyaltyPoints,
   getProducts, addProduct, deleteProduct,
   getAnalyticsData,
   searchUsers, promoteUserToStaff,
   getHeroTrending, setHeroTrending, getHeroGallery, setHeroGallery,
   type HeroTrendingSlide, type HeroGalleryImage
 } from '@/backend/actions';
+
+const AnalyticsTab = dynamic(() => import('@/components/admin/tabs/AnalyticsTab'), {
+  loading: () => <div style={{ color: 'white', padding: '2rem' }}>Loading Analytics Dashboard...</div>,
+  ssr: false,
+});
 
 type SnackItem = {
   id: string;
@@ -26,6 +32,9 @@ type SnackItem = {
 type ConsoleItem = {
   id: string;
   hardwareTitle: string;
+  hourlyRate?: number | null;
+  specs?: string | null;
+  imagePath?: string | null;
   games: { game: { name: string } }[];
 };
 
@@ -70,21 +79,28 @@ export default function BackendAdmin() {
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
   const [staffSearchResults, setStaffSearchResults] = useState<any[]>([]);
 
+  // Loyalty Settings State
+  const [pointsPerHour, setPointsPerHourState] = useState(50);
+  const [spendPerPoint, setSpendPerPointState] = useState(10);
+  const [userPointsModal, setUserPointsModal] = useState<any | null>(null);
+  const [pointsDeltaInput, setPointsDeltaInput] = useState('');
+
   // Hero section state
   const [heroTrending, setHeroTrendingState] = useState<HeroTrendingSlide[]>([]);
   const [heroGallery, setHeroGalleryState] = useState<HeroGalleryImage[]>([]);
   const [newSlide, setNewSlide] = useState({ badge: '', title: '', subtitle: '', description: '', ctaText: '', ctaLink: '', imageUrl: '' });
   const [newGalleryImg, setNewGalleryImg] = useState({ imageUrl: '', label: '' });
+  const [isUploadingPoster, setIsUploadingPoster] = useState(false);
+  const [isUploadingGallery, setIsUploadingGallery] = useState(false);
+  const [editingSlide, setEditingSlide] = useState<HeroTrendingSlide | null>(null);
+  const [isUploadingEdit, setIsUploadingEdit] = useState(false);
 
   useEffect(() => {
     async function loadData() {
-      await seedInitialData(); 
-      
-      await seedInitialData();
-
-      const [rate, extraRate, fetchedSnacks, fetchedConsoles, fetchedProducts, fetchedAnalytics, fetchedTrending, fetchedGallery] = await Promise.all([
+      const [rate, extraRate, loyaltyRates, fetchedSnacks, fetchedConsoles, fetchedProducts, fetchedAnalytics, fetchedTrending, fetchedGallery] = await Promise.all([
         getBaseHourlyRate(),
         getExtraControllerRate(),
+        getLoyaltyRates(),
         getSnacks(),
         getConsoles(),
         getProducts(),
@@ -95,6 +111,8 @@ export default function BackendAdmin() {
 
       setBaseHourlyRateState(rate);
       setExtraControllerRateState(extraRate);
+      setPointsPerHourState(loyaltyRates.pointsPerHour);
+      setSpendPerPointState(loyaltyRates.spendPerPoint);
       setSnacks(fetchedSnacks);
       setConsoles(fetchedConsoles as any);
       setProducts(fetchedProducts as any);
@@ -116,7 +134,6 @@ export default function BackendAdmin() {
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    e.preventDefault();
     const newProduct = await addProduct({
       name: newProductName,
       price: parseFloat(newProductPrice),
@@ -137,7 +154,6 @@ export default function BackendAdmin() {
   };
 
   const handleAddConsole = async (e: React.FormEvent) => {
-    e.preventDefault();
     e.preventDefault();
     const newConsole = await addConsole({
       id: newConsoleSlug,
@@ -200,64 +216,7 @@ export default function BackendAdmin() {
     await toggleConsoleGame(selectedConsoleId, game);
   };
 
-  const renderAnalyticsTab = () => {
-    if (!analytics) return <div style={{ color: 'white', padding: '2rem' }}>Loading analytics...</div>;
-    
-    // Find max amount to scale the bars
-    const maxAmount = Math.max(...analytics.revenueByDay.map((d: any) => d.amount), 1);
-
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        
-        {/* KPI Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
-          
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px' }}>
-            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Total Revenue</div>
-            <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--primary-accent)' }}>PKR {analytics.totalRevenue}</div>
-          </div>
-
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px' }}>
-            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Total Orders</div>
-            <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'white' }}>{analytics.totalOrders}</div>
-          </div>
-
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px' }}>
-            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Total Sessions</div>
-            <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'white' }}>{analytics.totalSessions}</div>
-          </div>
-
-        </div>
-
-        {/* Revenue Chart */}
-        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px' }}>
-          <h2 style={{ color: 'white', fontSize: '1.5rem', margin: '0 0 2rem 0' }}>Revenue Last 7 Days</h2>
-          
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: '300px', paddingBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', position: 'relative' }}>
-            {analytics.revenueByDay.slice().reverse().map((day: any) => {
-              const heightPct = (day.amount / maxAmount) * 100;
-              const displayDate = new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' });
-              return (
-                <div key={day.date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '10%' }}>
-                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{day.amount > 0 ? day.amount : ''}</div>
-                  <div style={{ 
-                    width: '100%', 
-                    height: `${heightPct}%`, 
-                    background: 'linear-gradient(180deg, var(--primary-accent) 0%, rgba(193, 255, 28, 0.2) 100%)',
-                    borderRadius: '4px 4px 0 0',
-                    minHeight: '4px',
-                    transition: 'height 1s ease-out'
-                  }}></div>
-                  <div style={{ position: 'absolute', bottom: '-2rem', color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>{displayDate}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-      </div>
-    );
-  };
+  const renderAnalyticsTab = () => <AnalyticsTab analytics={analytics} />;
 
   const renderProductsTab = () => (
     <>
@@ -378,6 +337,32 @@ export default function BackendAdmin() {
     </>
   );
 
+  const handleSaveLoyaltyRates = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await setLoyaltyRates(pointsPerHour, spendPerPoint);
+    alert('Loyalty Points configuration updated and saved!');
+  };
+
+  const handleAdjustPoints = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userPointsModal || !pointsDeltaInput) return;
+    const delta = parseInt(pointsDeltaInput);
+    if (isNaN(delta)) {
+      alert('Please enter a valid points amount');
+      return;
+    }
+    try {
+      const updated = await adjustUserLoyaltyPoints(userPointsModal.id, delta);
+      alert(`User points updated! New balance: ${updated.loyaltyPoints} XP (${updated.rank})`);
+      // Update local search results
+      setStaffSearchResults(prev => prev.map(u => u.id === userPointsModal.id ? { ...u, loyaltyPoints: updated.loyaltyPoints, rank: updated.rank } : u));
+      setUserPointsModal(null);
+      setPointsDeltaInput('');
+    } catch (err: any) {
+      alert(err.message || 'Failed to adjust points');
+    }
+  };
+
   const renderScreensTab = () => (
     <>
       <div className={styles.panel}>
@@ -407,6 +392,45 @@ export default function BackendAdmin() {
           </div>
           <div className={`${styles.field} ${styles.fieldFull}`} style={{ alignItems: 'flex-start' }}>
             <button type="submit" className={styles.btn}>Save Global Pricing</button>
+          </div>
+        </form>
+      </div>
+
+      {/* Loyalty Points Configuration Panel */}
+      <div className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>⭐ Loyalty Points & Rewards Rate Engine</span>
+        </div>
+        <p style={{ color: '#7f8388', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+          Control how players earn loyalty points during station gaming sessions and product shopping.
+        </p>
+        <form className={styles.formGrid} onSubmit={handleSaveLoyaltyRates}>
+          <div className={styles.field}>
+            <label className={styles.label}>Hourly Session Reward (Points / Hour)</label>
+            <input
+              type="number"
+              className={styles.input}
+              value={pointsPerHour}
+              onChange={(e) => setPointsPerHourState(Number(e.target.value))}
+              placeholder="e.g. 50"
+              required
+            />
+            <span style={{ fontSize: '0.72rem', color: '#7f8388', marginTop: '3px' }}>Default: 50 XP per 1 hour played</span>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Shopping Reward (PKR Spent per 1 Point)</label>
+            <input
+              type="number"
+              className={styles.input}
+              value={spendPerPoint}
+              onChange={(e) => setSpendPerPointState(Number(e.target.value))}
+              placeholder="e.g. 10"
+              required
+            />
+            <span style={{ fontSize: '0.72rem', color: '#7f8388', marginTop: '3px' }}>Default: 10 PKR = 1 Point (10% reward)</span>
+          </div>
+          <div className={`${styles.field} ${styles.fieldFull}`} style={{ alignItems: 'flex-start' }}>
+            <button type="submit" className={styles.btn}>Save Loyalty Points Rates</button>
           </div>
         </form>
       </div>
@@ -444,26 +468,41 @@ export default function BackendAdmin() {
 
       <div className={styles.panel}>
         <div className={styles.panelHeader}>
-          <span>Manage Active Screens</span>
+          <span>Manage Active Stations & Consoles ({consoles.length})</span>
         </div>
         <table className={styles.table}>
           <thead>
             <tr>
-              <th className={styles.th}>Title</th>
-              <th className={styles.th}>ID</th>
+              <th className={styles.th}>Station Title</th>
+              <th className={styles.th}>ID / Slug</th>
+              <th className={styles.th}>Hourly Rate</th>
+              <th className={styles.th}>Specs / Hardware</th>
+              <th className={styles.th}>Installed Games</th>
               <th className={styles.th}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {consoles.map(c => (
                <tr key={c.id} className={styles.tr}>
-                 <td className={styles.td}>{c.hardwareTitle}</td>
-                 <td className={styles.td}>{c.id}</td>
+                 <td className={styles.td}><strong>{c.hardwareTitle}</strong></td>
+                 <td className={styles.td}><code style={{ color: '#d6ff01' }}>{c.id}</code></td>
+                 <td className={styles.td}>PKR {c.hourlyRate || baseHourlyRate}/hr</td>
+                 <td className={styles.td} style={{ fontSize: '0.8rem', color: '#7f8388' }}>{c.specs || 'Standard Display'}</td>
+                 <td className={styles.td}>
+                   <span style={{ fontSize: '0.8rem', color: '#d6ff01' }}>
+                     {c.games?.length || 0} games
+                   </span>
+                 </td>
                  <td className={styles.td}>
                    <button className={`${styles.actionBtn} ${styles.actionBtnDelete}`} onClick={() => handleDeleteConsole(c.id)}>Delete</button>
                  </td>
                </tr>
             ))}
+            {consoles.length === 0 && (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.5)' }}>No active stations configured.</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -508,7 +547,6 @@ export default function BackendAdmin() {
 
   const handleSearchStaff = async (e: React.FormEvent) => {
     e.preventDefault();
-    e.preventDefault();
     const results = await searchUsers(staffSearchQuery);
     setStaffSearchResults(results);
   };
@@ -517,20 +555,95 @@ export default function BackendAdmin() {
     try {
       await promoteUserToStaff(userId, role);
       alert(`User promoted to ${role} successfully! You can now log into Reception.`);
-    } catch (err: any) {
-      alert(err.message || 'Failed to promote user');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to promote user';
+      alert(msg);
+    }
+  };
+
+  // ── Hero Section File Upload Helper ──
+  const uploadImageFile = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok || !data.url) {
+      throw new Error(data.error || 'Failed to upload image');
+    }
+    return data.url;
+  };
+
+  const handlePosterFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingPoster(true);
+      const url = await uploadImageFile(file);
+      setNewSlide(prev => ({ ...prev, imageUrl: url }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Image upload failed';
+      alert(msg);
+    } finally {
+      setIsUploadingPoster(false);
+    }
+  };
+
+  const handleGalleryFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingGallery(true);
+      const url = await uploadImageFile(file);
+      setNewGalleryImg(prev => ({ ...prev, imageUrl: url }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Image upload failed';
+      alert(msg);
+    } finally {
+      setIsUploadingGallery(false);
+    }
+  };
+
+  const handleEditPosterFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingSlide) return;
+    try {
+      setIsUploadingEdit(true);
+      const url = await uploadImageFile(file);
+      setEditingSlide({ ...editingSlide, imageUrl: url });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Image upload failed';
+      alert(msg);
+    } finally {
+      setIsUploadingEdit(false);
     }
   };
 
   // ── Hero Section Handlers ──
   const handleAddSlide = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newSlide.imageUrl) {
+      alert('Please upload or provide an image for the poster');
+      return;
+    }
     const slide: HeroTrendingSlide = { ...newSlide, id: Date.now().toString() };
     const updated = [...heroTrending, slide];
     setHeroTrendingState(updated);
     await setHeroTrending(updated);
     setNewSlide({ badge: '', title: '', subtitle: '', description: '', ctaText: '', ctaLink: '', imageUrl: '' });
-    alert('Trending slide added!');
+    alert('Left poster slide added!');
+  };
+
+  const handleUpdateSlide = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSlide) return;
+    const updated = heroTrending.map(s => s.id === editingSlide.id ? editingSlide : s);
+    setHeroTrendingState(updated);
+    await setHeroTrending(updated);
+    setEditingSlide(null);
+    alert('Poster slide updated successfully!');
   };
 
   const handleDeleteSlide = async (id: string) => {
@@ -542,12 +655,16 @@ export default function BackendAdmin() {
 
   const handleAddGalleryImg = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newGalleryImg.imageUrl) {
+      alert('Please upload or provide an image for the feature card');
+      return;
+    }
     const img: HeroGalleryImage = { ...newGalleryImg, id: Date.now().toString() };
     const updated = [...heroGallery, img];
     setHeroGalleryState(updated);
     await setHeroGallery(updated);
     setNewGalleryImg({ imageUrl: '', label: '' });
-    alert('Gallery image added!');
+    alert('Right feature card added!');
   };
 
   const handleDeleteGalleryImg = async (id: string) => {
@@ -558,167 +675,425 @@ export default function BackendAdmin() {
   };
 
   const renderStaffTab = () => (
-    <div className={styles.panel}>
-      <div className={styles.panelHeader}>
-        <span>Staff Management</span>
-      </div>
-      <p style={{ color: 'rgba(255,255,255,0.7)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
-        Search for an existing user account to promote them to RECEPTIONIST or ADMIN.
-        <br />
-        <strong>Note:</strong> If this is your first time setting up, promote your own account to ADMIN.
-      </p>
-      
-      <form onSubmit={handleSearchStaff} style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
-        <input 
-          type="text" 
-          className={styles.input} 
-          placeholder="Search by username, name, or phone" 
-          value={staffSearchQuery}
-          onChange={e => setStaffSearchQuery(e.target.value)}
-        />
-        <button type="submit" className={styles.btn}>Search Users</button>
-      </form>
+    <>
+      {/* Adjust User Points Modal */}
+      {userPointsModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem'
+        }}>
+          <div style={{
+            backgroundColor: '#141a20',
+            border: '1px solid #22272c',
+            borderRadius: '6px',
+            maxWidth: '480px',
+            width: '100%',
+            padding: '2rem',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.8)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#d6ff01', textTransform: 'uppercase' }}>
+                Adjust Points: {userPointsModal.fullName || userPointsModal.username}
+              </h2>
+              <button
+                onClick={() => setUserPointsModal(null)}
+                style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
 
-      {staffSearchResults.length > 0 && (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th className={styles.th}>Name</th>
-              <th className={styles.th}>Username</th>
-              <th className={styles.th}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {staffSearchResults.map(u => (
-              <tr key={u.id} className={styles.tr}>
-                <td className={styles.td}>{u.fullName}</td>
-                <td className={styles.td}>@{u.username}</td>
-                <td className={styles.td} style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button className={styles.actionBtn} onClick={() => handlePromote(u.id, 'RECEPTIONIST')}>Make Receptionist</button>
-                  <button className={styles.actionBtn} onClick={() => handlePromote(u.id, 'ADMIN')}>Make Admin</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            <div style={{ background: '#0c1016', padding: '1rem', borderRadius: '4px', border: '1px solid #22272c', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontSize: '0.75rem', color: '#7f8388', display: 'block' }}>Current Balance</span>
+                <strong style={{ fontSize: '1.25rem', color: '#ffffff' }}>{userPointsModal.loyaltyPoints || 0} XP</strong>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.75rem', color: '#7f8388', display: 'block' }}>Current Rank</span>
+                <span style={{ background: '#d6ff01', color: '#000', padding: '2px 8px', borderRadius: '2px', fontWeight: 800, fontSize: '0.72rem' }}>
+                  {userPointsModal.rank || 'Rookie'}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleAdjustPoints} className={styles.formGrid}>
+              <div className={`${styles.field} ${styles.fieldFull}`}>
+                <label className={styles.label}>Points to Add or Deduct (Use - to subtract)</label>
+                <input
+                  type="number"
+                  className={styles.input}
+                  value={pointsDeltaInput}
+                  onChange={e => setPointsDeltaInput(e.target.value)}
+                  placeholder="e.g. +100 or -50"
+                  required
+                />
+                <span style={{ fontSize: '0.72rem', color: '#7f8388', marginTop: '4px' }}>
+                  Tip: Enter a positive number (e.g. 150) to reward points, or negative (e.g. -50) to deduct.
+                </span>
+              </div>
+
+              <div className={`${styles.field} ${styles.fieldFull}`} style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button type="submit" className={styles.btn}>Apply Points</button>
+                <button
+                  type="button"
+                  onClick={() => setUserPointsModal(null)}
+                  style={{ background: '#22272c', color: '#fff', padding: '0.8rem 1.5rem', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 700 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
-    </div>
+
+      <div className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Staff & User Loyalty Management</span>
+        </div>
+        <p style={{ color: 'rgba(255,255,255,0.7)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+          Search for an existing user account to promote them to RECEPTIONIST/ADMIN, or manually add and deduct loyalty reward points.
+        </p>
+        
+        <form onSubmit={handleSearchStaff} style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+          <input 
+            type="text" 
+            className={styles.input} 
+            placeholder="Search by username, name, or phone" 
+            value={staffSearchQuery}
+            onChange={e => setStaffSearchQuery(e.target.value)}
+          />
+          <button type="submit" className={styles.btn}>Search Users</button>
+        </form>
+
+        {staffSearchResults.length > 0 && (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>Name</th>
+                <th className={styles.th}>Username</th>
+                <th className={styles.th}>Rank</th>
+                <th className={styles.th}>Loyalty Points</th>
+                <th className={styles.th}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {staffSearchResults.map(u => (
+                <tr key={u.id} className={styles.tr}>
+                  <td className={styles.td}><strong>{u.fullName || u.name}</strong></td>
+                  <td className={styles.td}>@{u.username}</td>
+                  <td className={styles.td}>
+                    <span style={{ background: 'rgba(214,255,1,0.1)', color: '#d6ff01', padding: '2px 8px', borderRadius: '2px', fontWeight: 800, fontSize: '0.75rem' }}>
+                      {u.rank || 'Rookie'}
+                    </span>
+                  </td>
+                  <td className={styles.td}><strong style={{ color: '#d6ff01' }}>{u.loyaltyPoints || 0} XP</strong></td>
+                  <td className={styles.td} style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      className={styles.actionBtn}
+                      style={{ background: '#d6ff01', color: '#000', fontWeight: 800 }}
+                      onClick={() => {
+                        setUserPointsModal(u);
+                        setPointsDeltaInput('');
+                      }}
+                    >
+                      ⭐ Adjust Points
+                    </button>
+                    <button className={styles.actionBtn} onClick={() => handlePromote(u.id, 'RECEPTIONIST')}>Make Reception</button>
+                    <button className={styles.actionBtn} onClick={() => handlePromote(u.id, 'ADMIN')}>Make Admin</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
   );
 
   const renderHeroTab = () => (
     <>
-      {/* Trending Slides Manager */}
+      {/* Edit Left Poster Modal */}
+      {editingSlide && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem'
+        }}>
+          <div style={{
+            backgroundColor: '#141a20',
+            border: '1px solid #22272c',
+            borderRadius: '6px',
+            maxWidth: '600px',
+            width: '100%',
+            padding: '2rem',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.8)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#d6ff01', textTransform: 'uppercase' }}>Edit Poster Slide</h2>
+              <button
+                onClick={() => setEditingSlide(null)}
+                style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateSlide} className={styles.formGrid}>
+              <div className={styles.field}>
+                <label className={styles.label}>Poster Title / Name</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={editingSlide.title}
+                  onChange={e => setEditingSlide({ ...editingSlide, title: e.target.value })}
+                  placeholder="e.g. SHOP NEW MERCH"
+                  required
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.label}>CTA Button Text</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={editingSlide.ctaText}
+                  onChange={e => setEditingSlide({ ...editingSlide, ctaText: e.target.value })}
+                  placeholder="e.g. SHOP NOW"
+                  required
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.label}>CTA Action Link URL</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={editingSlide.ctaLink}
+                  onChange={e => setEditingSlide({ ...editingSlide, ctaLink: e.target.value })}
+                  placeholder="e.g. /shop or https://..."
+                  required
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.label}>Poster Image URL (or upload below)</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={editingSlide.imageUrl}
+                  onChange={e => setEditingSlide({ ...editingSlide, imageUrl: e.target.value })}
+                  placeholder="/images/... or upload"
+                  required
+                />
+              </div>
+
+              <div className={`${styles.field} ${styles.fieldFull}`}>
+                <label className={styles.label}>Direct File Upload</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleEditPosterFileUpload}
+                  style={{ color: '#fff', fontSize: '0.85rem' }}
+                />
+                {isUploadingEdit && <span style={{ color: '#d6ff01', fontSize: '0.8rem', marginTop: '4px' }}>Uploading image...</span>}
+              </div>
+
+              {editingSlide.imageUrl && (
+                <div className={`${styles.field} ${styles.fieldFull}`}>
+                  <label className={styles.label}>Image Preview</label>
+                  <div style={{ width: '100%', height: '140px', backgroundSize: 'cover', backgroundPosition: 'center', backgroundImage: `url(${editingSlide.imageUrl})`, borderRadius: '4px', border: '1px solid #22272c' }} />
+                </div>
+              )}
+
+              <div className={`${styles.field} ${styles.fieldFull}`} style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button type="submit" className={styles.btn}>Save Changes</button>
+                <button
+                  type="button"
+                  onClick={() => setEditingSlide(null)}
+                  style={{ background: '#22272c', color: '#fff', padding: '0.8rem 1.5rem', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 700 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Left Posters Manager */}
       <div className={styles.panel}>
         <div className={styles.panelHeader}>
-          <span>Add Trending Slide</span>
+          <span>Add Left Poster Slide</span>
         </div>
         <form className={styles.formGrid} onSubmit={handleAddSlide}>
           <div className={styles.field}>
-            <label className={styles.label}>Badge Text</label>
-            <input type="text" className={styles.input} value={newSlide.badge} onChange={e => setNewSlide({ ...newSlide, badge: e.target.value })} placeholder="e.g. NOW OPEN" required />
+            <label className={styles.label}>Poster Title / Name</label>
+            <input type="text" className={styles.input} value={newSlide.title} onChange={e => setNewSlide({ ...newSlide, title: e.target.value })} placeholder="e.g. SHOP NEW MERCH" required />
           </div>
-          <div className={styles.field}>
-            <label className={styles.label}>Title (Line 1)</label>
-            <input type="text" className={styles.input} value={newSlide.title} onChange={e => setNewSlide({ ...newSlide, title: e.target.value })} placeholder="e.g. AVAILABLE" required />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.label}>Subtitle (Line 2, accented)</label>
-            <input type="text" className={styles.input} value={newSlide.subtitle} onChange={e => setNewSlide({ ...newSlide, subtitle: e.target.value })} placeholder="e.g. NOW" required />
-          </div>
+          
           <div className={styles.field}>
             <label className={styles.label}>CTA Button Text</label>
             <input type="text" className={styles.input} value={newSlide.ctaText} onChange={e => setNewSlide({ ...newSlide, ctaText: e.target.value })} placeholder="e.g. SHOP NOW" required />
           </div>
+
           <div className={styles.field}>
-            <label className={styles.label}>CTA Link URL</label>
-            <input type="text" className={styles.input} value={newSlide.ctaLink} onChange={e => setNewSlide({ ...newSlide, ctaLink: e.target.value })} placeholder="/shop" required />
+            <label className={styles.label}>CTA Button Link URL</label>
+            <input type="text" className={styles.input} value={newSlide.ctaLink} onChange={e => setNewSlide({ ...newSlide, ctaLink: e.target.value })} placeholder="e.g. /shop or https://..." required />
           </div>
+
           <div className={styles.field}>
-            <label className={styles.label}>Background Image URL</label>
+            <label className={styles.label}>Poster Image URL (or upload below)</label>
             <input type="text" className={styles.input} value={newSlide.imageUrl} onChange={e => setNewSlide({ ...newSlide, imageUrl: e.target.value })} placeholder="/images/hero_main.jpg" required />
           </div>
+
           <div className={`${styles.field} ${styles.fieldFull}`}>
-            <label className={styles.label}>Description</label>
-            <textarea className={styles.input} rows={3} value={newSlide.description} onChange={e => setNewSlide({ ...newSlide, description: e.target.value })} placeholder="Short description..." />
+            <label className={styles.label}>📁 Direct File Upload (Click or Select File)</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handlePosterFileUpload}
+              style={{ color: '#fff', fontSize: '0.85rem' }}
+            />
+            {isUploadingPoster && <span style={{ color: '#d6ff01', fontSize: '0.8rem', marginTop: '4px' }}>Uploading image to server...</span>}
+            {newSlide.imageUrl && (
+              <div style={{ marginTop: '0.75rem' }}>
+                <span style={{ fontSize: '0.75rem', color: '#7f8388', display: 'block', marginBottom: '4px' }}>Uploaded Preview:</span>
+                <div style={{ width: '180px', height: '100px', backgroundSize: 'cover', backgroundPosition: 'center', backgroundImage: `url(${newSlide.imageUrl})`, borderRadius: '4px', border: '1px solid #22272c' }} />
+              </div>
+            )}
           </div>
+
           <div className={`${styles.field} ${styles.fieldFull}`} style={{ alignItems: 'flex-start' }}>
-            <button type="submit" className={styles.btn}>Add Slide</button>
+            <button type="submit" className={styles.btn} disabled={isUploadingPoster}>
+              {isUploadingPoster ? 'Uploading...' : 'Add Left Poster'}
+            </button>
           </div>
         </form>
       </div>
 
       <div className={styles.panel}>
         <div className={styles.panelHeader}>
-          <span>Current Trending Slides ({heroTrending.length})</span>
+          <span>Current Left Poster Slides ({heroTrending.length})</span>
         </div>
         <table className={styles.table}>
           <thead>
             <tr>
-              <th className={styles.th}>Badge</th>
               <th className={styles.th}>Title</th>
-              <th className={styles.th}>CTA</th>
-              <th className={styles.th}>Image</th>
+              <th className={styles.th}>Image Preview</th>
+              <th className={styles.th}>CTA Button</th>
+              <th className={styles.th}>CTA Link</th>
               <th className={styles.th}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {heroTrending.map(slide => (
               <tr key={slide.id} className={styles.tr}>
-                <td className={styles.td}>{slide.badge}</td>
-                <td className={styles.td}>{slide.title} {slide.subtitle}</td>
-                <td className={styles.td}>{slide.ctaText}</td>
-                <td className={styles.td} style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slide.imageUrl}</td>
+                <td className={styles.td}><strong>{slide.title}</strong></td>
                 <td className={styles.td}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '50px', height: '35px', backgroundSize: 'cover', backgroundPosition: 'center', backgroundImage: `url(${slide.imageUrl})`, borderRadius: '3px', border: '1px solid #22272c', flexShrink: 0 }} />
+                    <span style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: '#7f8388' }}>{slide.imageUrl}</span>
+                  </div>
+                </td>
+                <td className={styles.td}>
+                  <span style={{ background: '#d6ff01', color: '#000', padding: '3px 8px', borderRadius: '3px', fontWeight: 800, fontSize: '0.72rem' }}>
+                    {slide.ctaText || 'NONE'}
+                  </span>
+                </td>
+                <td className={styles.td} style={{ fontSize: '0.8rem', color: '#7f8388' }}>{slide.ctaLink}</td>
+                <td className={styles.td} style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    className={styles.actionBtn}
+                    style={{ background: '#22272c', color: '#d6ff01' }}
+                    onClick={() => setEditingSlide(slide)}
+                  >
+                    Edit
+                  </button>
                   <button className={`${styles.actionBtn} ${styles.actionBtnDelete}`} onClick={() => handleDeleteSlide(slide.id)}>Delete</button>
                 </td>
               </tr>
             ))}
             {heroTrending.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.5)' }}>No trending slides. Defaults will be used.</td>
+                <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.5)' }}>No custom posters. Default posters are being displayed.</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {/* Gallery Images Manager */}
+      {/* Right Feature Cards Manager */}
       <div className={styles.panel}>
         <div className={styles.panelHeader}>
-          <span>Add Gallery Image</span>
+          <span>Add Right Feature Card</span>
         </div>
         <form className={styles.formGrid} onSubmit={handleAddGalleryImg}>
           <div className={styles.field}>
-            <label className={styles.label}>Image URL / Path</label>
-            <input type="text" className={styles.input} value={newGalleryImg.imageUrl} onChange={e => setNewGalleryImg({ ...newGalleryImg, imageUrl: e.target.value })} placeholder="/images/hero_side.jpg" required />
+            <label className={styles.label}>Feature Card Label</label>
+            <input type="text" className={styles.input} value={newGalleryImg.label} onChange={e => setNewGalleryImg({ ...newGalleryImg, label: e.target.value })} placeholder="e.g. DREAMHACK ATLANTA CHAMPS" required />
           </div>
           <div className={styles.field}>
-            <label className={styles.label}>Label</label>
-            <input type="text" className={styles.input} value={newGalleryImg.label} onChange={e => setNewGalleryImg({ ...newGalleryImg, label: e.target.value })} placeholder="e.g. CHAMPIONS" required />
+            <label className={styles.label}>Feature Image URL (or upload below)</label>
+            <input type="text" className={styles.input} value={newGalleryImg.imageUrl} onChange={e => setNewGalleryImg({ ...newGalleryImg, imageUrl: e.target.value })} placeholder="/images/champs.jpg" required />
+          </div>
+          <div className={`${styles.field} ${styles.fieldFull}`}>
+            <label className={styles.label}>📁 Direct File Upload</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleGalleryFileUpload}
+              style={{ color: '#fff', fontSize: '0.85rem' }}
+            />
+            {isUploadingGallery && <span style={{ color: '#d6ff01', fontSize: '0.8rem', marginTop: '4px' }}>Uploading image to server...</span>}
+            {newGalleryImg.imageUrl && (
+              <div style={{ marginTop: '0.75rem' }}>
+                <span style={{ fontSize: '0.75rem', color: '#7f8388', display: 'block', marginBottom: '4px' }}>Uploaded Preview:</span>
+                <div style={{ width: '180px', height: '100px', backgroundSize: 'cover', backgroundPosition: 'center', backgroundImage: `url(${newGalleryImg.imageUrl})`, borderRadius: '4px', border: '1px solid #22272c' }} />
+              </div>
+            )}
           </div>
           <div className={`${styles.field} ${styles.fieldFull}`} style={{ alignItems: 'flex-start' }}>
-            <button type="submit" className={styles.btn}>Add Gallery Image</button>
+            <button type="submit" className={styles.btn} disabled={isUploadingGallery}>
+              {isUploadingGallery ? 'Uploading...' : 'Add Right Feature Card'}
+            </button>
           </div>
         </form>
       </div>
 
       <div className={styles.panel}>
         <div className={styles.panelHeader}>
-          <span>Current Gallery Images ({heroGallery.length})</span>
+          <span>Current Right Feature Cards ({heroGallery.length})</span>
         </div>
         <table className={styles.table}>
           <thead>
             <tr>
               <th className={styles.th}>Label</th>
-              <th className={styles.th}>Image URL</th>
+              <th className={styles.th}>Image Preview</th>
               <th className={styles.th}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {heroGallery.map(img => (
               <tr key={img.id} className={styles.tr}>
-                <td className={styles.td}>{img.label}</td>
-                <td className={styles.td} style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{img.imageUrl}</td>
+                <td className={styles.td}><strong>{img.label}</strong></td>
+                <td className={styles.td}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '50px', height: '35px', backgroundSize: 'cover', backgroundPosition: 'center', backgroundImage: `url(${img.imageUrl})`, borderRadius: '3px', border: '1px solid #22272c', flexShrink: 0 }} />
+                    <span style={{ maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: '#7f8388' }}>{img.imageUrl}</span>
+                  </div>
+                </td>
                 <td className={styles.td}>
                   <button className={`${styles.actionBtn} ${styles.actionBtnDelete}`} onClick={() => handleDeleteGalleryImg(img.id)}>Delete</button>
                 </td>
@@ -726,7 +1101,7 @@ export default function BackendAdmin() {
             ))}
             {heroGallery.length === 0 && (
               <tr>
-                <td colSpan={3} style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.5)' }}>No gallery images. Defaults will be used.</td>
+                <td colSpan={3} style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.5)' }}>No custom feature cards. Default cards are being displayed.</td>
               </tr>
             )}
           </tbody>

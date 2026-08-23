@@ -6,10 +6,10 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import styles from './page.module.css';
-import { 
+import {
   getPendingUsers, getUpcomingBookings, getActiveSessions, getRecentSales, getWaitlist,
   getSnacks, getConsoles, getBaseHourlyRate, getExtraControllerRate,
-  approveUser, addWaitlistEntry, endGameSession, addTimeToSession, 
+  approveUser, addWaitlistEntry, endGameSession, addTimeToSession,
   processPosCheckout, searchUsers, removeWaitlistEntry, assignWaitlistEntry,
   seedAdminUser, checkInOnlineBooking, transferGameSession, pauseGameSession, resumeGameSession,
   getDailyShiftSummary
@@ -94,7 +94,7 @@ const INITIAL_HISTORY: Session[] = [
 export default function ReceptionPortal() {
   const [activeTab, setActiveTab] = useState('register');
   const [dbSessions, setDbSessions] = useState<any[]>([]);
-  
+
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -121,8 +121,8 @@ export default function ReceptionPortal() {
   const [upcomingBookings, setUpcomingBookings] = useState<any[]>([]);
   const [dbWaitlist, setDbWaitlist] = useState<any[]>([]);
   const { data: session, status: authStatus } = useSession();
-  const [loginEmail, setLoginEmail] = useState('devjwdo@gmail.com');
-  const [loginPassword, setLoginPassword] = useState('Matta1234cad');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -207,7 +207,7 @@ export default function ReceptionPortal() {
       setBaseRate(rate);
       setExtraControllerRate(extraRate);
       setSnacks(fetchedSnacks);
-      
+
       const mappedConsoles = fetchedConsoles.map(c => ({
         id: c.id,
         name: c.hardwareTitle,
@@ -270,8 +270,8 @@ export default function ReceptionPortal() {
     if (activeSession) {
       const remSec = getRemainingSeconds(activeSession.endTime);
       const minsLeft = Math.ceil(remSec / 60);
-      return { 
-        available: false, 
+      return {
+        available: false,
         reason: `OCCUPIED (${minsLeft}m left)`,
         remainingSeconds: remSec,
         isOccupied: true,
@@ -282,7 +282,7 @@ export default function ReceptionPortal() {
     // 2. Check upcoming online bookings
     const now = new Date();
     const requestedEnd = new Date(now.getTime() + durationSeconds * 1000);
-    
+
     const overlappingBooking = upcomingBookings.find(b => {
       if (b.consoleId !== consoleId) return false;
       const bStart = new Date(b.startTime);
@@ -292,11 +292,11 @@ export default function ReceptionPortal() {
     if (overlappingBooking) {
       const bStart = new Date(overlappingBooking.startTime);
       const timeStr = bStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      return { 
-        available: false, 
+      return {
+        available: false,
         reason: `RESERVED AT ${timeStr}`,
         isOccupied: false,
-        isReserved: true 
+        isReserved: true
       };
     }
 
@@ -311,7 +311,7 @@ export default function ReceptionPortal() {
     const val = e.target.value;
     setFormData({ ...formData, name: val });
     setSelectedUserId(undefined);
-    
+
     if (val.length >= 2) {
       const results = await searchUsers(val);
       setUserSearchResults(results);
@@ -367,7 +367,7 @@ export default function ReceptionPortal() {
   const handleWaitlist = async (e: React.MouseEvent) => {
     e.preventDefault();
     if (!formData.name) return toast.error('Name is required for waitlist');
-    
+
     const req = formData.consoleId ? consoles.find(c => c.id === formData.consoleId)?.name || 'Any Console' : 'Any Console';
 
     await addWaitlistEntry(formData.name, req);
@@ -430,7 +430,7 @@ export default function ReceptionPortal() {
   };
 
   const handleEndSession = async (id: string) => {
-    if(confirm('Are you sure you want to end this session early?')) {
+    if (confirm('Are you sure you want to end this session early?')) {
       await endGameSession(id);
       await fetchPending(); // Refresh
     }
@@ -471,7 +471,7 @@ export default function ReceptionPortal() {
   const handleConfirmPayment = async () => {
     if (cart.length === 0) return toast.error('Cart is empty!');
     if (isSubmitting) return;
-    
+
     const totalAmount = cart.reduce((sum, item) => sum + item.price, 0);
     const sessionItems = cart
       .filter(item => item.type === 'session')
@@ -491,19 +491,19 @@ export default function ReceptionPortal() {
     try {
       toast.loading('Processing order...', { id: 'checkout' });
       const res = await processPosCheckout(
-        orderItems, 
-        totalAmount, 
-        paymentMethod, 
-        sessionItems, 
-        walkInName, 
-        walkInPhone, 
+        orderItems,
+        totalAmount,
+        paymentMethod,
+        sessionItems,
+        walkInName,
+        walkInPhone,
         existingUserId
       );
 
       if (res && 'error' in res && res.error) {
         throw new Error(res.error);
       }
-      
+
       await fetchPending();
       toast.success(`Payment of PKR ${totalAmount} completed via ${paymentMethod}!`, { id: 'checkout' });
       setCart([]);
@@ -556,12 +556,12 @@ export default function ReceptionPortal() {
     setFormData({
       name: waiter.name,
       phone: '',
-      consoleId: '', 
+      consoleId: '',
       duration: '3600',
       additionalControllers: 0,
       payment: 'cash'
     });
-    
+
     await assignWaitlistEntry(waiter.id);
     await fetchPending();
   };
@@ -578,17 +578,17 @@ export default function ReceptionPortal() {
             <form className={styles.form} onSubmit={handleAddSessionToCart}>
               <div className={styles.field} style={{ position: 'relative' }}>
                 <label className={styles.label}>
-                  Gamer Tag / Name 
-                  {!selectedUserId && formData.name.length > 2 && <span style={{fontSize:'0.7rem', color:'var(--primary-accent)', marginLeft:'0.5rem'}}>(New Account)</span>}
-                  {selectedUserId && <span style={{fontSize:'0.7rem', color:'#c1ff1c', marginLeft:'0.5rem'}}>[Verified Member]</span>}
+                  Gamer Tag / Name
+                  {!selectedUserId && formData.name.length > 2 && <span style={{ fontSize: '0.7rem', color: 'var(--primary-accent)', marginLeft: '0.5rem' }}>(New Account)</span>}
+                  {selectedUserId && <span style={{ fontSize: '0.7rem', color: '#c1ff1c', marginLeft: '0.5rem' }}>[Verified Member]</span>}
                 </label>
                 <input type="text" name="name" value={formData.name} onChange={handleNameChange} className={styles.input} placeholder="Search by name or phone, or enter new name" required autoComplete="off" />
-                
+
                 {userSearchResults.length > 0 && (
                   <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1a24', border: '1px solid rgba(255,255,255,0.1)', zIndex: 10, maxHeight: '200px', overflowY: 'auto', borderRadius: '4px', marginTop: '0.25rem' }}>
                     {userSearchResults.map(u => (
-                      <div 
-                        key={u.id} 
+                      <div
+                        key={u.id}
                         onClick={() => selectUser(u)}
                         style={{ padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column' }}
                       >
@@ -604,15 +604,15 @@ export default function ReceptionPortal() {
                 <label className={styles.label}>Contact No</label>
                 <input type="text" name="phone" value={formData.phone} onChange={handleInputChange} className={styles.input} placeholder="Enter contact number" />
               </div>
-              
+
               <div className={styles.field}>
                 <label className={styles.label}>Search Game Availability</label>
-                <input 
-                  type="text" 
-                  value={gameSearchQuery} 
-                  onChange={e => setGameSearchQuery(e.target.value)} 
-                  className={styles.input} 
-                  placeholder="e.g. FIFA, Valorant, Tekken..." 
+                <input
+                  type="text"
+                  value={gameSearchQuery}
+                  onChange={e => setGameSearchQuery(e.target.value)}
+                  className={styles.input}
+                  placeholder="e.g. FIFA, Valorant, Tekken..."
                 />
               </div>
 
@@ -624,8 +624,8 @@ export default function ReceptionPortal() {
                     const availability = durationObj ? checkConsoleAvailability(c.id, durationObj.seconds) : { available: true, reason: '', isOccupied: false, isReserved: false };
                     const isAvailable = availability.available;
                     const isSelected = formData.consoleId === c.id;
-                    
-                    const hasGame = gameSearchQuery.trim() !== '' 
+
+                    const hasGame = gameSearchQuery.trim() !== ''
                       ? c.games.some(g => g.toLowerCase().includes(gameSearchQuery.toLowerCase()))
                       : false;
 
@@ -647,18 +647,18 @@ export default function ReceptionPortal() {
                     }
 
                     return (
-                      <button 
+                      <button
                         key={c.id}
-                        type="button" 
+                        type="button"
                         className={btnClass}
                         onClick={() => setFormData({ ...formData, consoleId: c.id })}
                       >
-                        {c.name.split(' - ')[0]}<br/><span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{c.name.split(' - ')[1]}</span>
+                        {c.name.split(' - ')[0]}<br /><span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{c.name.split(' - ')[1]}</span>
                         {!isAvailable && (
-                          <span style={{ 
-                            fontSize: '0.65rem', 
-                            color: availability.isOccupied ? '#ff4d4d' : '#60a5fa', 
-                            marginTop: '0.25rem', 
+                          <span style={{
+                            fontSize: '0.65rem',
+                            color: availability.isOccupied ? '#ff4d4d' : '#60a5fa',
+                            marginTop: '0.25rem',
                             fontWeight: 900,
                             background: availability.isOccupied ? 'rgba(255, 77, 77, 0.15)' : 'rgba(96, 165, 250, 0.15)',
                             padding: '0.1rem 0.4rem',
@@ -678,13 +678,13 @@ export default function ReceptionPortal() {
                 <label className={styles.label}>Duration</label>
                 <div className={styles.gridOptions} style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
                   {DURATIONS.map(d => (
-                    <button 
+                    <button
                       key={d.id}
-                      type="button" 
+                      type="button"
                       className={`${styles.optionBtn} ${formData.duration === d.id ? styles.optionBtnActive : ''}`}
                       onClick={() => setFormData({ ...formData, duration: d.id })}
                     >
-                      {d.name.split(' (')[0]}<br/><span style={{ fontSize: '0.8rem', opacity: 0.7 }}>PKR {d.price}</span>
+                      {d.name.split(' (')[0]}<br /><span style={{ fontSize: '0.8rem', opacity: 0.7 }}>PKR {d.price}</span>
                     </button>
                   ))}
                 </div>
@@ -694,9 +694,9 @@ export default function ReceptionPortal() {
                 <label className={styles.label}>Additional Controllers (+{extraControllerRate} PKR flat fee each)</label>
                 <div className={styles.gridOptions} style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
                   {[0, 1, 3].map(num => (
-                    <button 
+                    <button
                       key={num}
-                      type="button" 
+                      type="button"
                       className={`${styles.optionBtn} ${formData.additionalControllers === num ? styles.optionBtnActive : ''}`}
                       onClick={() => setFormData({ ...formData, additionalControllers: num })}
                     >
@@ -717,17 +717,17 @@ export default function ReceptionPortal() {
                 return (
                   <>
                     <div className={styles.btnGroup}>
-                      <button 
-                        type="submit" 
+                      <button
+                        type="submit"
                         disabled={isSelectedConsoleUnavailable}
                         className={`${styles.submitBtn} ${isSelectedConsoleUnavailable ? styles.submitBtnDisabled : ''}`}
                         title={isSelectedConsoleUnavailable ? 'Station is occupied. Use Add to Waitlist instead.' : 'Add to Order'}
                       >
                         {isSelectedConsoleUnavailable ? 'Station Occupied' : 'Add to Order'}
                       </button>
-                      <button 
-                        type="button" 
-                        className={`${styles.waitlistBtn} ${isSelectedConsoleUnavailable ? styles.waitlistBtnPrimary : ''}`} 
+                      <button
+                        type="button"
+                        className={`${styles.waitlistBtn} ${isSelectedConsoleUnavailable ? styles.waitlistBtnPrimary : ''}`}
                         onClick={handleWaitlist}
                       >
                         Add to Waitlist
@@ -753,7 +753,7 @@ export default function ReceptionPortal() {
             <div className={styles.snackGrid}>
               {snacks.map(snack => (
                 <button key={snack.id} type="button" className={styles.snackBtn} onClick={() => handleAddSnackToCart(snack.name, snack.price)}>
-                  {snack.name}<br/><span>PKR {snack.price}</span>
+                  {snack.name}<br /><span>PKR {snack.price}</span>
                 </button>
               ))}
             </div>
@@ -788,26 +788,26 @@ export default function ReceptionPortal() {
                 <span>Total Amount:</span>
                 <span className={styles.cartTotalAmount}>PKR {totalAmount}</span>
               </div>
-              
+
               <div className={styles.field} style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
                 <label className={styles.label}>Payment Method</label>
                 <div className={styles.paymentOptions}>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className={`${styles.paymentBtn} ${paymentMethod === 'cash' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setPaymentMethod('cash')}
                   >
                     Cash
                   </button>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className={`${styles.paymentBtn} ${paymentMethod === 'card' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setPaymentMethod('card')}
                   >
                     Card
                   </button>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className={`${styles.paymentBtn} ${paymentMethod === 'account' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setPaymentMethod('account')}
                   >
@@ -818,9 +818,9 @@ export default function ReceptionPortal() {
 
 
 
-              <button 
-                className={styles.checkoutBtn} 
-                onClick={() => handleCheckout()} 
+              <button
+                className={styles.checkoutBtn}
+                onClick={() => handleCheckout()}
                 disabled={cart.length === 0}
                 style={{ opacity: cart.length === 0 ? 0.5 : 1 }}
               >
@@ -924,10 +924,10 @@ export default function ReceptionPortal() {
                     <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>{hours} hrs</div>
                   </td>
                   <td className={styles.td}>
-                    <span style={{ 
-                      padding: '0.25rem 0.5rem', 
-                      borderRadius: '4px', 
-                      background: 'rgba(96, 165, 250, 0.2)', 
+                    <span style={{
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '4px',
+                      background: 'rgba(96, 165, 250, 0.2)',
                       color: '#60a5fa',
                       fontSize: '0.8rem'
                     }}>
@@ -935,8 +935,8 @@ export default function ReceptionPortal() {
                     </span>
                   </td>
                   <td className={styles.td}>
-                    <button 
-                      className={styles.checkinBtn} 
+                    <button
+                      className={styles.checkinBtn}
                       onClick={() => setCheckInModalBooking(b)}
                     >
                       Check-In & Start
@@ -972,7 +972,7 @@ export default function ReceptionPortal() {
                     {status}
                   </span>
                 </div>
-                
+
                 <div style={{ margin: '1rem 0' }}>
                   <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem' }}>Player</div>
                   <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{session.guestName || session.user?.fullName || session.user?.username}</div>
@@ -1062,20 +1062,20 @@ export default function ReceptionPortal() {
           </thead>
           <tbody>
             {recentSales.map(sale => (
-                <tr key={sale.id} className={styles.tr}>
-                  <td className={styles.td}>
-                    {sale.items.map((i: any) => i.name).join(', ')}
-                  </td>
-                  <td className={styles.td}>PKR {sale.totalAmount}</td>
-                  <td className={styles.td}>{new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                  <td className={styles.td} style={{ textTransform: 'capitalize' }}>{sale.paymentMethod}</td>
-                </tr>
-              ))}
-              {recentSales.length === 0 && (
-                <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.5)' }}>No recent sales.</td>
-                </tr>
-              )}
+              <tr key={sale.id} className={styles.tr}>
+                <td className={styles.td}>
+                  {sale.items.map((i: { name: string }) => i.name).join(', ')}
+                </td>
+                <td className={styles.td}>PKR {sale.totalAmount}</td>
+                <td className={styles.td}>{new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                <td className={styles.td} style={{ textTransform: 'capitalize' }}>{sale.paymentMethod}</td>
+              </tr>
+            ))}
+            {recentSales.length === 0 && (
+              <tr>
+                <td colSpan={4} style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.5)' }}>No recent sales.</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -1100,29 +1100,9 @@ export default function ReceptionPortal() {
             <p className={styles.loginSubtitle}>Staff & Admin Portal Authentication</p>
           </div>
 
-          <div className={styles.credHintBox}>
-            <div className={styles.credHintTitle}>
-              <span>Default Admin Access</span>
-              <button 
-                type="button" 
-                className={styles.autofillBtn}
-                onClick={() => {
-                  setLoginEmail('devjwdo@gmail.com');
-                  setLoginPassword('Matta1234cad');
-                }}
-              >
-                Autofill
-              </button>
-            </div>
-            <div className={styles.credHintDetails}>
-              Email: <strong>devjwdo@gmail.com</strong><br />
-              Password: <strong>Matta1234cad</strong>
-            </div>
-          </div>
-
           {session?.user && (
             <div className={styles.loginError} style={{ borderColor: 'rgba(255, 180, 0, 0.4)', background: 'rgba(255, 180, 0, 0.1)', color: '#ffb400' }}>
-              Logged in as <strong>{session.user.name || session.user.email}</strong> (Role: {(session.user as any).role || 'USER'}).<br />
+              Logged in as <strong>{session.user.name || session.user.email}</strong> (Role: {session.user.role || 'USER'}).<br />
               This account does not have Receptionist or Admin privileges.
             </div>
           )}
@@ -1191,13 +1171,13 @@ export default function ReceptionPortal() {
           <Link href="/" style={{ textDecoration: 'none', color: 'inherit' }}>M80 // Reception</Link>
         </div>
         <nav className={styles.nav}>
-          <div 
+          <div
             className={`${styles.navItem} ${activeTab === 'register' ? styles.navItemActive : ''}`}
             onClick={() => setActiveTab('register')}
           >
             Register & Order
           </div>
-          <div 
+          <div
             className={`${styles.navItem} ${activeTab === 'data' ? styles.navItemActive : ''}`}
             onClick={() => setActiveTab('data')}
           >
@@ -1207,7 +1187,7 @@ export default function ReceptionPortal() {
 
         <div className={styles.sidebarFooter}>
           <div className={styles.staffInfo}>
-            <span className={styles.staffRole}>{(session?.user as any)?.role || 'STAFF'}</span>
+            <span className={styles.staffRole}>{session?.user?.role || 'STAFF'}</span>
             <span className={styles.staffName}>{session?.user?.name || session?.user?.email}</span>
             <span className={styles.staffEmail}>{session?.user?.email}</span>
           </div>
@@ -1239,7 +1219,7 @@ export default function ReceptionPortal() {
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ background: '#1a1a1a', padding: '3rem', borderRadius: '12px', width: '500px', maxWidth: '90%', border: '1px solid rgba(255,255,255,0.1)' }}>
               <h2 style={{ fontSize: '2rem', marginBottom: '2rem', textAlign: 'center', color: 'var(--primary-accent)' }}>Order Slip</h2>
-              
+
               <div style={{ marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
                 {cart.map((item, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
@@ -1248,7 +1228,7 @@ export default function ReceptionPortal() {
                   </div>
                 ))}
               </div>
-              
+
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.5rem', fontWeight: 800, marginBottom: '1rem' }}>
                 <span>Total Amount:</span>
                 <span style={{ color: 'var(--primary-accent)' }}>PKR {cart.reduce((sum, item) => sum + item.price, 0)}</span>
@@ -1257,35 +1237,35 @@ export default function ReceptionPortal() {
               <div style={{ textAlign: 'center', marginBottom: '2rem', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', fontSize: '1.1rem', textTransform: 'capitalize' }}>
                 Payment Method: <strong style={{ color: 'var(--primary-accent)' }}>{paymentMethod}</strong>
               </div>
-              
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <button 
-                  onClick={() => handleConfirmPayment()} 
+                <button
+                  onClick={() => handleConfirmPayment()}
                   disabled={isSubmitting}
-                  style={{ 
-                    background: isSubmitting ? '#666' : 'var(--primary-accent)', 
-                    color: isSubmitting ? '#aaa' : 'black', 
-                    padding: '1rem', 
-                    border: 'none', 
-                    borderRadius: '8px', 
-                    fontSize: '1.2rem', 
-                    fontWeight: 900, 
-                    cursor: isSubmitting ? 'not-allowed' : 'pointer' 
+                  style={{
+                    background: isSubmitting ? '#666' : 'var(--primary-accent)',
+                    color: isSubmitting ? '#aaa' : 'black',
+                    padding: '1rem',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '1.2rem',
+                    fontWeight: 900,
+                    cursor: isSubmitting ? 'not-allowed' : 'pointer'
                   }}
                 >
                   {isSubmitting ? 'Processing Order...' : 'Mark as Paid & Confirm'}
                 </button>
-                
-                <button 
+
+                <button
                   type="button"
-                  onClick={() => handlePrintReceipt()} 
+                  onClick={() => handlePrintReceipt()}
                   style={{ background: 'rgba(255,255,255,0.08)', color: 'white', padding: '0.85rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' }}
                 >
                   Print Receipt / Slip
                 </button>
 
-                <button 
-                  onClick={() => setIsSlipModalOpen(false)} 
+                <button
+                  onClick={() => setIsSlipModalOpen(false)}
                   disabled={isSubmitting}
                   style={{ background: 'transparent', color: 'white', padding: '0.85rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', fontSize: '1rem', fontWeight: 600, cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
                 >
@@ -1328,22 +1308,22 @@ export default function ReceptionPortal() {
               <div className={styles.field} style={{ marginBottom: '1.5rem' }}>
                 <label className={styles.label}>Collect Payment Method</label>
                 <div className={styles.paymentOptions}>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className={`${styles.paymentBtn} ${checkInPaymentMethod === 'cash' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setCheckInPaymentMethod('cash')}
                   >
                     Cash
                   </button>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className={`${styles.paymentBtn} ${checkInPaymentMethod === 'card' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setCheckInPaymentMethod('card')}
                   >
                     Card
                   </button>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className={`${styles.paymentBtn} ${checkInPaymentMethod === 'account' ? styles.paymentBtnActive : ''}`}
                     onClick={() => setCheckInPaymentMethod('account')}
                   >
@@ -1353,14 +1333,14 @@ export default function ReceptionPortal() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <button 
-                  onClick={handleCheckInSubmit} 
+                <button
+                  onClick={handleCheckInSubmit}
                   disabled={isCheckingIn}
                   className={styles.submitBtn}
                 >
                   {isCheckingIn ? 'Activating Station...' : 'Confirm Payment & Start Session'}
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={() => setCheckInModalBooking(null)}
                   disabled={isCheckingIn}
@@ -1387,7 +1367,7 @@ export default function ReceptionPortal() {
 
               <div className={styles.field} style={{ marginBottom: '1.5rem' }}>
                 <label className={styles.label}>Select Destination Station</label>
-                <select 
+                <select
                   value={targetTransferConsole}
                   onChange={(e) => setTargetTransferConsole(e.target.value)}
                   className={styles.select}
@@ -1409,15 +1389,15 @@ export default function ReceptionPortal() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <button 
-                  onClick={handleTransferSubmit} 
+                <button
+                  onClick={handleTransferSubmit}
                   disabled={!targetTransferConsole || isTransferring}
                   className={styles.submitBtn}
                   style={{ background: '#ffb400', color: '#000' }}
                 >
                   {isTransferring ? 'Moving Station...' : 'Confirm Station Transfer'}
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={() => setTransferModalSession(null)}
                   disabled={isTransferring}

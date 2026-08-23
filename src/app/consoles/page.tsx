@@ -1,83 +1,69 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import ConsoleCard from '@/components/ui/ConsoleCard';
 import LocationCard from '@/components/ui/LocationCard';
 import styles from './page.module.css';
+import { getConsoles, getBaseHourlyRate } from '@/backend/actions';
 
 export default function Consoles() {
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
+  const [dbConsoles, setDbConsoles] = useState<any[]>([]);
+  const [baseRate, setBaseRate] = useState(1000);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [consoles, rate] = await Promise.all([
+          getConsoles(),
+          getBaseHourlyRate()
+        ]);
+        setDbConsoles(consoles);
+        setBaseRate(rate);
+      } catch (err) {
+        console.error('Failed to load consoles:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
 
   const locations = [
     {
       id: "udhyana-matta",
-      title: "Udhyana Games Matta",
-      specs: "Premium Gaming Lounge",
-      description: "Experience the ultimate gaming lounge atmosphere at Udhyana Games Matta. Featuring top-tier setups, comfortable seating, and a vibrant gaming community.",
-      image: "/images/products/ps5.png",
+      title: "Udhyana Gaming Lounge - Matta",
+      specs: "Flagship Arena · 240Hz / 4K Gaming",
+      description: "Our premier gaming lounge in Matta featuring high-end PS5 Pro stations, custom RTX 4090 esports rigs, luxury gaming chairs, and snack bar.",
+      image: "/images/hero_side.jpg",
       status: "Open Now",
-      statusColor: "#c1ff1c",
-      features: ["PS5", "Xbox Series X", "Custom PCs", "Snacks"],
-      consoles: [
-        {
-          id: "ps5-matta",
-          title: "PS5 Pro Setup",
-          specs: "$10/hr · 120Hz 4K · DualSense Edge",
-          description: "Experience the next generation of PlayStation with ultra-fast loading, ray tracing, and all the latest exclusive titles.",
-          image: "/images/products/ps5.png",
-          status: "Available Now",
-          statusColor: "#c1ff1c",
-          games: ["Tekken 8", "Spider-Man 2", "FC 24", "Call of Duty: MW3"]
-        },
-        {
-          id: "xbox-matta",
-          title: "Xbox Series X",
-          specs: "$10/hr · Game Pass Ultimate · Elite Series 2",
-          description: "Power your dreams with 12 Teraflops of processing power. Play thousands of titles across four generations.",
-          image: "/images/products/xbox.png",
-          status: "In Use (Avail. 4:00 PM)",
-          statusColor: "#ffcc00",
-          games: ["Halo Infinite", "Forza Horizon 5", "Starfield", "Mortal Kombat 1"]
-        },
-        {
-          id: "pc-matta",
-          title: "Custom Esports PC",
-          specs: "$15/hr · RTX 4090 · 360Hz Monitor",
-          description: "Dominate the competition on our top-tier custom rigs designed specifically for ultra-high framerate competitive play.",
-          image: "/images/products/pc.png",
-          status: "Available Now",
-          statusColor: "#c1ff1c",
-          games: ["Valorant", "CS2", "League of Legends", "Apex Legends"]
-        }
-      ]
+      statusColor: "#d6ff01",
+      features: ["PS5 Pro Stations", "RTX 4090 Esports PCs", "Xbox Series X", "Snack Bar & Energy Drinks"],
     },
     {
       id: "udhyana-downtown",
-      title: "Udhyana Games Downtown",
-      specs: "Esports Arena",
-      description: "Our downtown location specializes in competitive gaming with 240Hz monitors and regular weekly tournaments.",
-      image: "/images/products/pc.png",
+      title: "Udhyana Esports Arena - Downtown",
+      specs: "Tournament Center · VIP Booths",
+      description: "Specialized competitive gaming facility equipped with private team practice booths, streaming setups, and live spectator lounge.",
+      image: "/images/hero_main.jpg",
       status: "Open Now",
-      statusColor: "#c1ff1c",
-      features: ["Esports PCs", "Streaming Booths", "Tournaments"],
-      consoles: [
-        {
-          id: "pc-downtown",
-          title: "Pro Esports Rig",
-          specs: "$15/hr · RTX 4090 · 360Hz Monitor",
-          description: "Dominate the competition on our top-tier custom rigs designed specifically for ultra-high framerate competitive play.",
-          image: "/images/products/pc.png",
-          status: "Available Now",
-          statusColor: "#c1ff1c",
-          games: ["Valorant", "CS2", "League of Legends", "Apex Legends"]
-        }
-      ]
+      statusColor: "#d6ff01",
+      features: ["360Hz Monitors", "Team Booths", "Live Streaming Setup", "Console Stations"],
     }
   ];
 
   const currentLocation = locations.find(l => l.id === selectedLocation);
+
+  const getStationImage = (hardwareTitle: string, defaultImg?: string) => {
+    if (defaultImg) return defaultImg;
+    const title = hardwareTitle.toLowerCase();
+    if (title.includes('pc')) return '/images/products/pc.png';
+    if (title.includes('xbox')) return '/images/products/xbox.png';
+    return '/images/products/ps5.png';
+  };
 
   return (
     <>
@@ -126,17 +112,17 @@ export default function Consoles() {
                 />
               ))
             ) : (
-              currentLocation?.consoles.map((c) => (
+              dbConsoles.map((c) => (
                 <ConsoleCard
                   key={c.id}
                   id={c.id}
-                  title={c.title}
-                  specs={c.specs}
-                  description={c.description}
-                  image={c.image}
-                  status={c.status}
-                  statusColor={c.statusColor}
-                  games={c.games}
+                  title={c.hardwareTitle}
+                  specs={c.specs || `PKR ${c.hourlyRate || baseRate}/hr · High Refresh Display`}
+                  description={`Equipped station available at ${currentLocation?.title}. Play top competitive titles with low latency.`}
+                  image={getStationImage(c.hardwareTitle, c.imagePath)}
+                  status="Available Now"
+                  statusColor="#d6ff01"
+                  games={c.games && c.games.length > 0 ? c.games.map((g: any) => g.game.name) : ["Tekken 8", "FC 24", "Call of Duty", "Valorant"]}
                 />
               ))
             )}

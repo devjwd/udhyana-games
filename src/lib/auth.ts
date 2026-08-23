@@ -1,4 +1,4 @@
-import { NextAuthOptions } from 'next-auth';
+import { NextAuthOptions, User as NextAuthUser } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
@@ -17,7 +17,7 @@ export const authOptions: NextAuthOptions = {
         username: { label: 'Gamer Tag', type: 'text' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials): Promise<NextAuthUser | null> {
         if (!credentials?.username || !credentials?.password) {
           return null;
         }
@@ -54,7 +54,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           image: user.image,
           role: user.role,
-        } as any;
+        };
       },
     }),
   ],
@@ -63,20 +63,21 @@ export const authOptions: NextAuthOptions = {
       // On initial sign-in, attach the user id to the token
       if (user) {
         token.userId = user.id;
-        token.role = (user as any).role;
+        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.userId) {
         const dbUser = await prisma.user.findUnique({
-          where: { id: token.userId as string },
+          where: { id: token.userId },
           select: {
             id: true,
             username: true,
             rank: true,
             sessionsCount: true,
             playtimeHours: true,
+            loyaltyPoints: true,
             fullName: true,
             image: true,
             role: true,
@@ -84,12 +85,13 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (dbUser) {
-          (session.user as any).id = dbUser.id;
-          (session.user as any).username = dbUser.username;
-          (session.user as any).rank = dbUser.rank;
-          (session.user as any).sessionsCount = dbUser.sessionsCount;
-          (session.user as any).playtimeHours = dbUser.playtimeHours;
-          (session.user as any).role = dbUser.role;
+          session.user.id = dbUser.id;
+          session.user.username = dbUser.username;
+          session.user.rank = dbUser.rank;
+          session.user.sessionsCount = dbUser.sessionsCount;
+          session.user.playtimeHours = dbUser.playtimeHours;
+          session.user.loyaltyPoints = dbUser.loyaltyPoints;
+          session.user.role = dbUser.role;
         }
       }
       return session;

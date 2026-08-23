@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import styles from './HeroSection.module.css';
 import {
   getHeroTrending,
@@ -43,13 +44,30 @@ const DEFAULT_POSTERS: HeroTrendingSlide[] = [
   },
 ];
 
-export default function HeroSection() {
-  const [posters, setPosters] = useState<HeroTrendingSlide[]>(DEFAULT_POSTERS);
+const DEFAULT_GALLERY: HeroGalleryImage[] = [
+  { id: '1', imageUrl: '/images/champs.jpg', label: 'DREAMHACK ATLANTA CHAMPS' },
+  { id: '2', imageUrl: '/images/hero_side.jpg', label: 'VIP LOUNGE' },
+  { id: '3', imageUrl: '/images/lounge_interior.png', label: 'MAIN ARENA' },
+  { id: '4', imageUrl: '/images/strip1_single.jpg', label: 'PRO STATIONS' },
+];
+
+interface HeroSectionProps {
+  initialTrending?: HeroTrendingSlide[];
+  initialGallery?: HeroGalleryImage[];
+}
+
+export default function HeroSection({ initialTrending, initialGallery }: HeroSectionProps) {
+  const [posters, setPosters] = useState<HeroTrendingSlide[]>(
+    initialTrending && initialTrending.length > 0 ? initialTrending : DEFAULT_POSTERS
+  );
   const [activePosterIndex, setActivePosterIndex] = useState(0);
-  const [galleryImages, setGalleryImages] = useState<HeroGalleryImage[]>([]);
+  const [galleryImages, setGalleryImages] = useState<HeroGalleryImage[]>(
+    initialGallery && initialGallery.length > 0 ? initialGallery : DEFAULT_GALLERY
+  );
   const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
 
   useEffect(() => {
+    if (initialTrending && initialGallery) return;
     async function load() {
       const [trending, gallery] = await Promise.all([
         getHeroTrending(),
@@ -58,17 +76,10 @@ export default function HeroSection() {
       if (trending && trending.length > 0) setPosters(trending);
       if (gallery && gallery.length > 0) {
         setGalleryImages(gallery);
-      } else {
-        setGalleryImages([
-          { id: '1', imageUrl: '/images/champs.jpg', label: 'DREAMHACK ATLANTA CHAMPS' },
-          { id: '2', imageUrl: '/images/hero_side.jpg', label: 'VIP LOUNGE' },
-          { id: '3', imageUrl: '/images/lounge_interior.png', label: 'MAIN ARENA' },
-          { id: '4', imageUrl: '/images/strip1_single.jpg', label: 'PRO STATIONS' },
-        ]);
       }
     }
     load();
-  }, []);
+  }, [initialTrending, initialGallery]);
 
   // Left Poster Navigation
   const totalPosters = Math.max(1, posters.length);
@@ -119,10 +130,17 @@ export default function HeroSection() {
       <div className={styles.heroContainer}>
         {/* ── LEFT: Full-Bleed Poster with Action Buttons (~63% width) ── */}
         <div className={styles.posterWrapper}>
-          <div
-            className={styles.posterCard}
-            style={{ backgroundImage: `url(${currentPoster.imageUrl})` }}
-          >
+          <div className={styles.posterCard}>
+            <Image
+              src={currentPoster.imageUrl}
+              alt={currentPoster.title || 'Udhyana Games Lounge'}
+              fill
+              priority
+              sizes="(max-width: 1024px) 100vw, 63vw"
+              className={styles.heroBgImage}
+              quality={85}
+            />
+
             {/* Top-Left Navigation Arrows */}
             <div className={styles.posterNavButtons}>
               <button
@@ -160,10 +178,16 @@ export default function HeroSection() {
 
         {/* ── RIGHT: Full-Bleed Featured Card with Navigation Controls (~37% width) ── */}
         <div className={styles.featureCardWrapper}>
-          <div
-            className={styles.featureCard}
-            style={{ backgroundImage: `url(${currentFeature.imageUrl})` }}
-          >
+          <div className={styles.featureCard}>
+            <Image
+              src={currentFeature.imageUrl}
+              alt={currentFeature.label || 'Udhyana Games Feature'}
+              fill
+              priority
+              sizes="(max-width: 1024px) 100vw, 37vw"
+              className={styles.heroBgImage}
+              quality={85}
+            />
             {/* Corner Emblem */}
             <div className={styles.cardEmblem}>
               <div className={styles.emblemShield}>

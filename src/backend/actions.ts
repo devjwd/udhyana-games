@@ -1,58 +1,164 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache';
 import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-async function requireReceptionAuth() {
+// ========================
+// AUTHENTICATION & RBAC GUARDS
+// ========================
+
+async function getAuthenticatedSession() {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role;
-  if (role !== 'ADMIN' && role !== 'RECEPTIONIST') {
-    throw new Error('Unauthorized access: Only Admin or Receptionist accounts can perform this action.');
+  if (!session?.user?.id) {
+    throw new Error('Authentication required: Please sign in to proceed.');
   }
+  return session;
+}
+
+async function requireAdminAuth() {
+  const session = await getAuthenticatedSession();
+  if (session.user.role !== 'ADMIN') {
+    throw new Error('Unauthorized: Only Administrator accounts can perform this action.');
+  }
+  return session;
+}
+
+async function requireReceptionAuth() {
+  const session = await getAuthenticatedSession();
+  const role = session.user.role;
+  if (role !== 'ADMIN' && role !== 'RECEPTIONIST') {
+    throw new Error('Unauthorized: Only Admin or Receptionist staff can perform this action.');
+  }
+  return session;
+}
+
+async function requireUserOrStaff(targetUserId: string) {
+  const session = await getAuthenticatedSession();
+  const isStaff = session.user.role === 'ADMIN' || session.user.role === 'RECEPTIONIST';
+  if (session.user.id !== targetUserId && !isStaff) {
+    throw new Error('Unauthorized: You can only view or modify your own account.');
+  }
+  return session;
 }
 
 // ========================
-// GLOBAL SETTINGS
+// GLOBAL SETTINGS (Cached)
 // ========================
-export async function getBaseHourlyRate(): Promise<number> {
-  const setting = await prisma.settings.findUnique({ where: { key: 'baseHourlyRate' } });
-  return setting ? parseInt(setting.value) : 1000;
-}
+
+export const getBaseHourlyRate = unstable_cache(
+  async (): Promise<number> => {
+    const setting = await prisma.settings.findUnique({ where: { key: 'baseHourlyRate' } });
+    return setting ? parseInt(setting.value, 10) : 1000;
+  },
+  ['base-hourly-rate'],
+  { tags: ['settings'] }
+);
 
 export async function setBaseHourlyRate(rate: number) {
+  await requireAdminAuth();
   await prisma.settings.upsert({
     where: { key: 'baseHourlyRate' },
     update: { value: rate.toString() },
     create: { key: 'baseHourlyRate', value: rate.toString() }
   });
+  revalidateTag('settings', 'default');
   revalidatePath('/admin');
   revalidatePath('/reception');
+  revalidatePath('/book');
 }
 
-export async function getExtraControllerRate(): Promise<number> {
-  const setting = await prisma.settings.findUnique({ where: { key: 'extraControllerRate' } });
-  return setting ? parseInt(setting.value) : 200;
-}
+export const getExtraControllerRate = unstable_cache(
+  async (): Promise<number> => {
+    const setting = await prisma.settings.findUnique({ where: { key: 'extraControllerRate' } });
+    return setting ? parseInt(setting.value, 10) : 200;
+  },
+  ['extra-controller-rate'],
+  { tags: ['settings'] }
+);
 
 export async function setExtraControllerRate(rate: number) {
+  await requireAdminAuth();
   await prisma.settings.upsert({
     where: { key: 'extraControllerRate' },
     update: { value: rate.toString() },
     create: { key: 'extraControllerRate', value: rate.toString() }
   });
+  revalidateTag('settings', 'default');
   revalidatePath('/admin');
   revalidatePath('/reception');
+  revalidatePath('/book');
+}
+
+export const getLoyaltyRates = unstable_cache(
+  async (): Promise<{ pointsPerHour: number; spendPerPoint: number }> => {
+    const [pointsPerHourSetting, spendPerPointSetting] = await Promise.all([
+      prisma.settings.findUnique({ where: { key: 'pointsPerHour' } }),
+      prisma.settings.findUnique({ where: { key: 'spendPerPoint' } }),
+    ]);
+    return {
+      pointsPerHour: pointsPerHourSetting ? parseInt(pointsPerHourSetting.value, 10) : 50,
+      spendPerPoint: spendPerPointSetting ? parseInt(spendPerPointSetting.value, 10) : 10,
+    };
+  },
+  ['loyalty-rates'],
+  { tags: ['settings', 'loyalty'] }
+);
+
+export async function setLoyaltyRates(pointsPerHour: number, spendPerPoint: number) {
+  await requireAdminAuth();
+  await Promise.all([
+    prisma.settings.upsert({
+      where: { key: 'pointsPerHour' },
+      update: { value: pointsPerHour.toString() },
+      create: { key: 'pointsPerHour', value: pointsPerHour.toString() }
+    }),
+    prisma.settings.upsert({
+      where: { key: 'spendPerPoint' },
+      update: { value: spendPerPoint.toString() },
+      create: { key: 'spendPerPoint', value: spendPerPoint.toString() }
+    })
+  ]);
+  revalidateTag('settings', 'default');
+  revalidateTag('loyalty', 'default');
+  revalidatePath('/admin');
+  revalidatePath('/profile');
+}
+
+export async function adjustUserLoyaltyPoints(userId: string, pointsDelta: number) {
+  await requireAdminAuth();
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error('User not found');
+
+  const newPoints = Math.max(0, (user.loyaltyPoints || 0) + pointsDelta);
+
+  let newRank = user.rank;
+  if (newPoints >= 1000) newRank = 'Elite';
+  else if (newPoints >= 500) newRank = 'Pro';
+  else if (newPoints >= 100) newRank = 'Regular';
+  else newRank = 'Rookie';
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      loyaltyPoints: newPoints,
+      rank: newRank
+    }
+  });
+
+  revalidatePath('/admin');
+  revalidatePath('/profile');
+  return updatedUser;
 }
 
 // ========================
-// USER QUERIES
+// USER QUERIES (Staff Only)
 // ========================
 
-
 export async function searchUsers(query: string) {
+  await requireReceptionAuth();
   if (!query || query.length < 2) return [];
   
   return await prisma.user.findMany({
@@ -71,37 +177,57 @@ export async function searchUsers(query: string) {
 // ========================
 // PRODUCTS (Merchandise)
 // ========================
-export async function getProducts() {
-  return await prisma.product.findMany({ orderBy: { createdAt: 'desc' } });
-}
+
+export const getProducts = unstable_cache(
+  async () => {
+    return await prisma.product.findMany({ orderBy: { createdAt: 'desc' } });
+  },
+  ['products-list'],
+  { tags: ['products'] }
+);
 
 export async function addProduct(data: { name: string; price: number; category: string; imageUrl: string; description?: string }) {
+  await requireAdminAuth();
   const newProduct = await prisma.product.create({ data });
+  revalidateTag('products', 'default');
   revalidatePath('/admin');
+  revalidatePath('/shop');
   return newProduct;
 }
 
 export async function deleteProduct(id: string) {
+  await requireAdminAuth();
   await prisma.product.delete({ where: { id } });
+  revalidateTag('products', 'default');
   revalidatePath('/admin');
+  revalidatePath('/shop');
 }
 
 // ========================
 // SNACKS
 // ========================
-export async function getSnacks() {
-  return await prisma.snack.findMany({ orderBy: { createdAt: 'asc' } });
-}
+
+export const getSnacks = unstable_cache(
+  async () => {
+    return await prisma.snack.findMany({ orderBy: { createdAt: 'asc' } });
+  },
+  ['snacks-list'],
+  { tags: ['snacks'] }
+);
 
 export async function addSnack(data: { name: string; price: number; icon: string }) {
+  await requireAdminAuth();
   const newSnack = await prisma.snack.create({ data });
+  revalidateTag('snacks', 'default');
   revalidatePath('/admin');
   revalidatePath('/reception');
   return newSnack;
 }
 
 export async function deleteSnack(id: string) {
+  await requireAdminAuth();
   await prisma.snack.delete({ where: { id } });
+  revalidateTag('snacks', 'default');
   revalidatePath('/admin');
   revalidatePath('/reception');
 }
@@ -109,32 +235,42 @@ export async function deleteSnack(id: string) {
 // ========================
 // CONSOLES & GAMES
 // ========================
-export async function getConsoles() {
-  return await prisma.console.findMany({
-    include: {
-      games: {
-        include: {
-          game: true
+
+export const getConsoles = unstable_cache(
+  async () => {
+    return await prisma.console.findMany({
+      include: {
+        games: {
+          include: {
+            game: true
+          }
         }
       }
-    }
-  });
-}
+    });
+  },
+  ['consoles-list'],
+  { tags: ['consoles'] }
+);
 
 export async function addConsole(data: { id: string; hardwareTitle: string; hardwareSlug: string; hourlyRate: number; imagePath: string; specs: string }) {
+  await requireAdminAuth();
   const newConsole = await prisma.console.create({ data });
+  revalidateTag('consoles', 'default');
   revalidatePath('/admin');
   revalidatePath('/reception');
   return newConsole;
 }
 
 export async function deleteConsole(id: string) {
+  await requireAdminAuth();
   await prisma.console.delete({ where: { id } });
+  revalidateTag('consoles', 'default');
   revalidatePath('/admin');
   revalidatePath('/reception');
 }
 
 export async function toggleConsoleGame(consoleId: string, gameName: string) {
+  await requireAdminAuth();
   let game = await prisma.game.findUnique({ where: { name: gameName } });
   if (!game) {
     game = await prisma.game.create({ data: { name: gameName } });
@@ -156,19 +292,30 @@ export async function toggleConsoleGame(consoleId: string, gameName: string) {
     });
   }
 
+  revalidateTag('consoles', 'default');
   revalidatePath('/admin');
   revalidatePath('/reception');
 }
 
+// ========================
+// SEEDING
+// ========================
+
 export async function seedAdminUser() {
-  const adminEmail = 'devjwdo@gmail.com';
-  const hashedPassword = await bcrypt.hash('Matta1234cad', 10);
+  const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
+  if (adminCount > 0) {
+    await requireAdminAuth();
+  }
+
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@udhyanagames.com';
+  const rawPassword = process.env.ADMIN_INITIAL_PASSWORD || 'Admin#Initial2026';
+  const hashedPassword = await bcrypt.hash(rawPassword, 12);
 
   const existingAdmin = await prisma.user.findFirst({
     where: {
       OR: [
         { email: adminEmail },
-        { username: 'devjwdo' }
+        { username: 'admin' }
       ]
     }
   });
@@ -177,24 +324,13 @@ export async function seedAdminUser() {
     await prisma.user.create({
       data: {
         email: adminEmail,
-        username: 'devjwdo',
+        username: 'admin',
         fullName: 'Admin',
         name: 'Admin',
         password: hashedPassword,
         role: 'ADMIN',
         status: 'APPROVED',
         rank: 'Elite'
-      }
-    });
-  } else {
-    // Ensure admin credentials and role are always active
-    await prisma.user.update({
-      where: { id: existingAdmin.id },
-      data: {
-        email: adminEmail,
-        role: 'ADMIN',
-        status: 'APPROVED',
-        password: hashedPassword
       }
     });
   }
@@ -207,10 +343,10 @@ export async function seedInitialData() {
   if (snacks === 0) {
     await prisma.snack.createMany({
       data: [
-        { name: 'Energy Drink', icon: '', price: 500 },
-        { name: 'Soda Can', icon: '', price: 150 },
-        { name: 'Chips / Lays', icon: '', price: 200 },
-        { name: 'Chocolate', icon: '', price: 300 },
+        { name: 'Energy Drink', icon: '⚡', price: 500 },
+        { name: 'Soda Can', icon: '🥤', price: 150 },
+        { name: 'Chips / Lays', icon: '🍿', price: 200 },
+        { name: 'Chocolate', icon: '🍫', price: 300 },
       ]
     });
   }
@@ -231,17 +367,9 @@ export async function seedInitialData() {
 }
 
 // ========================
-// USER PROFILE
-// ========================
-
-
-// ========================
 // USER REGISTRATION & APPROVAL
 // ========================
 
-
-
-/** Called from the public sign-up form. Account is PENDING until approved at reception. */
 export async function registerOnlineUser(data: {
   username: string;
   password: string;
@@ -251,7 +379,6 @@ export async function registerOnlineUser(data: {
 }) {
   const { username, password, email, phone, fullName } = data;
 
-  // Server-side validation
   if (!username.trim() || username.trim().length < 3) throw new Error('Gamer Tag must be at least 3 characters.');
   if (!password || password.length < 6) throw new Error('Password must be at least 6 characters.');
   if (!email || !email.includes('@')) throw new Error('Valid email is required.');
@@ -273,8 +400,8 @@ export async function registerOnlineUser(data: {
       }
     });
     return { success: true, userId: user.id };
-  } catch (err: any) {
-    if (err.code === 'P2002') {
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'P2002') {
       throw new Error('This Gamer Tag or Email is already registered.');
     }
     console.error('Registration error:', err);
@@ -282,11 +409,13 @@ export async function registerOnlineUser(data: {
   }
 }
 
-export async function getPendingUsers() {
+export async function getPendingUsers(limit: number = 50) {
+  await requireReceptionAuth();
   return await prisma.user.findMany({
     where: { status: 'PENDING' },
     select: { id: true, username: true, fullName: true, email: true, phone: true },
-    orderBy: { id: 'desc' }
+    orderBy: { id: 'desc' },
+    take: limit
   });
 }
 
@@ -301,13 +430,9 @@ export async function approveUser(userId: string) {
 }
 
 export async function promoteUserToStaff(userId: string, role: string) {
-  // If no admins exist, we allow anyone to do this (bootstrapping). Otherwise require admin.
   const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
   if (adminCount > 0) {
-    const session = await getServerSession(authOptions);
-    if ((session?.user as any)?.role !== 'ADMIN') {
-      throw new Error('Only ADMIN can promote users.');
-    }
+    await requireAdminAuth();
   }
 
   const updated = await prisma.user.update({
@@ -323,42 +448,45 @@ export async function promoteUserToStaff(userId: string, role: string) {
 // ========================
 
 export async function createBooking(userId: string, consoleId: string, startTime: Date, durationHours: number) {
+  await requireUserOrStaff(userId);
   const endTime = new Date(startTime.getTime() + durationHours * 60 * 60 * 1000);
 
-  // Check for double bookings
-  const conflictingBooking = await prisma.booking.findFirst({
-    where: {
-      consoleId,
-      status: 'CONFIRMED',
-      OR: [
-        { startTime: { lt: endTime }, endTime: { gt: startTime } }
-      ]
+  return await prisma.$transaction(async (tx) => {
+    // Check for double bookings inside transaction
+    const conflictingBooking = await tx.booking.findFirst({
+      where: {
+        consoleId,
+        status: 'CONFIRMED',
+        OR: [
+          { startTime: { lt: endTime }, endTime: { gt: startTime } }
+        ]
+      }
+    });
+
+    if (conflictingBooking) {
+      return { error: 'Console is already booked for this time slot.' };
     }
+
+    const booking = await tx.booking.create({
+      data: {
+        userId,
+        consoleId,
+        startTime,
+        endTime,
+        status: 'CONFIRMED'
+      }
+    });
+
+    revalidatePath('/profile');
+    revalidatePath('/reception');
+    return { success: true, booking };
   });
-
-  if (conflictingBooking) {
-    return { error: 'Console is already booked for this time slot.' };
-  }
-
-  const booking = await prisma.booking.create({
-    data: {
-      userId,
-      consoleId,
-      startTime,
-      endTime,
-      status: 'CONFIRMED'
-    }
-  });
-
-  revalidatePath('/profile');
-  revalidatePath('/reception');
-  return { success: true, booking };
 }
 
 export async function getBookedSlots(consoleId: string, date: string) {
-  // date is YYYY-MM-DD
-  const startOfDay = new Date(`${date}T00:00:00.000Z`);
-  const endOfDay = new Date(`${date}T23:59:59.999Z`);
+  // Use date range spanning local time
+  const startOfDay = new Date(`${date}T00:00:00`);
+  const endOfDay = new Date(`${date}T23:59:59.999`);
 
   const bookings = await prisma.booking.findMany({
     where: {
@@ -369,7 +497,6 @@ export async function getBookedSlots(consoleId: string, date: string) {
     select: { startTime: true, endTime: true }
   });
 
-  // Also factor in active GameSessions that might block Walk-in availability
   const activeSessions = await prisma.gameSession.findMany({
     where: {
       consoleId,
@@ -386,10 +513,9 @@ export async function getBookedSlots(consoleId: string, date: string) {
 // ACTIVE SESSIONS (GameSession)
 // ========================
 
-
-
 export async function getActiveSessions() {
-  const activeSessions = await prisma.gameSession.findMany({
+  await requireReceptionAuth();
+  return await prisma.gameSession.findMany({
     where: { status: 'ACTIVE' },
     include: {
       user: { select: { id: true, username: true, fullName: true, phone: true } },
@@ -397,12 +523,10 @@ export async function getActiveSessions() {
     },
     orderBy: { endTime: 'asc' }
   });
-
-
-  return activeSessions;
 }
 
 export async function addTimeToSession(sessionId: string, additionalSeconds: number) {
+  await requireReceptionAuth();
   const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
   if (!session || session.status !== 'ACTIVE') return null;
 
@@ -418,23 +542,22 @@ export async function addTimeToSession(sessionId: string, additionalSeconds: num
 }
 
 export async function endGameSession(sessionId: string) {
-  const session = await prisma.gameSession.findUnique({ where: { id: sessionId }});
+  await requireReceptionAuth();
+  const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
   if (!session || session.status === 'COMPLETED') return null;
 
-  // Calculate actual hours played based on start/end time. 
   const now = new Date();
   const endToUse = now > session.endTime ? session.endTime : now;
   const hoursPlayed = Math.max(0, Math.ceil((endToUse.getTime() - session.startTime.getTime()) / (1000 * 60 * 60)));
 
-  // Mark completed
   const updatedSession = await prisma.gameSession.update({
     where: { id: sessionId },
     data: { status: 'COMPLETED' }
   });
 
-  // Update user stats and loyalty points if not a guest
   if (session.userId) {
-    const pointsEarned = Math.max(10, hoursPlayed * 50); // Minimum 10 points per session
+    const { pointsPerHour } = await getLoyaltyRates();
+    const pointsEarned = Math.max(1, hoursPlayed * pointsPerHour);
     const user = await prisma.user.update({
       where: { id: session.userId },
       data: {
@@ -444,11 +567,11 @@ export async function endGameSession(sessionId: string) {
       }
     });
 
-    // Rank upgrade logic
     let newRank = user.rank;
-    if (user.loyaltyPoints > 1000) newRank = 'Elite';
-    else if (user.loyaltyPoints > 500) newRank = 'Pro';
-    else if (user.loyaltyPoints > 100) newRank = 'Regular';
+    if (user.loyaltyPoints >= 1000) newRank = 'Elite';
+    else if (user.loyaltyPoints >= 500) newRank = 'Pro';
+    else if (user.loyaltyPoints >= 100) newRank = 'Regular';
+    else newRank = 'Rookie';
 
     if (newRank !== user.rank) {
       await prisma.user.update({
@@ -463,7 +586,12 @@ export async function endGameSession(sessionId: string) {
   return updatedSession;
 }
 
+// ========================
+// USER DATA QUERIES (Protected)
+// ========================
+
 export async function getUserBookings(userId: string) {
+  await requireUserOrStaff(userId);
   return await prisma.booking.findMany({
     where: { userId },
     include: { console: true },
@@ -472,6 +600,7 @@ export async function getUserBookings(userId: string) {
 }
 
 export async function getUserOrders(userId: string) {
+  await requireUserOrStaff(userId);
   return await prisma.order.findMany({
     where: { userId },
     include: { items: true },
@@ -480,6 +609,7 @@ export async function getUserOrders(userId: string) {
 }
 
 export async function getUserSessions(userId: string) {
+  await requireUserOrStaff(userId);
   return await prisma.gameSession.findMany({
     where: { userId, status: 'COMPLETED' },
     orderBy: { startTime: 'desc' }
@@ -487,7 +617,7 @@ export async function getUserSessions(userId: string) {
 }
 
 export async function getUserActivityStats(userId: string) {
-  // Get sessions from last 7 days to calculate playtime chart
+  await requireUserOrStaff(userId);
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -500,11 +630,7 @@ export async function getUserActivityStats(userId: string) {
     select: { startTime: true, endTime: true }
   });
 
-  // Group by day of week (0 = Sunday, 6 = Saturday)
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const dailyPlaytime = Array(7).fill(0); // in hours
-
-  // Initialize today as the last item, then go backwards
   const today = new Date().getDay();
   const sortedDays: string[] = [];
   for (let i = 6; i >= 0; i--) {
@@ -517,7 +643,6 @@ export async function getUserActivityStats(userId: string) {
     const diffHours = (session.endTime.getTime() - session.startTime.getTime()) / (1000 * 60 * 60);
     const sessionDay = session.startTime.getDay();
     
-    // Find index in sorted array
     const dayName = days[sessionDay];
     const idx = sortedDays.indexOf(dayName);
     if (idx !== -1) {
@@ -528,12 +653,12 @@ export async function getUserActivityStats(userId: string) {
   return { labels: sortedDays, data: sortedPlaytime };
 }
 
-
 // ========================
 // WAITLIST
 // ========================
 
 export async function addWaitlistEntry(name: string, requested: string) {
+  await requireReceptionAuth();
   const entry = await prisma.waitlist.create({
     data: { name, requested }
   });
@@ -542,6 +667,7 @@ export async function addWaitlistEntry(name: string, requested: string) {
 }
 
 export async function getWaitlist() {
+  await requireReceptionAuth();
   return await prisma.waitlist.findMany({
     where: { status: 'WAITING' },
     orderBy: { createdAt: 'asc' }
@@ -549,6 +675,7 @@ export async function getWaitlist() {
 }
 
 export async function removeWaitlistEntry(id: string) {
+  await requireReceptionAuth();
   const entry = await prisma.waitlist.update({
     where: { id },
     data: { status: 'CANCELLED' }
@@ -558,6 +685,7 @@ export async function removeWaitlistEntry(id: string) {
 }
 
 export async function assignWaitlistEntry(id: string) {
+  await requireReceptionAuth();
   const entry = await prisma.waitlist.update({
     where: { id },
     data: { status: 'ASSIGNED' }
@@ -608,8 +736,7 @@ export async function processPosCheckout(
                 ...(walkInPhone?.trim() ? { phone: walkInPhone.trim() } : {})
               }
             });
-          } catch (err: any) {
-            // In case of unique constraint collision from concurrent creation, fetch by username
+          } catch {
             user = await tx.user.findFirst({
               where: { username: { equals: cleanName, mode: 'insensitive' } }
             });
@@ -622,7 +749,6 @@ export async function processPosCheckout(
 
       const now = new Date();
 
-      // Auto-complete any past active sessions that have already expired
       await tx.gameSession.updateMany({
         where: {
           status: 'ACTIVE',
@@ -631,11 +757,9 @@ export async function processPosCheckout(
         data: { status: 'COMPLETED' }
       });
 
-      // Verify and guarantee console existence for each requested session
       for (const item of sessionItems) {
         const endTime = new Date(now.getTime() + item.durationSeconds * 1000);
         
-        // Check if station is actively occupied (with valid remaining time)
         const active = await tx.gameSession.findFirst({
           where: {
             consoleId: item.consoleId,
@@ -647,7 +771,6 @@ export async function processPosCheckout(
           throw new Error(`Console is currently occupied until ${active.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`);
         }
         
-        // Check for conflicting online reservations
         const overlappingBooking = await tx.booking.findFirst({
           where: {
             consoleId: item.consoleId,
@@ -660,7 +783,6 @@ export async function processPosCheckout(
           throw new Error(`Console is booked for a reservation at ${overlappingBooking.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`);
         }
 
-        // Ensure console record exists in database to satisfy foreign key relation
         const consoleRecord = await tx.console.findUnique({ where: { id: item.consoleId } });
         if (!consoleRecord) {
           await tx.console.create({
@@ -672,7 +794,6 @@ export async function processPosCheckout(
         }
       }
 
-      // Create Order
       const order = await tx.order.create({
         data: {
           userId: userId || null,
@@ -690,16 +811,20 @@ export async function processPosCheckout(
       });
 
       if (userId) {
-        const pointsEarned = Math.floor(totalAmount / 10);
+        const spendPerPointSetting = await tx.settings.findUnique({ where: { key: 'spendPerPoint' } });
+        const spendPerPoint = spendPerPointSetting ? Math.max(1, parseInt(spendPerPointSetting.value, 10)) : 10;
+        const pointsEarned = Math.floor(totalAmount / spendPerPoint);
+
         const user = await tx.user.update({
           where: { id: userId },
           data: { loyaltyPoints: { increment: pointsEarned } }
         });
 
         let newRank = user.rank;
-        if (user.loyaltyPoints > 1000) newRank = 'Elite';
-        else if (user.loyaltyPoints > 500) newRank = 'Pro';
-        else if (user.loyaltyPoints > 100) newRank = 'Regular';
+        if (user.loyaltyPoints >= 1000) newRank = 'Elite';
+        else if (user.loyaltyPoints >= 500) newRank = 'Pro';
+        else if (user.loyaltyPoints >= 100) newRank = 'Regular';
+        else newRank = 'Rookie';
 
         if (newRank !== user.rank) {
           await tx.user.update({
@@ -709,7 +834,6 @@ export async function processPosCheckout(
         }
       }
 
-      // Create Sessions
       for (const item of sessionItems) {
         const endTime = new Date(now.getTime() + item.durationSeconds * 1000);
         await tx.gameSession.create({
@@ -728,12 +852,110 @@ export async function processPosCheckout(
 
     revalidatePath('/reception');
     return result;
-  } catch (error: any) {
-    return { error: error.message || 'An error occurred during checkout.' };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'An error occurred during checkout.';
+    return { error: message };
+  }
+}
+
+// ========================
+// SECURE ONLINE SHOP ORDER (Server-Side Price Recalculation)
+// ========================
+
+export async function createOnlineShopOrder(
+  userId: string,
+  items: { id: string; name: string; price: number; quantity: number }[],
+  _clientTotalAmount: number,
+  paymentMethod: string = 'ONLINE'
+) {
+  try {
+    await requireUserOrStaff(userId);
+
+    if (!items || items.length === 0) {
+      return { error: 'No items in order.' };
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Verify item prices against DB to prevent client-side price tampering
+      const productIds = items.map(i => i.id);
+      const dbProducts = await tx.product.findMany({
+        where: { id: { in: productIds } }
+      });
+      const productMap = new Map(dbProducts.map(p => [p.id, p]));
+
+      let serverTotalAmount = 0;
+      const verifiedItems = items.map(item => {
+        const dbProduct = productMap.get(item.id);
+        const unitPrice = dbProduct ? dbProduct.price : item.price;
+        const lineTotal = unitPrice * item.quantity;
+        serverTotalAmount += lineTotal;
+        return {
+          name: `${dbProduct?.name || item.name} (x${item.quantity})`,
+          price: lineTotal,
+          type: 'PRODUCT',
+          quantity: item.quantity
+        };
+      });
+
+      // 2. Create Order
+      const order = await tx.order.create({
+        data: {
+          userId,
+          totalAmount: serverTotalAmount,
+          paymentMethod,
+          items: {
+            create: verifiedItems
+          }
+        }
+      });
+
+      // 3. Award loyalty points based on server-verified total
+      const spendPerPointSetting = await tx.settings.findUnique({ where: { key: 'spendPerPoint' } });
+      const spendPerPoint = spendPerPointSetting ? Math.max(1, parseInt(spendPerPointSetting.value, 10)) : 10;
+      const pointsEarned = Math.max(1, Math.floor(serverTotalAmount / spendPerPoint));
+
+      const updatedUser = await tx.user.update({
+        where: { id: userId },
+        data: {
+          loyaltyPoints: { increment: pointsEarned }
+        }
+      });
+
+      let newRank = updatedUser.rank;
+      if (updatedUser.loyaltyPoints >= 1000) newRank = 'Elite';
+      else if (updatedUser.loyaltyPoints >= 500) newRank = 'Pro';
+      else if (updatedUser.loyaltyPoints >= 100) newRank = 'Regular';
+      else newRank = 'Rookie';
+
+      if (newRank !== updatedUser.rank) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { rank: newRank }
+        });
+      }
+
+      return { 
+        success: true, 
+        orderId: order.id, 
+        totalAmount: serverTotalAmount,
+        pointsEarned, 
+        totalPoints: updatedUser.loyaltyPoints, 
+        rank: newRank 
+      };
+    });
+
+    revalidatePath('/profile');
+    revalidatePath('/admin');
+    return result;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Checkout failed.';
+    console.error('Error creating online shop order:', message);
+    return { error: message };
   }
 }
 
 export async function getRecentSales() {
+  await requireReceptionAuth();
   return await prisma.order.findMany({
     take: 10,
     orderBy: { createdAt: 'desc' },
@@ -742,10 +964,11 @@ export async function getRecentSales() {
 }
 
 export async function getUpcomingBookings() {
+  await requireReceptionAuth();
   return await prisma.booking.findMany({
     where: { 
       status: 'CONFIRMED',
-      startTime: { gte: new Date() } // only future bookings
+      startTime: { gte: new Date() }
     },
     include: { 
       user: { select: { fullName: true, username: true, phone: true } },
@@ -759,7 +982,8 @@ export async function getUpcomingBookings() {
 // PROFILE EDITING
 // ========================
 
-export async function updateUserProfile(userId: string, data: { fullName: string, phone: string, image: string }) {
+export async function updateUserProfile(userId: string, data: { fullName: string; phone: string; image: string }) {
+  await requireUserOrStaff(userId);
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {
@@ -775,6 +999,11 @@ export async function updateUserProfile(userId: string, data: { fullName: string
 }
 
 export async function updateUserPassword(userId: string, currentPassword?: string, newPassword?: string) {
+  const session = await getAuthenticatedSession();
+  if (session.user.id !== userId) {
+    throw new Error('Unauthorized: You can only change your own password.');
+  }
+
   if (!currentPassword || !newPassword) {
     return { error: 'Both current and new password are required.' };
   }
@@ -785,14 +1014,12 @@ export async function updateUserPassword(userId: string, currentPassword?: strin
     return { error: 'Account not found or has no password set.' };
   }
 
-  // Verify current password
   const isValid = await bcrypt.compare(currentPassword, user.password);
   if (!isValid) {
     return { error: 'Incorrect current password.' };
   }
 
-  // Hash new password
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  const hashedPassword = await bcrypt.hash(newPassword, 12);
   
   await prisma.user.update({
     where: { id: userId },
@@ -803,7 +1030,7 @@ export async function updateUserPassword(userId: string, currentPassword?: strin
 }
 
 // ========================
-// LEADERBOARD
+// LEADERBOARD (Public)
 // ========================
 
 export async function getLeaderboard() {
@@ -827,11 +1054,7 @@ export async function getLeaderboard() {
 }
 
 // ========================
-// ADMIN ANALYTICS
-// ========================
-
-// ========================
-// HERO SECTION
+// HERO SECTION (Cached)
 // ========================
 
 export type HeroTrendingSlide = {
@@ -891,43 +1114,60 @@ const DEFAULT_GALLERY: HeroGalleryImage[] = [
   { id: '4', imageUrl: '/images/strip1_single.jpg', label: 'TOURNAMENT' },
 ];
 
-export async function getHeroTrending(): Promise<HeroTrendingSlide[]> {
-  const setting = await prisma.settings.findUnique({ where: { key: 'hero_trending' } });
-  if (setting) {
-    try { return JSON.parse(setting.value); } catch { /* fall through */ }
-  }
-  return DEFAULT_TRENDING;
-}
+export const getHeroTrending = unstable_cache(
+  async (): Promise<HeroTrendingSlide[]> => {
+    const setting = await prisma.settings.findUnique({ where: { key: 'hero_trending' } });
+    if (setting) {
+      try { return JSON.parse(setting.value); } catch { /* fall through */ }
+    }
+    return DEFAULT_TRENDING;
+  },
+  ['hero-trending-slides'],
+  { tags: ['hero', 'settings'] }
+);
 
 export async function setHeroTrending(data: HeroTrendingSlide[]) {
+  await requireAdminAuth();
   await prisma.settings.upsert({
     where: { key: 'hero_trending' },
     update: { value: JSON.stringify(data) },
     create: { key: 'hero_trending', value: JSON.stringify(data) },
   });
+  revalidateTag('hero', 'default');
   revalidatePath('/');
   revalidatePath('/admin');
 }
 
-export async function getHeroGallery(): Promise<HeroGalleryImage[]> {
-  const setting = await prisma.settings.findUnique({ where: { key: 'hero_gallery' } });
-  if (setting) {
-    try { return JSON.parse(setting.value); } catch { /* fall through */ }
-  }
-  return DEFAULT_GALLERY;
-}
+export const getHeroGallery = unstable_cache(
+  async (): Promise<HeroGalleryImage[]> => {
+    const setting = await prisma.settings.findUnique({ where: { key: 'hero_gallery' } });
+    if (setting) {
+      try { return JSON.parse(setting.value); } catch { /* fall through */ }
+    }
+    return DEFAULT_GALLERY;
+  },
+  ['hero-gallery-images'],
+  { tags: ['hero', 'settings'] }
+);
 
 export async function setHeroGallery(data: HeroGalleryImage[]) {
+  await requireAdminAuth();
   await prisma.settings.upsert({
     where: { key: 'hero_gallery' },
     update: { value: JSON.stringify(data) },
     create: { key: 'hero_gallery', value: JSON.stringify(data) },
   });
+  revalidateTag('hero', 'default');
   revalidatePath('/');
   revalidatePath('/admin');
 }
 
+// ========================
+// ADMIN ANALYTICS
+// ========================
+
 export async function getAnalyticsData() {
+  await requireAdminAuth();
   const orders = await prisma.order.findMany({
     select: { totalAmount: true, createdAt: true, status: true }
   });
@@ -937,10 +1177,8 @@ export async function getAnalyticsData() {
   const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
   const totalOrders = orders.length;
 
-  // Revenue by Day (Last 7 Days)
   const revenueByDay: Record<string, number> = {};
   
-  // Initialize last 7 days to 0
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
@@ -964,7 +1202,7 @@ export async function getAnalyticsData() {
 }
 
 // ========================
-// RECEPTION ADVANCED ACTIONS
+// RECEPTION OPERATIONS
 // ========================
 
 export async function checkInOnlineBooking(bookingId: string, paymentMethod: string = 'card') {
@@ -987,7 +1225,6 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
   const baseRate = await getBaseHourlyRate();
   const totalAmount = Math.round(durationHours * baseRate);
 
-  // Check if console is currently occupied
   const activeSession = await prisma.gameSession.findFirst({
     where: { consoleId: booking.consoleId, status: 'ACTIVE', endTime: { gt: now } }
   });
@@ -997,7 +1234,6 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    // 1. Create order
     const order = await tx.order.create({
       data: {
         userId: booking.userId,
@@ -1014,7 +1250,6 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
       }
     });
 
-    // 2. Spawn GameSession
     const sessionEndTime = new Date(now.getTime() + durationSeconds * 1000);
     const session = await tx.gameSession.create({
       data: {
@@ -1027,13 +1262,11 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
       }
     });
 
-    // 3. Mark booking COMPLETED
     await tx.booking.update({
       where: { id: bookingId },
       data: { status: 'COMPLETED' }
     });
 
-    // 4. Update user loyalty points
     const pointsEarned = Math.floor(totalAmount / 10);
     await tx.user.update({
       where: { id: booking.userId },
@@ -1064,7 +1297,6 @@ export async function transferGameSession(sessionId: string, newConsoleId: strin
   }
 
   const now = new Date();
-  // Check if destination station is occupied
   const destActive = await prisma.gameSession.findFirst({
     where: { consoleId: newConsoleId, status: 'ACTIVE', endTime: { gt: now } }
   });
@@ -1073,10 +1305,11 @@ export async function transferGameSession(sessionId: string, newConsoleId: strin
     return { error: 'Target station is currently occupied.' };
   }
 
-  // Ensure target console exists in database
   const destConsole = await prisma.console.findUnique({ where: { id: newConsoleId } });
   if (!destConsole) {
-    await txCreateConsole(newConsoleId);
+    await prisma.console.create({
+      data: { id: newConsoleId, hardwareTitle: newConsoleId.toUpperCase() }
+    });
   }
 
   const updated = await prisma.gameSession.update({
@@ -1086,12 +1319,6 @@ export async function transferGameSession(sessionId: string, newConsoleId: strin
 
   revalidatePath('/reception');
   return { success: true, session: updated };
-}
-
-async function txCreateConsole(consoleId: string) {
-  await prisma.console.create({
-    data: { id: consoleId, hardwareTitle: consoleId.toUpperCase() }
-  });
 }
 
 export async function pauseGameSession(sessionId: string, remainingSeconds: number) {
@@ -1126,6 +1353,7 @@ export async function resumeGameSession(sessionId: string, remainingSeconds: num
 }
 
 export async function getDailyShiftSummary() {
+  await requireReceptionAuth();
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 

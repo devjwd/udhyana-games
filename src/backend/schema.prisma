@@ -21,6 +21,8 @@ model Product {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
+
+  @@index([category])
 }
 
 model Snack {
@@ -127,6 +129,10 @@ model GameSession {
   
   user        User?    @relation(fields: [userId], references: [id])
   console     Console  @relation(fields: [consoleId], references: [id])
+
+  @@index([status])
+  @@index([consoleId])
+  @@index([userId])
 }
 
 model Booking {
@@ -140,6 +146,11 @@ model Booking {
 
   user        User     @relation(fields: [userId], references: [id])
   console     Console  @relation(fields: [consoleId], references: [id])
+
+  @@index([userId])
+  @@index([consoleId])
+  @@index([status])
+  @@index([startTime, endTime])
 }
 
 model Order {
@@ -152,6 +163,10 @@ model Order {
   
   user          User?       @relation(fields: [userId], references: [id])
   items         OrderItem[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([status])
 }
 
 model OrderItem {
@@ -162,6 +177,8 @@ model OrderItem {
   quantity  Int      @default(1)
   type      String   // 'session', 'snack', 'product'
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
 }
 
 model Waitlist {
@@ -170,6 +187,8 @@ model Waitlist {
   requested String   // specific console or "Any Console"
   status    String   @default("WAITING") // WAITING, ASSIGNED, CANCELLED
   createdAt DateTime @default(now())
+
+  @@index([status])
 }
 
 model VerificationToken {

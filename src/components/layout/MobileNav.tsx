@@ -20,10 +20,10 @@ export default function MobileNav({ isOpen, onClose }: MobileNavProps) {
         <Link href="/consoles?section=pc" className={styles.mobileNavSub} onClick={onClose}>PC Zone</Link>
       </div>
       <Link href="/about" className={styles.mobileNavLink} onClick={onClose}>ABOUT</Link>
-      <Link href="/events" className={styles.mobileNavLink} onClick={onClose}>SCHEDULE</Link>
-      <Link href="/events?tab=news" className={styles.mobileNavLink} onClick={onClose}>NEWS</Link>
+      <Link href="/consoles" className={styles.mobileNavLink} onClick={onClose}>LOUNGES</Link>
+      <Link href="/book" className={styles.mobileNavLink} onClick={onClose}>BOOK</Link>
+      <Link href="/events" className={styles.mobileNavLink} onClick={onClose}>EVENTS</Link>
       <Link href="/shop" className={styles.mobileNavLink} onClick={onClose}>SHOP</Link>
-      <Link href="/book" className={styles.mobileNavLink} onClick={onClose}>BOOK NOW</Link>
     </div>
   );
 }

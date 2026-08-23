@@ -94,8 +94,9 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       } else {
         await handleSignup();
       }
-    } catch (err: any) {
-      setError(err?.message || 'Something went wrong. Please try again.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      setError(msg);
     } finally {
       setIsSubmitting(false);
     }

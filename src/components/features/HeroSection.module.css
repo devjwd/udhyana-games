@@ -35,8 +35,6 @@
   flex: 1;
   height: 100%;
   position: relative;
-  background-size: cover;
-  background-position: center;
   background-color: var(--surface-1);
   border-radius: 4px;
   overflow: hidden;
@@ -44,7 +42,6 @@
   flex-direction: column;
   justify-content: space-between;
   border: 1px solid var(--border);
-  transition: background-image 0.5s ease-in-out;
   clip-path: polygon(
     0 0,
     100% 0,
@@ -52,6 +49,13 @@
     calc(100% - 20px) 100%,
     0 100%
   );
+}
+
+.heroBgImage {
+  object-fit: cover;
+  object-position: center;
+  z-index: 0;
+  transition: opacity 0.4s ease;
 }
 
 /* Subtle bottom gradient for action button contrast */
@@ -142,8 +146,6 @@
   flex: 1;
   height: 100%;
   position: relative;
-  background-size: cover;
-  background-position: center;
   background-color: var(--surface-1);
   border-radius: 4px;
   overflow: hidden;

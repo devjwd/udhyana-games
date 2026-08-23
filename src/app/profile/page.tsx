@@ -6,46 +6,90 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import prisma from '@/lib/prisma';
+import {
+  getUserBookings,
+  getUserOrders,
+  getUserSessions,
+  getUserActivityStats
+} from '@/backend/actions';
 
 export default async function Profile() {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user) {
+  if (!session?.user?.id) {
     redirect('/');
   }
 
-  const dbUser = await (await import('@/lib/prisma')).default.user.findUnique({
+  const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id }
   });
 
   if (!dbUser) redirect('/');
   const user = dbUser;
 
+  // Gamified Rank Calculation
+  const loyaltyPoints = user.loyaltyPoints || 0;
+  let nextRankName = 'Pro';
+  let targetPoints = 500;
+  let progressPct = Math.min(100, Math.round((loyaltyPoints / 500) * 100));
+
+  if (loyaltyPoints >= 1000) {
+    nextRankName = 'Max Rank Reached';
+    targetPoints = 1000;
+    progressPct = 100;
+  } else if (loyaltyPoints >= 500) {
+    nextRankName = 'Elite';
+    targetPoints = 1000;
+    progressPct = Math.min(100, Math.round(((loyaltyPoints - 500) / 500) * 100));
+  }
+
   return (
     <>
       <Header />
       <main className={styles.main}>
         <div className={styles.dashboard}>
-          {/* Identity Column */}
+          {/* Left Column: Player Identity & Gamified Rank Card */}
           <div className={styles.profileCard}>
             <div className={styles.avatarWrapper}>
               <Image src={user.image || "/images/avatar.png"} alt="User Avatar" fill className={styles.avatar} />
             </div>
-            <h1 className={styles.username}>{user.username || user.name}</h1>
-            <span className={styles.rank}>{user.rank} Member</span>
+            <h1 className={styles.username}>{user.fullName || user.name || user.username}</h1>
+            <span className={styles.userHandle}>@{user.username || 'player'}</span>
             
+            <div className={styles.rankBadge}>
+              ★ {user.rank || 'Rookie'} Member
+            </div>
+
+            {/* Loyalty XP Progress */}
+            <div className={styles.rankProgressContainer}>
+              <div className={styles.rankProgressHeader}>
+                <span className={styles.rankProgressTitle}>Loyalty Progress</span>
+                <span className={styles.rankProgressXP}>{loyaltyPoints} / {targetPoints} XP</span>
+              </div>
+              <div className={styles.progressBarTrack}>
+                <div className={styles.progressBarFill} style={{ width: `${progressPct}%` }} />
+              </div>
+              <div className={styles.nextRankInfo}>
+                {loyaltyPoints >= 1000 
+                  ? '⭐ Top Tier Elite Member' 
+                  : `${targetPoints - loyaltyPoints} XP needed for ${nextRankName}`}
+              </div>
+            </div>
+            
+            {/* Quick Stats */}
             <div className={styles.stats}>
               <div className={styles.statBlock}>
-                <span className={styles.statValue}>{user.sessionsCount}</span>
+                <span className={styles.statValue}>{user.sessionsCount || 0}</span>
                 <span className={styles.statLabel}>Sessions</span>
               </div>
               <div className={styles.statBlock}>
-                <span className={styles.statValue}>{user.playtimeHours}h</span>
+                <span className={styles.statValue}>{user.playtimeHours || 0}h</span>
                 <span className={styles.statLabel}>Playtime</span>
               </div>
               <div className={styles.statBlock}>
-                <span className={`${styles.statValue}`} style={{ color: 'var(--accent)' }}>{(user as any).loyaltyPoints}</span>
-                <span className={styles.statLabel}>Pts</span>
+                <span className={styles.statValue} style={{ color: '#d6ff01' }}>{loyaltyPoints}</span>
+                <span className={styles.statLabel}>Reward Pts</span>
               </div>
             </div>
 
@@ -54,26 +98,31 @@ export default async function Profile() {
             </Link>
           </div>
 
-          {/* Activity Column */}
+          {/* Right Column: Activity, Pass & History */}
           <div className={styles.activitySection}>
             
-            <ActivityChart userId={user.id} />
+            {/* Playtime Chart */}
+            <div className={styles.chartCard}>
+              <h2 className={styles.sectionHeader}>Playtime Activity (Last 7 Days)</h2>
+              <ActivityChart userId={user.id} />
+            </div>
+
+            {/* Active Passes & Reservations */}
+            <div>
+              <h2 className={styles.sectionHeader}>Active Reservations & Check-in Passes</h2>
+              <BookingList userId={user.id} />
+            </div>
 
             <div className={styles.gridSection}>
-              <div>
-                <h2 className={styles.sectionHeader}>Upcoming Reservations</h2>
-                <BookingList userId={user.id} />
-              </div>
-
               <div>
                 <h2 className={styles.sectionHeader}>Session History</h2>
                 <SessionHistory userId={user.id} />
               </div>
-            </div>
 
-            <div style={{ marginTop: '2rem' }}>
-              <h2 className={styles.sectionHeader}>Recent Orders</h2>
-              <OrderHistory userId={user.id} />
+              <div>
+                <h2 className={styles.sectionHeader}>Recent Orders</h2>
+                <OrderHistory userId={user.id} />
+              </div>
             </div>
 
           </div>
@@ -84,51 +133,71 @@ export default async function Profile() {
   );
 }
 
-// Separate async component for fetching bookings to keep the main page clean
+// --------------------------------------------------------
+// SUB-COMPONENTS
+// --------------------------------------------------------
+
 async function BookingList({ userId }: { userId: string }) {
-  const { getUserBookings } = await import('@/backend/actions');
   const bookings = await getUserBookings(userId);
 
   // Filter for future/active bookings
-  const activeBookings = bookings.filter((b: any) => new Date(b.endTime) > new Date() && b.status === 'CONFIRMED');
+  const activeBookings = bookings.filter((b) => new Date(b.endTime) > new Date() && b.status === 'CONFIRMED');
 
   if (activeBookings.length === 0) {
     return (
       <div className={styles.emptyNote}>
-        No upcoming reservations. <Link href="/book" className={styles.emptyLink}>Book a station now</Link>.
+        No upcoming reservations. <Link href="/book" className={styles.emptyLink}>Book a station now →</Link>
       </div>
     );
   }
 
   return (
-    <>
-      {activeBookings.map((b: any) => {
+    <div>
+      {activeBookings.map((b) => {
         const start = new Date(b.startTime);
         const end = new Date(b.endTime);
-        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-        
+        const hours = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60));
+        const checkinCode = `PASS-${b.id.slice(-6).toUpperCase()}`;
+
         return (
-          <div key={b.id} className={styles.activityBlock}>
-            <div className={styles.activityInfo}>
-              <span className={styles.activityTitle}>{b.console.hardwareTitle}</span>
-              <span className={styles.activityDetail}>
-                {start.toLocaleDateString()} @ {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {hours} Hours
-              </span>
+          <div key={b.id} className={styles.bookingPassCard}>
+            <div className={styles.bookingPassHeader}>
+              <div>
+                <div className={styles.stationName}>{b.console.hardwareTitle}</div>
+                <div style={{ fontSize: '0.8rem', color: '#7f8388', marginTop: '2px' }}>Udhyana Gaming Lounge</div>
+              </div>
+              <span className={styles.stationPassBadge}>{b.status}</span>
             </div>
-            <div className={styles.activityStatus}>{b.status}</div>
+
+            <div className={styles.bookingPassDetails}>
+              <div className={styles.passDetailItem}>
+                <span className={styles.passDetailLabel}>Date</span>
+                <span className={styles.passDetailValue}>{start.toLocaleDateString()}</span>
+              </div>
+              <div className={styles.passDetailItem}>
+                <span className={styles.passDetailLabel}>Time</span>
+                <span className={styles.passDetailValue}>
+                  {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <div className={styles.passDetailItem}>
+                <span className={styles.passDetailLabel}>Duration</span>
+                <span className={styles.passDetailValue}>{hours} Hours</span>
+              </div>
+            </div>
+
+            <div className={styles.checkinCodeBox}>
+              <span className={styles.checkinCodeLabel}>Show Check-in Pass at Reception:</span>
+              <span className={styles.checkinCode}>{checkinCode}</span>
+            </div>
           </div>
         );
       })}
-    </>
+    </div>
   );
 }
 
-// --------------------------------------------------------
-// NEW DYNAMIC COMPONENTS
-// --------------------------------------------------------
-
 async function OrderHistory({ userId }: { userId: string }) {
-  const { getUserOrders } = await import('@/backend/actions');
   const orders = await getUserOrders(userId);
 
   if (!orders || orders.length === 0) {
@@ -138,20 +207,17 @@ async function OrderHistory({ userId }: { userId: string }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      {orders.slice(0, 5).map((order: any) => (
-        <div key={order.id} className={styles.activityBlock} style={{ borderLeftColor: 'rgba(255,255,255,0.2)' }}>
+    <div>
+      {orders.slice(0, 5).map((order) => (
+        <div key={order.id} className={styles.activityBlock}>
           <div className={styles.activityInfo}>
             <span className={styles.activityTitle}>Order #{order.id.slice(-6).toUpperCase()}</span>
-            <span className={styles.activityDetail} style={{ color: 'rgba(255,255,255,0.5)' }}>
+            <span className={styles.activityDetail}>
               PKR {order.totalAmount} • {new Date(order.createdAt).toLocaleDateString()}
             </span>
-            <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.25rem' }}>
-              {order.items.map((i: any) => i.name).join(', ')}
-            </div>
           </div>
-          <div className={styles.activityStatus} style={{ color: 'rgba(255,255,255,0.5)', backgroundColor: 'rgba(255,255,255,0.05)' }}>
-            Paid via {order.paymentMethod}
+          <div className={styles.activityStatus}>
+            {order.paymentMethod || 'Paid'}
           </div>
         </div>
       ))}
@@ -160,7 +226,6 @@ async function OrderHistory({ userId }: { userId: string }) {
 }
 
 async function SessionHistory({ userId }: { userId: string }) {
-  const { getUserSessions } = await import('@/backend/actions');
   const sessions = await getUserSessions(userId);
 
   if (!sessions || sessions.length === 0) {
@@ -170,20 +235,20 @@ async function SessionHistory({ userId }: { userId: string }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      {sessions.slice(0, 5).map((session: any) => {
+    <div>
+      {sessions.slice(0, 5).map((session) => {
         const diffHours = session.endTime && session.startTime 
           ? ((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60 * 60)).toFixed(1)
           : '0';
         return (
-          <div key={session.id} className={styles.activityBlock} style={{ borderLeftColor: 'rgba(193, 255, 28, 0.4)' }}>
+          <div key={session.id} className={styles.activityBlock}>
             <div className={styles.activityInfo}>
-              <span className={styles.activityTitle}>{session.consoleId}</span>
-              <span className={styles.activityDetail} style={{ color: 'rgba(255,255,255,0.5)' }}>
+              <span className={styles.activityTitle}>{session.consoleId || 'Console Session'}</span>
+              <span className={styles.activityDetail}>
                 {diffHours} Hours • {new Date(session.startTime).toLocaleDateString()}
               </span>
             </div>
-            <div className={styles.activityStatus} style={{ color: 'var(--primary-accent)', backgroundColor: 'rgba(193, 255, 28, 0.1)' }}>
+            <div className={styles.activityStatus}>
               Completed
             </div>
           </div>
@@ -194,37 +259,30 @@ async function SessionHistory({ userId }: { userId: string }) {
 }
 
 async function ActivityChart({ userId }: { userId: string }) {
-  const { getUserActivityStats } = await import('@/backend/actions');
   const stats = await getUserActivityStats(userId);
 
-  const maxPlaytime = Math.max(...stats.data, 1); // Avoid division by zero
+  const maxPlaytime = Math.max(...stats.data, 1);
 
   return (
-    <div style={{ marginBottom: '3rem' }}>
-      <h2 className={styles.sectionHeader}>
-        Playtime Activity (Last 7 Days)
-      </h2>
-      
-      <div className={styles.chartContainer}>
-        {stats.labels.map((label: string, i: number) => {
-          const value = stats.data[i];
-          const heightPct = Math.max((value / maxPlaytime) * 100, 2); // Minimum 2% height for visibility
+    <div className={styles.chartContainer}>
+      {stats.labels.map((label: string, i: number) => {
+        const value = stats.data[i];
+        const heightPct = Math.max((value / maxPlaytime) * 100, 4);
 
-          return (
-            <div key={label} className={styles.chartBarWrapper}>
-              <div className={styles.chartValue}>{value > 0 ? value.toFixed(1) + 'h' : ''}</div>
-              <div 
-                className={styles.chartBar} 
-                style={{ 
-                  height: `${heightPct}%`,
-                  backgroundColor: value > 0 ? 'var(--primary-accent)' : 'rgba(255,255,255,0.1)'
-                }}
-              />
-              <div className={styles.chartLabel}>{label}</div>
-            </div>
-          );
-        })}
-      </div>
+        return (
+          <div key={label} className={styles.chartBarWrapper}>
+            <div className={styles.chartValue}>{value > 0 ? value.toFixed(1) + 'h' : ''}</div>
+            <div 
+              className={styles.chartBar} 
+              style={{ 
+                height: `${heightPct}%`,
+                backgroundColor: value > 0 ? '#d6ff01' : 'rgba(255,255,255,0.1)'
+              }}
+            />
+            <div className={styles.chartLabel}>{label}</div>
+          </div>
+        );
+      })}
     </div>
   );
 }

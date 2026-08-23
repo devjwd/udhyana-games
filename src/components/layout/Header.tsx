@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import AuthModal from '../features/AuthModal';
@@ -9,28 +9,11 @@ import MobileNav from './MobileNav';
 import { useCart } from '@/context/CartContext';
 import styles from './Header.module.css';
 
-const locationsDropdown = [
-  { name: 'Matta Lounge', path: '/consoles' },
-  { name: 'Downtown Lounge', path: '/consoles' },
-  { name: 'Westside Lounge', path: '/consoles' },
-];
-
 export default function Header() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [teamsOpen, setTeamsOpen] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { itemCount } = useCart();
-
-  const handleTeamsEnter = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setTeamsOpen(true);
-  };
-
-  const handleTeamsLeave = () => {
-    timeoutRef.current = setTimeout(() => setTeamsOpen(false), 150);
-  };
 
   return (
     <header className={styles.header}>
@@ -40,33 +23,10 @@ export default function Header() {
 
       <nav className={styles.nav}>
         <Link href="/" className={styles.navLink}>HOME</Link>
-
-        {/* LOCATIONS dropdown */}
-        <div
-          className={styles.dropdownWrapper}
-          onMouseEnter={handleTeamsEnter}
-          onMouseLeave={handleTeamsLeave}
-        >
-          <button className={styles.navDropdownBtn}>
-            LOCATIONS
-            <svg className={`${styles.chevron} ${teamsOpen ? styles.chevronOpen : ''}`} width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-              <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-          {teamsOpen && (
-            <div className={styles.dropdownMenu}>
-              {locationsDropdown.map(item => (
-                <Link key={item.name} href={item.path} className={styles.dropdownItem} onClick={() => setTeamsOpen(false)}>
-                  {item.name}
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
         <Link href="/about" className={styles.navLink}>ABOUT</Link>
-        <Link href="/events" className={styles.navLink}>SCHEDULE</Link>
-        <Link href="/events?tab=news" className={styles.navLink}>NEWS</Link>
+        <Link href="/consoles" className={styles.navLink}>LOUNGES</Link>
+        <Link href="/book" className={styles.navLink}>BOOK</Link>
+        <Link href="/events" className={styles.navLink}>EVENTS</Link>
         <Link href="/shop" className={styles.navLink}>SHOP</Link>
       </nav>
 

@@ -8,7 +8,6 @@ import { PrismaPg } from '@prisma/adapter-pg';
 // to avoid multiple database connections.
 
 declare global {
-  // eslint-disable-next-line no-var
   var __prisma: PrismaClient | undefined;
 }
 

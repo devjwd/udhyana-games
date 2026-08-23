@@ -1,20 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import styles from './page.module.css';
 import { getConsoles, getBookedSlots, createBooking } from '@/backend/actions';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-import { useRouter } from 'next/navigation';
-
-export default function BookPage() {
+function BookPageContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const consoleParam = searchParams.get('console') || '';
 
   const [consoles, setConsoles] = useState<any[]>([]);
-  const [selectedConsole, setSelectedConsole] = useState('');
+  const [selectedConsole, setSelectedConsole] = useState(consoleParam);
   const today = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(today);
   const [time, setTime] = useState('');
@@ -30,9 +31,12 @@ export default function BookPage() {
     async function loadConsoles() {
       const fetched = await getConsoles();
       setConsoles(fetched);
+      if (consoleParam && fetched.some(c => c.id === consoleParam)) {
+        setSelectedConsole(consoleParam);
+      }
     }
     loadConsoles();
-  }, []);
+  }, [consoleParam]);
 
   useEffect(() => {
     async function fetchBookedSlots() {
@@ -220,5 +224,13 @@ export default function BookPage() {
       </main>
       <Footer />
     </>
+  );
+}
+
+export default function BookPage() {
+  return (
+    <Suspense fallback={<div style={{ color: '#ffffff', padding: '5rem', textAlign: 'center' }}>Loading Booking Station...</div>}>
+      <BookPageContent />
+    </Suspense>
   );
 }
