@@ -7,11 +7,13 @@ import { UpcomingBooking } from '../../types';
 interface UpcomingReservationsTableProps {
   bookings: UpcomingBooking[];
   onOpenCheckIn: (booking: UpcomingBooking) => void;
+  onCancelBooking?: (bookingId: string, playerName: string) => void;
 }
 
 export default function UpcomingReservationsTable({
   bookings,
-  onOpenCheckIn
+  onOpenCheckIn,
+  onCancelBooking
 }: UpcomingReservationsTableProps) {
   return (
     <div className={styles.panel}>
@@ -40,11 +42,12 @@ export default function UpcomingReservationsTable({
               const start = new Date(b.startTime);
               const end = new Date(b.endTime);
               const hours = Math.round(((end.getTime() - start.getTime()) / (1000 * 60 * 60)) * 10) / 10;
+              const playerName = b.user.fullName || b.user.username || 'Player';
 
               return (
                 <tr key={b.id} className={styles.tr}>
                   <td className={styles.td}>
-                    <div style={{ fontWeight: 'bold' }}>{b.user.fullName || b.user.username}</div>
+                    <div style={{ fontWeight: 'bold' }}>{playerName}</div>
                     <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{b.user.phone || `@${b.user.username}`}</div>
                   </td>
                   <td className={styles.td}>
@@ -62,13 +65,27 @@ export default function UpcomingReservationsTable({
                     </span>
                   </td>
                   <td className={styles.td} style={{ textAlign: 'right' }}>
-                    <button
-                      type="button"
-                      className={styles.checkinBtn}
-                      onClick={() => onOpenCheckIn(b)}
-                    >
-                      Check-In & Start
-                    </button>
+                    <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className={styles.checkinBtn}
+                        onClick={() => onOpenCheckIn(b)}
+                        title="Check-In and seat player"
+                      >
+                        Check-In & Start
+                      </button>
+                      {onCancelBooking && (
+                        <button
+                          type="button"
+                          className={styles.actionBtnDanger}
+                          style={{ padding: '0.45rem 0.75rem', fontSize: '0.75rem' }}
+                          onClick={() => onCancelBooking(b.id, playerName)}
+                          title="Cancel no-show reservation"
+                        >
+                          ✕ Cancel
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

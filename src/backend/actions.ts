@@ -471,7 +471,7 @@ export async function registerOnlineUser(data: {
         phone: phone.trim(),
         fullName: fullName.trim(),
         name: fullName.trim(),
-        status: 'PENDING',
+        status: 'APPROVED',
       }
     });
     return { success: true, userId: user.id };
@@ -682,9 +682,14 @@ export async function updateCustomerProfile(userId: string, data: { fullName?: s
 export async function createBooking(userId: string, consoleId: string, startTime: Date, durationHours: number) {
   await requireUserOrStaff(userId);
   const endTime = new Date(startTime.getTime() + durationHours * 60 * 60 * 1000);
+  const now = new Date();
+
+  if (startTime < now) {
+    return { error: 'Cannot book a time slot in the past.' };
+  }
 
   return await prisma.$transaction(async (tx) => {
-    // Check for double bookings inside transaction
+    // 1. Check for double bookings inside transaction
     const conflictingBooking = await tx.booking.findFirst({
       where: {
         consoleId,
@@ -699,6 +704,20 @@ export async function createBooking(userId: string, consoleId: string, startTime
       return { error: 'Console is already booked for this time slot.' };
     }
 
+    // 2. Check for conflicting active walk-in game sessions
+    const conflictingSession = await tx.gameSession.findFirst({
+      where: {
+        consoleId,
+        status: 'ACTIVE',
+        startTime: { lt: endTime },
+        endTime: { gt: startTime }
+      }
+    });
+
+    if (conflictingSession) {
+      return { error: 'Console is occupied by an active walk-in session during this time.' };
+    }
+
     const booking = await tx.booking.create({
       data: {
         userId,
@@ -706,25 +725,38 @@ export async function createBooking(userId: string, consoleId: string, startTime
         startTime,
         endTime,
         status: 'CONFIRMED'
+      },
+      include: {
+        console: true
       }
     });
 
     revalidatePath('/profile');
     revalidatePath('/reception');
+    revalidatePath('/book');
     return { success: true, booking };
   });
 }
 
 export async function getBookedSlots(consoleId: string, date: string) {
-  // Use date range spanning local time
-  const startOfDay = new Date(`${date}T00:00:00`);
-  const endOfDay = new Date(`${date}T23:59:59.999`);
+  // Date formatted as YYYY-MM-DD
+  const [year, month, day] = date.split('-').map(Number);
+  // Full 24-hour window spanning UTC and local day
+  const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+  const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+  // Also query local start and end of day
+  const localStart = new Date(`${date}T00:00:00`);
+  const localEnd = new Date(`${date}T23:59:59.999`);
+  const minStart = startOfDay < localStart ? startOfDay : localStart;
+  const maxEnd = endOfDay > localEnd ? endOfDay : localEnd;
 
   const bookings = await prisma.booking.findMany({
     where: {
       consoleId,
       status: 'CONFIRMED',
-      startTime: { gte: startOfDay, lte: endOfDay }
+      startTime: { lte: maxEnd },
+      endTime: { gte: minStart }
     },
     select: { startTime: true, endTime: true }
   });
@@ -733,12 +765,44 @@ export async function getBookedSlots(consoleId: string, date: string) {
     where: {
       consoleId,
       status: 'ACTIVE',
-      startTime: { gte: startOfDay, lte: endOfDay }
+      startTime: { lte: maxEnd },
+      endTime: { gte: minStart }
     },
     select: { startTime: true, endTime: true }
   });
 
   return [...bookings, ...activeSessions];
+}
+
+export async function cancelBooking(bookingId: string) {
+  const session = await getAuthenticatedSession();
+  const isStaff = session.user.role === 'ADMIN' || session.user.role === 'RECEPTIONIST';
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId }
+  });
+
+  if (!booking) {
+    return { error: 'Booking not found.' };
+  }
+
+  if (booking.userId !== session.user.id && !isStaff) {
+    throw new Error('Unauthorized: You cannot cancel this booking.');
+  }
+
+  if (booking.status !== 'CONFIRMED') {
+    return { error: `Booking is already ${booking.status.toLowerCase()}.` };
+  }
+
+  const updated = await prisma.booking.update({
+    where: { id: bookingId },
+    data: { status: 'CANCELLED' }
+  });
+
+  revalidatePath('/profile');
+  revalidatePath('/reception');
+  revalidatePath('/book');
+  return { success: true, booking: updated };
 }
 
 // ========================
@@ -1836,7 +1900,8 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
   const durationHours = durationSeconds / 3600;
 
   const baseRate = await getBaseHourlyRate();
-  const totalAmount = Math.round(durationHours * baseRate);
+  const hourlyRateToUse = (booking.console as any)?.hourlyRate || baseRate;
+  const totalAmount = Math.round(durationHours * hourlyRateToUse);
 
   const activeSession = await prisma.gameSession.findFirst({
     where: { consoleId: booking.consoleId, status: 'ACTIVE', endTime: { gt: now } }

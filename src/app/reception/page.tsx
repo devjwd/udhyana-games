@@ -35,6 +35,7 @@ import {
   resumeGameSession,
   transferGameSession,
   checkInOnlineBooking,
+  cancelBooking,
   processPosCheckout,
   getDailyShiftSummary
 } from '@/backend/actions';
@@ -474,6 +475,21 @@ export default function ReceptionPortal() {
     }
   };
 
+  const handleCancelReservation = async (bookingId: string, playerName: string) => {
+    if (confirm(`Are you sure you want to cancel the reservation for ${playerName}? This will release the station.`)) {
+      try {
+        const res = await cancelBooking(bookingId);
+        if (res && 'error' in res && res.error) {
+          throw new Error(res.error);
+        }
+        toast.success(`Reservation for ${playerName} cancelled.`);
+        await fetchLiveDashboardData();
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to cancel reservation.');
+      }
+    }
+  };
+
   const handleToggleMute = () => {
     const next = !isMuted;
     setIsMuted(next);
@@ -626,6 +642,7 @@ export default function ReceptionPortal() {
               <UpcomingReservationsTable
                 bookings={upcomingBookings}
                 onOpenCheckIn={setCheckInModalBooking}
+                onCancelBooking={handleCancelReservation}
               />
               <WaitlistQueueTable
                 waitlist={dbWaitlist}

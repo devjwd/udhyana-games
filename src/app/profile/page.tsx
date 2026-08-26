@@ -14,6 +14,7 @@ import {
   getUserActivityStats
 } from '@/backend/actions';
 import DigitalGamerPass from '@/components/profile/DigitalGamerPass';
+import CancelBookingButton from '@/components/profile/CancelBookingButton';
 
 export default async function Profile() {
   const session = await getServerSession(authOptions);
@@ -175,7 +176,10 @@ async function BookingList({ userId }: { userId: string }) {
                 <div className={styles.stationName}>{b.console.hardwareTitle}</div>
                 <div style={{ fontSize: '0.8rem', color: '#7f8388', marginTop: '2px' }}>Udhyana Gaming Lounge</div>
               </div>
-              <span className={styles.stationPassBadge}>{b.status}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className={styles.stationPassBadge}>{b.status}</span>
+                <CancelBookingButton bookingId={b.id} stationTitle={b.console.hardwareTitle} />
+              </div>
             </div>
 
             <div className={styles.bookingPassDetails}>
