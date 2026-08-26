@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Udhyana Games — Reception Desk</title>
+  <link rel="stylesheet" href="style.css">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap"
+    rel="stylesheet">
+</head>
+
+<body>
+  <div class="app-layout">
+    <!-- Clean Minimal Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-logo">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <rect x="2" y="6" width="20" height="12" rx="3" />
+            <path d="M6 12h4m-2-2v4m7-3a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 2a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" />
+          </svg>
+          <span>UDHYANA</span>
+        </div>
+        <span class="brand-tag">RECEPTION</span>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="register">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          <span>New Order / POS</span>
+        </button>
+        <button class="nav-item" data-tab="monitor">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <path d="M8 21h8m-4-4v4" />
+          </svg>
+          <span>Station Timers</span>
+          <span class="nav-pill" id="active-sessions-count">0</span>
+        </button>
+        <button class="nav-item" data-tab="waitlist">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          <span>Waitlist</span>
+          <span class="nav-pill pill-amber" id="waitlist-count">0</span>
+        </button>
+        <button class="nav-item" data-tab="history">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+          </svg>
+          <span>Daily History</span>
+        </button>
+        <button class="nav-item nav-admin" data-tab="admin" id="nav-admin-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <span>Admin Controls</span>
+          <span class="lock-indicator" id="admin-lock-badge">🔒</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-status">
+        <div class="status-indicator">
+          <span class="status-dot"></span>
+          <span>Terminal Online</span>
+        </div>
+        <div class="system-clock" id="live-clock">00:00:00</div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="main-workspace">
+      <!-- Minimal Header -->
+      <header class="workspace-header">
+        <div>
+          <h1 id="page-title">New Order / POS</h1>
+          <p id="page-subtitle">Walk-in player session registration and cafe orders</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-subtle btn-sm" id="header-shift-btn">📊 Close Shift (Z-Report)</button>
+          <span class="shift-badge">STATION DESK ACTIVE</span>
+          <button class="btn btn-subtle btn-sm" id="admin-lock-btn" style="display: none;">🔒 Lock Admin</button>
+        </div>
+      </header>
+
+      <!-- View 1: New Order / POS -->
+      <section class="view-panel active" id="view-register">
+        <div class="pos-layout">
+          <!-- Column 1: Station & Player Registration -->
+          <div class="panel-card flex-2">
+            <div class="panel-head">
+              <h2>Player & Station Setup</h2>
+            </div>
+
+            <form id="session-form" class="clean-form">
+              <div class="input-grid">
+                <div class="form-field position-relative">
+                  <label>Gamer Tag / Player Name</label>
+                  <input type="text" id="player-name" placeholder="Search member or enter name..." required
+                    autocomplete="off">
+                  <div class="member-suggestions" id="member-suggestions" style="display: none;"></div>
+                </div>
+                <div class="form-field">
+                  <label>Phone Number (Optional)</label>
+                  <input type="tel" id="player-phone" placeholder="0300-1234567">
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label>Select Station</label>
+                <div class="stations-selector-grid" id="console-selector">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label>Duration</label>
+                <div class="chip-selector" id="duration-selector">
+                  <button type="button" class="chip-btn" data-hours="0.5">30 Min</button>
+                  <button type="button" class="chip-btn active" data-hours="1">1 Hour</button>
+                  <button type="button" class="chip-btn" data-hours="2">2 Hours</button>
+                  <button type="button" class="chip-btn" data-hours="3">3 Hours</button>
+                  <button type="button" class="chip-btn" data-hours="4">4 Hours</button>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label>Extra Controllers</label>
+                <div class="chip-selector">
+                  <button type="button" class="ctrl-chip active" data-count="0">None</button>
+                  <button type="button" class="ctrl-chip" data-count="1">+1 Controller</button>
+                  <button type="button" class="ctrl-chip" data-count="2">+2 Controllers</button>
+                  <button type="button" class="ctrl-chip" data-count="3">+3 Controllers</button>
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary" id="add-session-btn">Add Session to Cart</button>
+                <button type="button" class="btn btn-subtle" id="quick-waitlist-btn">Queue Waitlist</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Column 2: Cafe Items -->
+          <div class="panel-card flex-1">
+            <div class="panel-head">
+              <h2>Snacks & Cafe</h2>
+            </div>
+            <div class="cafe-grid" id="snacks-grid">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Column 3: Cart & Checkout -->
+          <div class="panel-card flex-1 cart-panel">
+            <div class="panel-head">
+              <h2>Current Cart</h2>
+              <button class="btn-link text-danger" id="clear-cart-btn">Clear</button>
+            </div>
+
+            <div class="cart-list" id="cart-items">
+              <div class="empty-state">No items added yet.</div>
+            </div>
+
+            <div class="cart-footer">
+              <!-- Discount Chips -->
+              <div class="form-field" style="margin-bottom: 8px;">
+                <label style="font-size: 0.7rem;">Discount</label>
+                <div class="discount-selector">
+                  <button type="button" class="disc-chip active" data-disc="0">0%</button>
+                  <button type="button" class="disc-chip" data-disc="10">10% Student</button>
+                  <button type="button" class="disc-chip" data-disc="20">20% VIP</button>
+                </div>
+              </div>
+
+              <div class="cart-total-bar">
+                <span>Total Amount:</span>
+                <span class="cart-total-amount" id="cart-total">PKR 0</span>
+              </div>
+
+              <div class="payment-tabs">
+                <button type="button" class="pay-tab active" data-pay="cash">Cash</button>
+                <button type="button" class="pay-tab" data-pay="card">Card</button>
+                <button type="button" class="pay-tab" data-pay="account">Account</button>
+              </div>
+
+              <button class="btn btn-accent btn-block" id="checkout-btn" disabled>
+                Start Session & Print Slip
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- View 2: Station Timers / Lounge Monitor -->
+      <section class="view-panel" id="view-monitor">
+        <div class="monitor-topbar">
+          <div class="monitor-status-legend">
+            <span class="legend-badge legend-avail"><span class="dot"></span> Available</span>
+            <span class="legend-badge legend-active"><span class="dot"></span> Active</span>
+            <span class="legend-badge legend-warn"><span class="dot"></span> &lt;15m Remaining</span>
+            <span class="legend-badge legend-danger"><span class="dot"></span> Expired</span>
+            <span class="legend-badge legend-paused"><span class="dot"></span> Paused</span>
+          </div>
+        </div>
+
+        <div class="stations-dashboard-grid" id="stations-grid">
+          <!-- Station Cards populated dynamically -->
+        </div>
+      </section>
+
+      <!-- View 3: Waitlist -->
+      <section class="view-panel" id="view-waitlist">
+        <div class="waitlist-grid-layout">
+          <div class="panel-card flex-1">
+            <div class="panel-head">
+              <h2>Add Player to Queue</h2>
+            </div>
+            <form id="waitlist-form" class="clean-form">
+              <div class="form-field">
+                <label>Player / Group Name</label>
+                <input type="text" id="waitlist-name" placeholder="e.g. Alex, Squad 4" required autocomplete="off">
+              </div>
+              <div class="form-field">
+                <label>Requested Console</label>
+                <select id="waitlist-station">
+                  <option value="Any Station">Any Station (First Available)</option>
+                  <option value="PS5 Pro">PS5 Pro Station</option>
+                  <option value="Esports PC">Esports PC Station</option>
+                  <option value="Xbox Series X">Xbox Series X</option>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary btn-block">Add to Waitlist</button>
+            </form>
+          </div>
+
+          <div class="panel-card flex-2">
+            <div class="panel-head">
+              <h2>Waiting Queue</h2>
+            </div>
+            <div class="table-wrap">
+              <table class="clean-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Player</th>
+                    <th>Requested</th>
+                    <th>Waited</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="waitlist-tbody">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- View 4: Daily History -->
+      <section class="view-panel" id="view-history">
+        <div class="history-metrics-row">
+          <div class="metric-card">
+            <div class="metric-val" id="stat-total-sessions">0</div>
+            <div class="metric-lbl">Sessions Today</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val" id="stat-total-snacks">0</div>
+            <div class="metric-lbl">Cafe Orders Today</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val" id="stat-active-players">0</div>
+            <div class="metric-lbl">Current Active Stations</div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-head">
+            <h2>Today's Activity & Order Log</h2>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-primary btn-sm" id="history-shift-btn">📊 Close Shift (Z-Report)</button>
+              <button class="btn btn-subtle btn-sm" id="export-sales-btn">Print Daily Log</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Description / Player</th>
+                  <th>Payment</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="sales-tbody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- View 5: Admin Controls (Protected) -->
+      <section class="view-panel" id="view-admin">
+        <!-- Admin Sub-Navigation -->
+        <div class="admin-subnav">
+          <button class="admin-nav-tab active" data-admintab="revenue">
+            <span>📈 Financial Analytics</span>
+          </button>
+          <button class="admin-nav-tab" data-admintab="stations">
+            <span>🎮 Station Hardware</span>
+          </button>
+          <button class="admin-nav-tab" data-admintab="menu">
+            <span>🍿 Cafe Menu & Pricing</span>
+          </button>
+          <button class="admin-nav-tab" data-admintab="rates">
+            <span>⚙️ Rates & Pricing</span>
+          </button>
+          <button class="admin-nav-tab" data-admintab="security">
+            <span>🔐 Security & Backup</span>
+          </button>
+        </div>
+
+        <!-- Admin Tab 1: Financial Analytics -->
+        <div class="admin-tab-content active" id="admin-sec-revenue">
+          <div class="revenue-kpi-grid">
+            <div class="kpi-card highlight-kpi">
+              <div class="kpi-label">Gross Shift Revenue</div>
+              <div class="kpi-value" id="admin-kpi-revenue">PKR 0</div>
+              <div class="kpi-sub">Total collected today</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Gaming Sessions Income</div>
+              <div class="kpi-value" id="admin-kpi-sessions-rev">PKR 0</div>
+              <div class="kpi-sub" id="admin-kpi-sessions-count">0 sessions</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Cafe & Snack Sales</div>
+              <div class="kpi-value" id="admin-kpi-snacks-rev">PKR 0</div>
+              <div class="kpi-sub" id="admin-kpi-snacks-count">0 orders</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Cash vs Card Ratio</div>
+              <div class="kpi-value" id="admin-kpi-cash-ratio">0% Cash</div>
+              <div class="kpi-sub" id="admin-kpi-payment-split">Cash: PKR 0 | Card: PKR 0</div>
+            </div>
+          </div>
+
+          <div class="panel-card" style="margin-top: 18px;">
+            <div class="panel-head">
+              <h2>Financial Transaction Audit Log</h2>
+              <button class="btn btn-primary btn-sm" id="admin-print-financials-btn">Print Financial Audit
+                Report</button>
+            </div>
+            <div class="table-wrap">
+              <table class="clean-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Transaction Item</th>
+                    <th>Category</th>
+                    <th>Payment Method</th>
+                    <th>Amount</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-audit-tbody">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin Tab 2: Station Hardware Manager -->
+        <div class="admin-tab-content" id="admin-sec-stations">
+          <div class="admin-split-layout">
+            <div class="panel-card flex-1">
+              <div class="panel-head">
+                <h2>Add Gaming Station</h2>
+              </div>
+              <form id="admin-add-station-form" class="clean-form">
+                <div class="form-field">
+                  <label>Station Name</label>
+                  <input type="text" id="new-station-name" placeholder="e.g. PS5 Pro — Station 7" required>
+                </div>
+                <div class="form-field">
+                  <label>Station Type</label>
+                  <select id="new-station-type">
+                    <option value="PS5 Pro">PS5 Pro</option>
+                    <option value="Esports PC">Esports PC</option>
+                    <option value="Xbox Series X">Xbox Series X</option>
+                    <option value="VR Station">VR Station</option>
+                    <option value="Sim Racing Rig">Sim Racing Rig</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label>Custom Hourly Rate (Optional)</label>
+                  <input type="number" id="new-station-rate" placeholder="Default base rate">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Add Station to Lounge</button>
+              </form>
+            </div>
+
+            <div class="panel-card flex-2">
+              <div class="panel-head">
+                <h2>Active Lounge Stations</h2>
+              </div>
+              <div class="table-wrap">
+                <table class="clean-table">
+                  <thead>
+                    <tr>
+                      <th>Station Name</th>
+                      <th>Type</th>
+                      <th>Current Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-stations-tbody">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin Tab 3: Cafe Menu Manager -->
+        <div class="admin-tab-content" id="admin-sec-menu">
+          <div class="admin-split-layout">
+            <div class="panel-card flex-1">
+              <div class="panel-head">
+                <h2>Add Snack / Drink</h2>
+              </div>
+              <form id="admin-add-snack-form" class="clean-form">
+                <div class="form-field">
+                  <label>Item Name</label>
+                  <input type="text" id="new-snack-name" placeholder="e.g. Mountain Dew Can" required>
+                </div>
+                <div class="form-field">
+                  <label>Price (PKR)</label>
+                  <input type="number" id="new-snack-price" placeholder="150" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Add to Cafe Menu</button>
+              </form>
+            </div>
+
+            <div class="panel-card flex-2">
+              <div class="panel-head">
+                <h2>Cafe Menu Items</h2>
+              </div>
+              <div class="table-wrap">
+                <table class="clean-table">
+                  <thead>
+                    <tr>
+                      <th>Item Name</th>
+                      <th>Price (PKR)</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-snacks-tbody">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin Tab 4: Rates & Pricing -->
+        <div class="admin-tab-content" id="admin-sec-rates">
+          <div class="panel-card max-w-lg">
+            <div class="panel-head">
+              <h2>Default Pricing Rates</h2>
+            </div>
+            <div class="clean-form">
+              <div class="form-field">
+                <label>Base Hourly Rate (PKR / Hour)</label>
+                <input type="number" id="admin-setting-base-rate" value="1000">
+                <small style="color: #64748b;">Default hourly charge for walk-in players</small>
+              </div>
+              <div class="form-field">
+                <label>Extra Controller Fee (PKR)</label>
+                <input type="number" id="admin-setting-ctrl-rate" value="200">
+                <small style="color: #64748b;">Flat charge per additional controller</small>
+              </div>
+              <button class="btn btn-primary" id="admin-save-rates-btn">Save New Rates</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin Tab 5: Security & Backup -->
+        <div class="admin-tab-content" id="admin-sec-security">
+          <div class="admin-split-layout">
+            <div class="panel-card flex-1">
+              <div class="panel-head">
+                <h2>Admin Master PIN</h2>
+              </div>
+              <div class="clean-form">
+                <div class="form-field">
+                  <label>Current Admin PIN</label>
+                  <input type="password" id="admin-current-pin" placeholder="Enter current PIN">
+                </div>
+                <div class="form-field">
+                  <label>New 4-Digit Admin PIN</label>
+                  <input type="password" id="admin-new-pin" maxlength="6" placeholder="Enter new PIN">
+                </div>
+                <button class="btn btn-primary" id="admin-change-pin-btn">Update Admin PIN</button>
+              </div>
+            </div>
+
+            <div class="panel-card flex-1">
+              <div class="panel-head">
+                <h2>Database Backup & Restore</h2>
+              </div>
+              <div class="clean-form">
+                <p style="color: #94a3b8; font-size: 0.82rem; margin-bottom: 8px;">Export your complete database (sales,
+                  sessions, consoles, cafe menu) to a file for safe keeping.</p>
+                <button class="btn btn-primary" id="admin-export-backup-btn">💾 Export Full Backup (.json)</button>
+
+                <div style="margin-top: 12px;">
+                  <label
+                    style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase;">Restore
+                    from Backup</label>
+                  <input type="file" id="admin-restore-file" accept=".json"
+                    style="padding: 6px; font-size: 0.8rem; background: var(--bg-subtle);">
+                </div>
+
+                <div style="border-top: 1px solid var(--border); padding-top: 14px; margin-top: 14px;">
+                  <button class="btn btn-subtle text-danger btn-block" id="admin-clear-all-data-btn">Reset All Today's
+                    Shift Data</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Transfer Station Modal -->
+  <div class="modal-overlay" id="transfer-modal">
+    <div class="modal-window">
+      <h2 id="transfer-modal-title">Transfer Player Station</h2>
+      <p id="transfer-modal-subtitle" style="color: #64748b; font-size: 0.85rem; margin-bottom: 16px;"></p>
+
+      <div class="form-field" style="margin-bottom: 20px;">
+        <label>Select Destination Station</label>
+        <select id="transfer-dest-select" style="font-size: 0.95rem; padding: 10px;">
+          <!-- Populated dynamically -->
+        </select>
+      </div>
+
+      <div class="modal-buttons">
+        <button class="btn btn-primary" id="confirm-transfer-btn">Transfer Station</button>
+        <button class="btn btn-subtle" id="cancel-transfer-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shift Closing & Z-Report Modal -->
+  <div class="modal-overlay" id="shift-close-modal">
+    <div class="modal-window receipt-window">
+      <div class="thermal-receipt" id="shift-close-paper">
+        <div class="receipt-brand">
+          <h3>UDHYANA GAMES</h3>
+          <p>End of Shift — Z-Report Settlement</p>
+        </div>
+        <div class="receipt-line">================================</div>
+        <div id="shift-close-info"></div>
+        <div class="receipt-line">--------------------------------</div>
+        <div id="shift-close-totals"></div>
+        <div class="receipt-line">================================</div>
+        <div class="receipt-footer-msg">
+          <p>Shift Closed & Verified</p>
+          <p>Manager / Staff Signature: _____________</p>
+        </div>
+      </div>
+
+      <div class="modal-buttons">
+        <button class="btn btn-primary" id="print-shift-close-btn">🖨️ Print Z-Report</button>
+        <button class="btn btn-subtle" id="close-shift-modal-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin PIN Authentication Modal -->
+  <div class="modal-overlay" id="admin-pin-modal">
+    <div class="modal-window pin-modal-window">
+      <div class="pin-modal-header">
+        <div class="pin-lock-icon">🔒</div>
+        <h2>Admin Authentication</h2>
+        <p>Enter Master PIN to access financial analytics and controls</p>
+      </div>
+
+      <div class="pin-input-wrap">
+        <input type="password" id="admin-pin-input" maxlength="6" placeholder="••••" autocomplete="off" autofocus>
+      </div>
+
+      <div class="pin-error-msg" id="pin-error-msg" style="display: none;">
+        Invalid PIN. Access denied.
+      </div>
+
+      <div class="modal-buttons">
+        <button class="btn btn-primary" id="admin-pin-submit-btn">Unlock Admin</button>
+        <button class="btn btn-subtle" id="admin-pin-cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thermal Receipt Modal -->
+  <div class="modal-overlay" id="receipt-modal">
+    <div class="modal-window receipt-window">
+      <div class="thermal-receipt" id="receipt-paper">
+        <div class="receipt-brand">
+          <h3>UDHYANA GAMES</h3>
+          <p>Gaming Lounge & Esports Arena</p>
+        </div>
+        <div class="receipt-line">--------------------------------</div>
+        <div id="receipt-info"></div>
+        <div class="receipt-line">--------------------------------</div>
+        <div id="receipt-items"></div>
+        <div class="receipt-line">--------------------------------</div>
+        <div id="receipt-total"></div>
+        <div class="receipt-footer-msg">
+          <p>Thank you for gaming with us!</p>
+          <p>Wi-Fi: UdhyanaLounge | Pass: playgame</p>
+        </div>
+      </div>
+
+      <div class="modal-buttons">
+        <button class="btn btn-primary" id="print-receipt-btn">🖨️ Print Slip</button>
+        <button class="btn btn-subtle" id="close-receipt-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Time Modal -->
+  <div class="modal-overlay" id="extend-modal">
+    <div class="modal-window">
+      <h2 id="extend-modal-title" style="margin-bottom: 4px;">Add Time to Station</h2>
+      <p id="extend-modal-subtitle" style="color: #64748b; font-size: 0.88rem; margin-bottom: 20px;"></p>
+
+      <div class="chip-selector" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 24px;">
+        <button type="button" class="chip-btn extend-time-btn" data-hours="0.5">+30 Min</button>
+        <button type="button" class="chip-btn extend-time-btn active" data-hours="1">+1 Hour</button>
+        <button type="button" class="chip-btn extend-time-btn" data-hours="2">+2 Hours</button>
+      </div>
+
+      <div class="modal-buttons">
+        <button class="btn btn-primary" id="confirm-extend-btn">Confirm Extension</button>
+        <button class="btn btn-subtle" id="cancel-extend-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

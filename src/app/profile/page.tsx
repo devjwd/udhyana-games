@@ -13,6 +13,7 @@ import {
   getUserSessions,
   getUserActivityStats
 } from '@/backend/actions';
+import DigitalGamerPass from '@/components/profile/DigitalGamerPass';
 
 export default async function Profile() {
   const session = await getServerSession(authOptions);
@@ -96,6 +97,14 @@ export default async function Profile() {
             <Link href="/profile/edit" className={styles.editLink}>
               Edit Profile
             </Link>
+
+            <DigitalGamerPass
+              userId={user.id}
+              username={user.username || 'player'}
+              fullName={user.fullName || user.name}
+              rank={user.rank}
+              loyaltyPoints={loyaltyPoints}
+            />
           </div>
 
           {/* Right Column: Activity, Pass & History */}

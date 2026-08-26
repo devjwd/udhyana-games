@@ -159,18 +159,21 @@ export async function adjustUserLoyaltyPoints(userId: string, pointsDelta: numbe
 
 export async function searchUsers(query: string) {
   await requireReceptionAuth();
-  if (!query || query.length < 2) return [];
-  
+  if (!query || query.trim().length < 2) return [];
+  const clean = query.trim().replace(/^UDH[-:]/i, '');
+
   return await prisma.user.findMany({
     where: {
       OR: [
-        { username: { contains: query, mode: 'insensitive' } },
-        { fullName: { contains: query, mode: 'insensitive' } },
-        { phone: { contains: query, mode: 'insensitive' } }
+        { id: clean },
+        { username: { contains: clean, mode: 'insensitive' } },
+        { fullName: { contains: clean, mode: 'insensitive' } },
+        { phone: { contains: clean, mode: 'insensitive' } },
+        { email: { contains: clean, mode: 'insensitive' } }
       ]
     },
     take: 5,
-    select: { id: true, username: true, fullName: true, phone: true }
+    select: { id: true, username: true, fullName: true, phone: true, rank: true, loyaltyPoints: true }
   });
 }
 
@@ -269,6 +272,77 @@ export async function deleteConsole(id: string) {
   revalidatePath('/reception');
 }
 
+export async function getAllMasterGames() {
+  await requireReceptionAuth();
+  return await prisma.game.findMany({
+    orderBy: { name: 'asc' },
+    include: {
+      consoles: {
+        select: {
+          consoleId: true,
+          console: { select: { hardwareTitle: true } }
+        }
+      }
+    }
+  });
+}
+
+export async function createMasterGame(name: string) {
+  await requireAdminAuth();
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Game title cannot be empty.');
+
+  const existing = await prisma.game.findUnique({ where: { name: trimmed } });
+  if (existing) throw new Error('A game with this title already exists.');
+
+  const newGame = await prisma.game.create({
+    data: { name: trimmed }
+  });
+
+  revalidateTag('consoles', 'default');
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  revalidatePath('/consoles');
+  return newGame;
+}
+
+export async function deleteMasterGame(id: string) {
+  await requireAdminAuth();
+  await prisma.game.delete({ where: { id } });
+
+  revalidateTag('consoles', 'default');
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  revalidatePath('/consoles');
+}
+
+export async function assignGameToConsole(consoleId: string, gameId: string) {
+  await requireAdminAuth();
+  const mapping = await prisma.consoleGames.upsert({
+    where: { consoleId_gameId: { consoleId, gameId } },
+    update: {},
+    create: { consoleId, gameId }
+  });
+
+  revalidateTag('consoles', 'default');
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  revalidatePath('/consoles');
+  return mapping;
+}
+
+export async function removeGameFromConsole(consoleId: string, gameId: string) {
+  await requireAdminAuth();
+  await prisma.consoleGames.deleteMany({
+    where: { consoleId, gameId }
+  });
+
+  revalidateTag('consoles', 'default');
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  revalidatePath('/consoles');
+}
+
 export async function toggleConsoleGame(consoleId: string, gameName: string) {
   await requireAdminAuth();
   let game = await prisma.game.findUnique({ where: { name: gameName } });
@@ -295,6 +369,7 @@ export async function toggleConsoleGame(consoleId: string, gameName: string) {
   revalidateTag('consoles', 'default');
   revalidatePath('/admin');
   revalidatePath('/reception');
+  revalidatePath('/consoles');
 }
 
 // ========================
@@ -410,7 +485,7 @@ export async function registerOnlineUser(data: {
 }
 
 export async function getPendingUsers(limit: number = 50) {
-  await requireReceptionAuth();
+  await requireAdminAuth();
   return await prisma.user.findMany({
     where: { status: 'PENDING' },
     select: { id: true, username: true, fullName: true, email: true, phone: true },
@@ -420,13 +495,50 @@ export async function getPendingUsers(limit: number = 50) {
 }
 
 export async function approveUser(userId: string) {
-  await requireReceptionAuth();
+  await requireAdminAuth();
   const updated = await prisma.user.update({
     where: { id: userId },
     data: { status: 'APPROVED' }
   });
+  revalidatePath('/admin');
   revalidatePath('/reception');
   return updated;
+}
+
+export async function rejectUser(userId: string) {
+  await requireAdminAuth();
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { status: 'REJECTED' }
+  });
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  return updated;
+}
+
+export async function getAllUsersWithRoles() {
+  await requireAdminAuth();
+  return await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      fullName: true,
+      username: true,
+      email: true,
+      phone: true,
+      role: true,
+      status: true,
+      rank: true,
+      loyaltyPoints: true,
+      sessionsCount: true,
+      playtimeHours: true
+    },
+    orderBy: [
+      { role: 'asc' }, // ADMIN, RECEPTIONIST, USER
+      { status: 'asc' },
+      { username: 'asc' }
+    ]
+  });
 }
 
 export async function promoteUserToStaff(userId: string, role: string) {
@@ -440,6 +552,126 @@ export async function promoteUserToStaff(userId: string, role: string) {
     data: { role, status: 'APPROVED' }
   });
   revalidatePath('/admin');
+  revalidatePath('/reception');
+  return updated;
+}
+
+export async function updateUserRole(userId: string, role: string) {
+  await requireAdminAuth();
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { role }
+  });
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  return updated;
+}
+
+export async function getAllCustomersWithStats() {
+  await requireAdminAuth();
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      fullName: true,
+      username: true,
+      email: true,
+      phone: true,
+      role: true,
+      status: true,
+      rank: true,
+      loyaltyPoints: true,
+      sessionsCount: true,
+      playtimeHours: true,
+      _count: {
+        select: {
+          orders: true,
+          bookings: true,
+          gameSessions: true
+        }
+      },
+      orders: {
+        select: {
+          totalAmount: true
+        }
+      }
+    },
+    orderBy: [
+      { loyaltyPoints: 'desc' },
+      { username: 'asc' }
+    ]
+  });
+
+  return users.map(u => {
+    const totalSpend = u.orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    return {
+      id: u.id,
+      name: u.name,
+      fullName: u.fullName,
+      username: u.username,
+      email: u.email,
+      phone: u.phone,
+      role: u.role,
+      status: u.status,
+      rank: u.rank,
+      loyaltyPoints: u.loyaltyPoints,
+      sessionsCount: u.sessionsCount,
+      playtimeHours: u.playtimeHours,
+      ordersCount: u._count.orders,
+      bookingsCount: u._count.bookings,
+      gameSessionsCount: u._count.gameSessions,
+      totalSpend
+    };
+  });
+}
+
+export async function getCustomerFullDossier(userId: string) {
+  await requireAdminAuth();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      gameSessions: {
+        take: 10,
+        orderBy: { startTime: 'desc' },
+        include: {
+          console: { select: { hardwareTitle: true } }
+        }
+      },
+      orders: {
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          items: true
+        }
+      },
+      bookings: {
+        take: 10,
+        orderBy: { startTime: 'desc' },
+        include: {
+          console: { select: { hardwareTitle: true } }
+        }
+      }
+    }
+  });
+
+  if (!user) return null;
+
+  const totalSpent = (user.orders || []).reduce((acc, o) => acc + (o.totalAmount || 0), 0);
+
+  return {
+    ...user,
+    totalSpent
+  };
+}
+
+export async function updateCustomerProfile(userId: string, data: { fullName?: string; phone?: string; email?: string; status?: string; rank?: string }) {
+  await requireAdminAuth();
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data
+  });
+  revalidatePath('/admin');
+  revalidatePath('/reception');
   return updated;
 }
 
@@ -525,20 +757,85 @@ export async function getActiveSessions() {
   });
 }
 
-export async function addTimeToSession(sessionId: string, additionalSeconds: number) {
-  await requireReceptionAuth();
-  const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
-  if (!session || session.status !== 'ACTIVE') return null;
+export async function addTimeToSession(
+  sessionId: string,
+  additionalSeconds: number,
+  paymentMethod: string = 'cash',
+  amount?: number
+) {
+  try {
+    await requireReceptionAuth();
+    const session = await prisma.gameSession.findUnique({
+      where: { id: sessionId },
+      include: { console: true, user: true }
+    });
+    if (!session || session.status !== 'ACTIVE') {
+      return { error: 'Active session not found.' };
+    }
 
-  const newEndTime = new Date(session.endTime.getTime() + additionalSeconds * 1000);
-  
-  const updatedSession = await prisma.gameSession.update({
-    where: { id: sessionId },
-    data: { endTime: newEndTime }
-  });
+    const baseRate = await getBaseHourlyRate();
+    const calculatedAmount = amount !== undefined ? amount : Math.round((additionalSeconds / 3600) * baseRate);
+    const newEndTime = new Date(session.endTime.getTime() + additionalSeconds * 1000);
+    const durationMinutes = Math.round(additionalSeconds / 60);
 
-  revalidatePath('/reception');
-  return updatedSession;
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Update Game Session
+      const updatedSession = await tx.gameSession.update({
+        where: { id: sessionId },
+        data: { endTime: newEndTime },
+        include: { console: true, user: true }
+      });
+
+      // 2. Create Order & OrderItem to record the extension revenue
+      const playerName = session.guestName || session.user?.fullName || session.user?.username || 'Player';
+      const order = await tx.order.create({
+        data: {
+          userId: session.userId || null,
+          totalAmount: calculatedAmount,
+          paymentMethod,
+          items: {
+            create: [{
+              name: `Time Extension (+${durationMinutes}m) - ${session.console.hardwareTitle} (${playerName})`,
+              price: calculatedAmount,
+              type: 'session',
+              quantity: 1
+            }]
+          }
+        }
+      });
+
+      // 3. Award loyalty points if registered user
+      if (session.userId) {
+        const pointsEarned = Math.floor(calculatedAmount / 10);
+        if (pointsEarned > 0) {
+          const user = await tx.user.update({
+            where: { id: session.userId },
+            data: { loyaltyPoints: { increment: pointsEarned } }
+          });
+          let newRank = user.rank;
+          if (user.loyaltyPoints >= 1000) newRank = 'Elite';
+          else if (user.loyaltyPoints >= 500) newRank = 'Pro';
+          else if (user.loyaltyPoints >= 100) newRank = 'Regular';
+          else newRank = 'Rookie';
+
+          if (newRank !== user.rank) {
+            await tx.user.update({
+              where: { id: user.id },
+              data: { rank: newRank }
+            });
+          }
+        }
+      }
+
+      return { success: true, session: updatedSession, orderId: order.id };
+    });
+
+    revalidatePath('/reception');
+    return result;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to extend session.';
+    return { error: message };
+  }
 }
 
 export async function endGameSession(sessionId: string) {
@@ -705,51 +1002,38 @@ export async function processPosCheckout(
   sessionItems: { guestName: string; consoleId: string; durationSeconds: number }[],
   walkInName?: string,
   walkInPhone?: string,
-  existingUserId?: string
+  existingUserId?: string,
+  waitlistItems?: { guestName: string; requestedConsoleName: string; durationSeconds: number; phone?: string; userId?: string }[]
 ) {
   try {
     await requireReceptionAuth();
-    
+
     const result = await prisma.$transaction(async (tx) => {
       let userId = existingUserId;
 
+      // 1. Resolve existing user if match is found; do not spam create empty stub user rows for pure guests
       if (!userId && walkInName && walkInName.trim()) {
         const cleanName = walkInName.trim();
-        let user = await tx.user.findFirst({
+        const existing = await tx.user.findFirst({
           where: {
             OR: [
               { username: { equals: cleanName, mode: 'insensitive' } },
               { fullName: { equals: cleanName, mode: 'insensitive' } },
               ...(walkInPhone?.trim() ? [{ phone: walkInPhone.trim() }] : [])
             ]
-          }
+          },
+          select: { id: true }
         });
 
-        if (!user) {
-          try {
-            user = await tx.user.create({
-              data: {
-                username: cleanName,
-                name: cleanName,
-                fullName: cleanName,
-                status: 'APPROVED',
-                ...(walkInPhone?.trim() ? { phone: walkInPhone.trim() } : {})
-              }
-            });
-          } catch {
-            user = await tx.user.findFirst({
-              where: { username: { equals: cleanName, mode: 'insensitive' } }
-            });
-          }
-        }
-        if (user) {
-          userId = user.id;
+        if (existing) {
+          userId = existing.id;
         }
       }
 
       const now = new Date();
 
-      await tx.gameSession.updateMany({
+      // 2. Expire finished sessions & validate requested stations in parallel
+      const cleanupPromise = tx.gameSession.updateMany({
         where: {
           status: 'ACTIVE',
           endTime: { lte: now }
@@ -757,44 +1041,47 @@ export async function processPosCheckout(
         data: { status: 'COMPLETED' }
       });
 
-      for (const item of sessionItems) {
-        const endTime = new Date(now.getTime() + item.durationSeconds * 1000);
-        
-        const active = await tx.gameSession.findFirst({
-          where: {
-            consoleId: item.consoleId,
-            status: 'ACTIVE',
-            endTime: { gt: now }
-          }
-        });
-        if (active) {
-          throw new Error(`Console is currently occupied until ${active.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`);
-        }
-        
-        const overlappingBooking = await tx.booking.findFirst({
-          where: {
-            consoleId: item.consoleId,
-            status: 'CONFIRMED',
-            startTime: { lt: endTime },
-            endTime: { gt: now }
-          }
-        });
-        if (overlappingBooking) {
-          throw new Error(`Console is booked for a reservation at ${overlappingBooking.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`);
+      if (sessionItems.length > 0) {
+        const consoleIds = sessionItems.map(s => s.consoleId);
+        const maxDuration = Math.max(...sessionItems.map(s => s.durationSeconds));
+        const maxEndTime = new Date(now.getTime() + maxDuration * 1000);
+
+        const [activeSessions, overlappingBookings] = await Promise.all([
+          tx.gameSession.findMany({
+            where: {
+              consoleId: { in: consoleIds },
+              status: 'ACTIVE',
+              endTime: { gt: now }
+            },
+            select: { consoleId: true, endTime: true }
+          }),
+          tx.booking.findMany({
+            where: {
+              consoleId: { in: consoleIds },
+              status: 'CONFIRMED',
+              startTime: { lt: maxEndTime },
+              endTime: { gt: now }
+            },
+            select: { consoleId: true, startTime: true }
+          }),
+          cleanupPromise
+        ]);
+
+        if (activeSessions.length > 0) {
+          const occupied = activeSessions[0];
+          throw new Error(`Station is currently occupied until ${occupied.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`);
         }
 
-        const consoleRecord = await tx.console.findUnique({ where: { id: item.consoleId } });
-        if (!consoleRecord) {
-          await tx.console.create({
-            data: {
-              id: item.consoleId,
-              hardwareTitle: item.consoleId.toUpperCase()
-            }
-          });
+        if (overlappingBookings.length > 0) {
+          const booking = overlappingBookings[0];
+          throw new Error(`Station is reserved for an online booking at ${booking.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`);
         }
+      } else {
+        await cleanupPromise;
       }
 
-      const order = await tx.order.create({
+      // 3. Create Order & Game Sessions & Waitlist entries in parallel
+      const orderPromise = tx.order.create({
         data: {
           userId: userId || null,
           totalAmount,
@@ -810,42 +1097,60 @@ export async function processPosCheckout(
         }
       });
 
-      if (userId) {
-        const spendPerPointSetting = await tx.settings.findUnique({ where: { key: 'spendPerPoint' } });
-        const spendPerPoint = spendPerPointSetting ? Math.max(1, parseInt(spendPerPointSetting.value, 10)) : 10;
-        const pointsEarned = Math.floor(totalAmount / spendPerPoint);
+      const sessionsPromise = sessionItems.length > 0
+        ? tx.gameSession.createMany({
+            data: sessionItems.map(item => ({
+              userId: userId || null,
+              guestName: item.guestName,
+              consoleId: item.consoleId,
+              endTime: new Date(now.getTime() + item.durationSeconds * 1000),
+              status: 'ACTIVE' as const
+            }))
+          })
+        : Promise.resolve();
 
-        const user = await tx.user.update({
-          where: { id: userId },
-          data: { loyaltyPoints: { increment: pointsEarned } }
-        });
+      // Create paid Waitlist queue entries
+      const waitlistPromise = (waitlistItems && waitlistItems.length > 0)
+        ? tx.waitlist.createMany({
+            data: waitlistItems.map(w => {
+              const durationHrs = Math.round((w.durationSeconds / 3600) * 10) / 10;
+              return {
+                name: w.guestName,
+                requested: `${w.requestedConsoleName} • ${durationHrs}h (PAID)`,
+                status: 'WAITING'
+              };
+            })
+          })
+        : Promise.resolve();
 
-        let newRank = user.rank;
-        if (user.loyaltyPoints >= 1000) newRank = 'Elite';
-        else if (user.loyaltyPoints >= 500) newRank = 'Pro';
-        else if (user.loyaltyPoints >= 100) newRank = 'Regular';
-        else newRank = 'Rookie';
+      // 4. Calculate loyalty & rank update in a single pass if member is attached
+      const loyaltyPromise = userId
+        ? (async () => {
+            const user = await tx.user.findUnique({
+              where: { id: userId },
+              select: { id: true, loyaltyPoints: true, rank: true }
+            });
+            if (user) {
+              const pointsEarned = Math.floor(totalAmount / 10);
+              const newPoints = (user.loyaltyPoints || 0) + pointsEarned;
+              let newRank = user.rank;
+              if (newPoints >= 1000) newRank = 'Elite';
+              else if (newPoints >= 500) newRank = 'Pro';
+              else if (newPoints >= 100) newRank = 'Regular';
+              else newRank = 'Rookie';
 
-        if (newRank !== user.rank) {
-          await tx.user.update({
-            where: { id: user.id },
-            data: { rank: newRank }
-          });
-        }
-      }
+              await tx.user.update({
+                where: { id: userId },
+                data: {
+                  loyaltyPoints: newPoints,
+                  rank: newRank
+                }
+              });
+            }
+          })()
+        : Promise.resolve();
 
-      for (const item of sessionItems) {
-        const endTime = new Date(now.getTime() + item.durationSeconds * 1000);
-        await tx.gameSession.create({
-          data: {
-            userId: userId || null,
-            guestName: item.guestName,
-            consoleId: item.consoleId,
-            endTime,
-            status: 'ACTIVE'
-          }
-        });
-      }
+      const [order] = await Promise.all([orderPromise, sessionsPromise, waitlistPromise, loyaltyPromise]);
 
       return { success: true, orderId: order.id };
     });
@@ -854,6 +1159,116 @@ export async function processPosCheckout(
     return result;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'An error occurred during checkout.';
+    return { error: message };
+  }
+}
+
+export async function startSessionFromWaitlist(
+  waitlistId: string,
+  consoleId: string,
+  durationSeconds: number,
+  guestName: string,
+  userId?: string,
+  isPrepaid: boolean = false,
+  paymentMethod: string = 'cash',
+  amount?: number
+) {
+  try {
+    await requireReceptionAuth();
+    const now = new Date();
+    const endTime = new Date(now.getTime() + durationSeconds * 1000);
+
+    // Check if station is occupied or reserved
+    const [activeSession, overlappingBooking] = await Promise.all([
+      prisma.gameSession.findFirst({
+        where: {
+          consoleId,
+          status: 'ACTIVE',
+          endTime: { gt: now }
+        },
+        include: { console: true }
+      }),
+      prisma.booking.findFirst({
+        where: {
+          consoleId,
+          status: 'CONFIRMED',
+          startTime: { lt: endTime },
+          endTime: { gt: now }
+        }
+      })
+    ]);
+
+    if (activeSession) {
+      throw new Error(`Station is currently occupied until ${activeSession.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`);
+    }
+    if (overlappingBooking) {
+      throw new Error(`Station is reserved for an online booking at ${overlappingBooking.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`);
+    }
+
+    const baseRate = await getBaseHourlyRate();
+    const calculatedAmount = amount !== undefined ? amount : Math.round((durationSeconds / 3600) * baseRate);
+    const durationHours = Math.round((durationSeconds / 3600) * 10) / 10;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const consoleObj = await tx.console.findUnique({ where: { id: consoleId } });
+      const consoleName = consoleObj?.hardwareTitle || consoleId;
+
+      // 1. If NOT prepaid, create order & invoice
+      let orderId: string | undefined;
+      if (!isPrepaid && calculatedAmount > 0) {
+        const order = await tx.order.create({
+          data: {
+            userId: userId || null,
+            totalAmount: calculatedAmount,
+            paymentMethod,
+            items: {
+              create: [{
+                name: `${guestName} - ${durationHours} Hr Session (${consoleName})`,
+                price: calculatedAmount,
+                type: 'session',
+                quantity: 1
+              }]
+            }
+          }
+        });
+        orderId = order.id;
+
+        if (userId) {
+          const pointsEarned = Math.floor(calculatedAmount / 10);
+          if (pointsEarned > 0) {
+            await tx.user.update({
+              where: { id: userId },
+              data: { loyaltyPoints: { increment: pointsEarned } }
+            });
+          }
+        }
+      }
+
+      // 2. Create Active GameSession
+      const createdSession = await tx.gameSession.create({
+        data: {
+          consoleId,
+          userId: userId || null,
+          guestName,
+          endTime,
+          status: 'ACTIVE'
+        },
+        include: { console: true }
+      });
+
+      // 3. Mark Waitlist as ASSIGNED
+      await tx.waitlist.update({
+        where: { id: waitlistId },
+        data: { status: 'ASSIGNED' }
+      });
+
+      return { session: createdSession, orderId };
+    });
+
+    revalidatePath('/reception');
+    return { success: true, session: result.session, orderId: result.orderId };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to start session from waitlist.';
     return { error: message };
   }
 }
@@ -1163,23 +1578,188 @@ export async function setHeroGallery(data: HeroGalleryImage[]) {
 }
 
 // ========================
-// ADMIN ANALYTICS
+// ADMIN ANALYTICS ENGINE
 // ========================
 
-export async function getAnalyticsData() {
+export async function getAnalyticsData(timeframe: '7d' | '30d' | 'all' = '7d') {
   await requireAdminAuth();
-  const orders = await prisma.order.findMany({
-    select: { totalAmount: true, createdAt: true, status: true }
+
+  const now = new Date();
+  let startDate: Date | undefined;
+  let totalDays = 7;
+
+  if (timeframe === '7d') {
+    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    totalDays = 7;
+  } else if (timeframe === '30d') {
+    startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    totalDays = 30;
+  } else {
+    totalDays = 30;
+  }
+
+  const [orders, sessions, consoles] = await Promise.all([
+    prisma.order.findMany({
+      where: startDate ? { createdAt: { gte: startDate } } : {},
+      include: { items: true },
+      orderBy: { createdAt: 'asc' }
+    }),
+    prisma.gameSession.findMany({
+      where: startDate ? { startTime: { gte: startDate } } : {},
+      include: { console: true }
+    }),
+    prisma.console.findMany({
+      select: { id: true, hardwareTitle: true, hourlyRate: true }
+    })
+  ]);
+
+  const totalRevenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+  const totalOrders = orders.length;
+  const totalSessions = sessions.length;
+  const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+
+  // 1. Calculate Total Playtime Hours
+  let totalPlaytimeMinutes = 0;
+  sessions.forEach(s => {
+    const start = new Date(s.startTime).getTime();
+    const end = new Date(s.endTime).getTime();
+    const mins = Math.max(0, Math.round((end - start) / 60000));
+    totalPlaytimeMinutes += mins;
+  });
+  const totalPlaytimeHours = Math.round((totalPlaytimeMinutes / 60) * 10) / 10;
+
+  // 2. Station-by-Station Revenue & Utilization
+  const stationStatsMap: Record<string, {
+    id: string;
+    name: string;
+    revenue: number;
+    sessionsCount: number;
+    playtimeMinutes: number;
+  }> = {};
+
+  consoles.forEach(c => {
+    stationStatsMap[c.id] = {
+      id: c.id,
+      name: c.hardwareTitle,
+      revenue: 0,
+      sessionsCount: 0,
+      playtimeMinutes: 0
+    };
   });
 
-  const sessionsCount = await prisma.gameSession.count();
+  sessions.forEach(s => {
+    if (!stationStatsMap[s.consoleId]) {
+      stationStatsMap[s.consoleId] = {
+        id: s.consoleId,
+        name: s.console?.hardwareTitle || s.consoleId,
+        revenue: 0,
+        sessionsCount: 0,
+        playtimeMinutes: 0
+      };
+    }
 
-  const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
-  const totalOrders = orders.length;
+    const start = new Date(s.startTime).getTime();
+    const end = new Date(s.endTime).getTime();
+    const mins = Math.max(0, Math.round((end - start) / 60000));
+    const hours = mins / 60;
+    const rate = consoles.find(c => c.id === s.consoleId)?.hourlyRate || 1000;
 
+    stationStatsMap[s.consoleId].sessionsCount += 1;
+    stationStatsMap[s.consoleId].playtimeMinutes += mins;
+    stationStatsMap[s.consoleId].revenue += Math.round(hours * rate);
+  });
+
+  // Calculate station utilization % (assumes 12 active lounge hours per day)
+  const availableLoungeMinutesPerStation = totalDays * 12 * 60;
+  const stationPerformance = Object.values(stationStatsMap).map(st => {
+    const playtimeHours = Math.round((st.playtimeMinutes / 60) * 10) / 10;
+    const utilizationPct = Math.min(100, Math.round((st.playtimeMinutes / Math.max(1, availableLoungeMinutesPerStation)) * 100));
+    return {
+      ...st,
+      playtimeHours,
+      utilizationPct
+    };
+  }).sort((a, b) => b.revenue - a.revenue);
+
+  // 3. Hourly Peak Time Distribution (24 Hours: 00:00 - 23:00)
+  const hourlyRevenue: { hour: number; label: string; revenue: number; ordersCount: number }[] = [];
+  for (let h = 0; h < 24; h++) {
+    const period = h >= 12 ? 'PM' : 'AM';
+    const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    hourlyRevenue.push({
+      hour: h,
+      label: `${displayH} ${period}`,
+      revenue: 0,
+      ordersCount: 0
+    });
+  }
+
+  orders.forEach(order => {
+    const orderHour = new Date(order.createdAt).getHours();
+    if (hourlyRevenue[orderHour]) {
+      hourlyRevenue[orderHour].revenue += order.totalAmount;
+      hourlyRevenue[orderHour].ordersCount += 1;
+    }
+  });
+
+  // Find Peak Hour
+  const sortedHours = [...hourlyRevenue].sort((a, b) => b.revenue - a.revenue);
+  const peakHour = sortedHours[0] || { label: '6 PM - 10 PM', revenue: 0 };
+  const peakHourShare = totalRevenue > 0 ? Math.round((peakHour.revenue / totalRevenue) * 100) : 0;
+
+  // 4. Day-Part Time-of-Day Distribution
+  const dayParts = {
+    Morning: { name: 'Morning (8 AM – 12 PM)', revenue: 0, count: 0 },
+    Afternoon: { name: 'Afternoon (12 PM – 5 PM)', revenue: 0, count: 0 },
+    Evening: { name: 'Peak Evening (5 PM – 9 PM)', revenue: 0, count: 0 },
+    Night: { name: 'Late Night (9 PM – 2 AM)', revenue: 0, count: 0 }
+  };
+
+  orders.forEach(order => {
+    const h = new Date(order.createdAt).getHours();
+    if (h >= 8 && h < 12) {
+      dayParts.Morning.revenue += order.totalAmount;
+      dayParts.Morning.count += 1;
+    } else if (h >= 12 && h < 17) {
+      dayParts.Afternoon.revenue += order.totalAmount;
+      dayParts.Afternoon.count += 1;
+    } else if (h >= 17 && h < 21) {
+      dayParts.Evening.revenue += order.totalAmount;
+      dayParts.Evening.count += 1;
+    } else {
+      dayParts.Night.revenue += order.totalAmount;
+      dayParts.Night.count += 1;
+    }
+  });
+
+  // 5. Revenue Streams (Sessions vs Snacks vs Products)
+  let sessionsRevenue = 0;
+  let snacksRevenue = 0;
+  let productsRevenue = 0;
+
+  orders.forEach(order => {
+    order.items.forEach(item => {
+      if (item.type === 'session') sessionsRevenue += item.price * (item.quantity || 1);
+      else if (item.type === 'snack') snacksRevenue += item.price * (item.quantity || 1);
+      else productsRevenue += item.price * (item.quantity || 1);
+    });
+  });
+
+  // 6. Payment Methods Split
+  let cashRevenue = 0;
+  let cardRevenue = 0;
+  let accountRevenue = 0;
+
+  orders.forEach(order => {
+    const method = (order.paymentMethod || 'cash').toLowerCase();
+    if (method === 'cash') cashRevenue += order.totalAmount;
+    else if (method === 'card') cardRevenue += order.totalAmount;
+    else accountRevenue += order.totalAmount;
+  });
+
+  // 7. Daily Timeline
   const revenueByDay: Record<string, number> = {};
-  
-  for (let i = 6; i >= 0; i--) {
+  for (let i = totalDays - 1; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const dateString = d.toISOString().split('T')[0];
@@ -1194,9 +1774,42 @@ export async function getAnalyticsData() {
   });
 
   return {
+    timeframe,
     totalRevenue,
     totalOrders,
-    totalSessions: sessionsCount,
+    totalSessions,
+    totalPlaytimeHours,
+    avgOrderValue,
+    peakHour: {
+      label: peakHour.label,
+      revenue: peakHour.revenue,
+      sharePct: peakHourShare
+    },
+    stationPerformance,
+    hourlyRevenue,
+    dayParts: Object.entries(dayParts).map(([key, val]) => ({
+      key,
+      name: val.name,
+      revenue: val.revenue,
+      count: val.count,
+      pct: totalRevenue > 0 ? Math.round((val.revenue / totalRevenue) * 100) : 0
+    })),
+    revenueStreams: {
+      sessions: sessionsRevenue,
+      snacks: snacksRevenue,
+      products: productsRevenue,
+      sessionsPct: totalRevenue > 0 ? Math.round((sessionsRevenue / totalRevenue) * 100) : 0,
+      snacksPct: totalRevenue > 0 ? Math.round((snacksRevenue / totalRevenue) * 100) : 0,
+      productsPct: totalRevenue > 0 ? Math.round((productsRevenue / totalRevenue) * 100) : 0
+    },
+    paymentMethods: {
+      cash: cashRevenue,
+      card: cardRevenue,
+      account: accountRevenue,
+      cashPct: totalRevenue > 0 ? Math.round((cashRevenue / totalRevenue) * 100) : 0,
+      cardPct: totalRevenue > 0 ? Math.round((cardRevenue / totalRevenue) * 100) : 0,
+      accountPct: totalRevenue > 0 ? Math.round((accountRevenue / totalRevenue) * 100) : 0
+    },
     revenueByDay: Object.entries(revenueByDay).map(([date, amount]) => ({ date, amount }))
   };
 }
