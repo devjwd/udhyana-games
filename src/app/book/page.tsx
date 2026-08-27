@@ -42,10 +42,6 @@ function BookPageContent() {
   const [baseRate, setBaseRate] = useState<number>(1000);
   const [selectedConsole, setSelectedConsole] = useState(consoleParam);
   
-  // Game Search & Filtering State
-  const [gameSearch, setGameSearch] = useState('');
-  const [selectedGameFilter, setSelectedGameFilter] = useState('');
-
   const today = getLocalTodayString();
   const [date, setDate] = useState(today);
   const [time, setTime] = useState('');
@@ -93,27 +89,12 @@ function BookPageContent() {
     fetchBookedSlots();
   }, [selectedConsole, date]);
 
-  // Aggregate all unique games across all stations
-  const allLoungeGames = useMemo(() => {
-    const gameSet = new Set<string>();
-    consoles.forEach(c => {
-      getConsoleGamesList(c).forEach(g => gameSet.add(g));
-    });
-    return Array.from(gameSet).sort((a, b) => a.localeCompare(b));
-  }, [consoles]);
-
-  // Filter games based on search text
-  const displayedGameFilters = useMemo(() => {
-    if (!gameSearch.trim()) return allLoungeGames;
-    return allLoungeGames.filter(g => g.toLowerCase().includes(gameSearch.toLowerCase()));
-  }, [allLoungeGames, gameSearch]);
-
   // Selected console object & installed games
   const selectedConsoleObj = useMemo(() => {
     return consoles.find(c => c.id === selectedConsole) || consoles[0];
   }, [consoles, selectedConsole]);
 
-  const installedGamesForSelected = useMemo(() => {
+  const installedGames = useMemo(() => {
     return selectedConsoleObj ? getConsoleGamesList(selectedConsoleObj) : [];
   }, [selectedConsoleObj]);
 
@@ -123,7 +104,6 @@ function BookPageContent() {
   const isHourBooked = (hour: number) => {
     if (!date) return false;
     
-    // Check if slot has already passed today in local time
     if (date === today) {
       const now = new Date();
       const currentHour = now.getHours();
@@ -143,7 +123,6 @@ function BookPageContent() {
   const isDurationValid = (d: number) => {
     if (!time) return true;
     const startHour = parseInt(time.split(':')[0], 10);
-    // Closing time is 11 PM (23:00)
     if (startHour + d > 23) return false;
     for (let i = 0; i < d; i++) {
       if (isHourBooked(startHour + i)) return false;
@@ -193,185 +172,21 @@ function BookPageContent() {
   return (
     <>
       <Header />
-      <main>
+      <main className={styles.main}>
 
-        {/* ─── HERO ─── */}
+        {/* ─── HERO (Minimal) ─── */}
         <section className={styles.hero}>
           <div className={styles.heroGlow} aria-hidden="true" />
-          <div className={styles.heroInner}>
-            <span className={styles.kicker}>
-              <span>⚡</span> Live Station & Game Availability
-            </span>
-            <h1 className={styles.headline}>
-              Book Your<br />
-              <span className={styles.headlineAccent}>Station & Game.</span>
-            </h1>
-            <p className={styles.sub}>
-              Select your favorite game, choose an equipped station, pick an available slot, and pay at the desk upon check-in.
-            </p>
-          </div>
+          <span className={styles.kicker}>Station Reservation</span>
+          <h1 className={styles.headline}>Book a Station</h1>
+          <p className={styles.sub}>
+            Select your gaming rig, pick an open time slot, and pay at the desk upon check-in.
+          </p>
         </section>
 
-        {/* ─── MAIN BOOKING INTERFACE ─── */}
-        <div className={styles.bookingContainer}>
-
-          {/* LEFT: Game & Station Explorer */}
-          <section className={styles.stationDiscoveryCard}>
-            
-            {/* Filter by Desired Game */}
-            <div className={styles.filterBox}>
-              <div className={styles.sectionHeader}>
-                <h2 className={styles.sectionTitle}>
-                  <span>🎯</span> Filter by Game
-                </h2>
-                {selectedGameFilter && (
-                  <button 
-                    type="button" 
-                    onClick={() => setSelectedGameFilter('')}
-                    style={{ background: 'none', border: 'none', color: '#ff6b6b', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    Clear Filter
-                  </button>
-                )}
-              </div>
-
-              <div className={styles.searchWrapper}>
-                <span className={styles.searchIcon}>🔍</span>
-                <input
-                  type="text"
-                  placeholder="Search desired game (e.g. Tekken 8, Valorant, FC 24)..."
-                  value={gameSearch}
-                  onChange={(e) => setGameSearch(e.target.value)}
-                  className={styles.searchInput}
-                />
-                {gameSearch && (
-                  <button 
-                    type="button"
-                    onClick={() => setGameSearch('')} 
-                    className={styles.clearSearchBtn}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              {/* Game Chips */}
-              <div className={styles.gameChipsWrapper}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedGameFilter('')}
-                  className={`${styles.gameChip} ${!selectedGameFilter ? styles.gameChipActive : ''}`}
-                >
-                  All Titles
-                </button>
-                {displayedGameFilters.map(gameName => {
-                  const isSelected = selectedGameFilter === gameName;
-                  return (
-                    <button
-                      key={gameName}
-                      type="button"
-                      onClick={() => {
-                        if (isSelected) {
-                          setSelectedGameFilter('');
-                        } else {
-                          setSelectedGameFilter(gameName);
-                          // Auto select first matching console if current console doesn't have it
-                          const currentHasIt = selectedConsoleObj && getConsoleGamesList(selectedConsoleObj).some(g => g.toLowerCase() === gameName.toLowerCase());
-                          if (!currentHasIt) {
-                            const firstMatch = consoles.find(c => getConsoleGamesList(c).some(g => g.toLowerCase() === gameName.toLowerCase()));
-                            if (firstMatch) setSelectedConsole(firstMatch.id);
-                          }
-                        }
-                      }}
-                      className={`${styles.gameChip} ${isSelected ? styles.gameChipActive : ''}`}
-                    >
-                      <span>🎮</span> {gameName}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Station Selector Cards */}
-            <div>
-              <div className={styles.sectionHeader} style={{ marginBottom: '0.75rem' }}>
-                <h2 className={styles.sectionTitle}>
-                  <span>🖥️</span> Select Gaming Station
-                </h2>
-                <span className={styles.badgeCount}>{consoles.length} Stations Available</span>
-              </div>
-
-              <div className={styles.stationGrid}>
-                {consoles.map(c => {
-                  const cGames = getConsoleGamesList(c);
-                  const isSelected = selectedConsole === c.id;
-                  const hasFilteredGame = selectedGameFilter ? cGames.some(g => g.toLowerCase() === selectedGameFilter.toLowerCase()) : false;
-
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setSelectedConsole(c.id)}
-                      className={`${styles.stationCardItem} ${isSelected ? styles.stationCardSelected : ''}`}
-                      style={{
-                        opacity: selectedGameFilter && !hasFilteredGame ? 0.45 : 1,
-                        borderStyle: hasFilteredGame ? 'solid' : undefined
-                      }}
-                    >
-                      {hasFilteredGame && (
-                        <div className={styles.hasGameBadge}>★ Ready</div>
-                      )}
-                      <div className={styles.stationCardName}>{c.hardwareTitle}</div>
-                      <div className={styles.stationCardRate}>PKR {c.hourlyRate || baseRate}/hr</div>
-                      <div className={styles.stationGameCount}>
-                        <span>🎮</span> {cGames.length} Games Installed
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Selected Station Spotlight & Installed Games Preview */}
-            {selectedConsoleObj && (
-              <div className={styles.activeStationSpotlight}>
-                <div className={styles.spotlightHeader}>
-                  <div>
-                    <h3 className={styles.spotlightTitle}>{selectedConsoleObj.hardwareTitle}</h3>
-                    <div className={styles.spotlightSpecs}>
-                      {selectedConsoleObj.specs || '4K HDR High Refresh Gaming Setup · Ergonomic Pro Seating'}
-                    </div>
-                  </div>
-                  <div className={styles.spotlightRateBadge}>
-                    PKR {currentHourlyRate}/hr
-                  </div>
-                </div>
-
-                <div>
-                  <div className={styles.installedGamesHeader}>
-                    <span>🎮</span> Installed Games Library ({installedGamesForSelected.length})
-                  </div>
-                  <div className={styles.installedGamesList}>
-                    {installedGamesForSelected.map((gameName: string) => {
-                      const isMatched = selectedGameFilter && gameName.toLowerCase() === selectedGameFilter.toLowerCase();
-                      return (
-                        <span 
-                          key={gameName} 
-                          className={`${styles.installedGameBadge} ${isMatched ? styles.installedGameBadgeMatched : ''}`}
-                        >
-                          {isMatched ? '⭐' : '•'} {gameName}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-
-          </section>
-
-          {/* RIGHT: Reservation Slot Form */}
-          <div className={styles.formCard}>
+        {/* ─── UNIFIED BOOKING CARD ─── */}
+        <div className={styles.container}>
+          <div className={styles.card}>
 
             {error && (
               <div className={styles.errorBox}>
@@ -381,36 +196,58 @@ function BookPageContent() {
 
             <form onSubmit={handleBooking} className={styles.form}>
 
-              {/* Station select dropdown (for fallback / keyboard accessibility) */}
-              <div className={styles.field}>
-                <label className={styles.label}>
-                  <span>Station Hardware</span>
-                  <span className={styles.labelHint}>PKR {currentHourlyRate}/hr</span>
-                </label>
-                <select
-                  value={selectedConsole}
-                  onChange={(e) => setSelectedConsole(e.target.value)}
-                  className={styles.select}
-                  required
-                >
-                  <option value="" disabled>— Choose a Console —</option>
+              {/* 1. SELECT STATION */}
+              <div className={styles.section}>
+                <div className={styles.sectionTitleRow}>
+                  <span className={styles.stepNum}>1</span>
+                  <label className={styles.sectionLabel}>Select Station</label>
+                </div>
+
+                <div className={styles.stationTabs}>
                   {consoles.map(c => {
-                    const cGames = getConsoleGamesList(c);
+                    const isSelected = selectedConsole === c.id;
+                    const rate = c.hourlyRate || baseRate;
                     return (
-                      <option key={c.id} value={c.id}>
-                        {c.hardwareTitle} ({cGames.length} games) • PKR {c.hourlyRate || baseRate}/hr
-                      </option>
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSelectedConsole(c.id)}
+                        className={`${styles.stationTab} ${isSelected ? styles.stationTabActive : ''}`}
+                      >
+                        <span className={styles.stationTabName}>{c.hardwareTitle}</span>
+                        <span className={styles.stationTabRate}>PKR {rate}/hr</span>
+                      </button>
                     );
                   })}
-                </select>
+                </div>
+
+                {/* Installed Games under Selected Station */}
+                {selectedConsoleObj && (
+                  <div className={styles.gamesBanner}>
+                    <div className={styles.gamesBannerHeader}>
+                      <span className={styles.gamesBannerTitle}>
+                        🎮 Available Games on {selectedConsoleObj.hardwareTitle}:
+                      </span>
+                      <span className={styles.gamesCount}>{installedGames.length} titles</span>
+                    </div>
+                    <div className={styles.gamesList}>
+                      {installedGames.map((gameName) => (
+                        <span key={gameName} className={styles.gamePill}>
+                          {gameName}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Date */}
-              <div className={styles.field}>
-                <label className={styles.label}>
-                  <span>Reservation Date</span>
-                  <span className={styles.labelHint}>Open 10:00 AM – 11:00 PM</span>
-                </label>
+              {/* 2. PICK DATE */}
+              <div className={styles.section}>
+                <div className={styles.sectionTitleRow}>
+                  <span className={styles.stepNum}>2</span>
+                  <label className={styles.sectionLabel}>Choose Date</label>
+                  <span className={styles.hint}>Open 10:00 AM – 11:00 PM</span>
+                </div>
                 <input
                   type="date"
                   min={today}
@@ -421,13 +258,14 @@ function BookPageContent() {
                 />
               </div>
 
-              {/* Time slots */}
+              {/* 3. TIME SLOTS */}
               {selectedConsole && date && (
-                <div className={styles.field}>
-                  <label className={styles.label}>
-                    <span>Available Time Slots</span>
-                    {time && <span className={styles.labelHint}>Selected: {time}</span>}
-                  </label>
+                <div className={styles.section}>
+                  <div className={styles.sectionTitleRow}>
+                    <span className={styles.stepNum}>3</span>
+                    <label className={styles.sectionLabel}>Select Start Time</label>
+                    {time && <span className={styles.hintActive}>Selected: {time}</span>}
+                  </div>
                   <div className={styles.timeGrid}>
                     {OPERATING_HOURS.map(hour => {
                       const isBooked = isHourBooked(hour);
@@ -439,8 +277,7 @@ function BookPageContent() {
                           type="button"
                           disabled={isBooked}
                           onClick={() => setTime(formattedTime)}
-                          className={`${styles.timeSlot} ${isSelected ? styles.timeSlotSelected : ''} ${isBooked ? styles.timeSlotBooked : ''}`}
-                          title={isBooked ? 'Slot unavailable or already booked' : `${hour}:00 Available`}
+                          className={`${styles.timeBtn} ${isSelected ? styles.timeBtnActive : ''} ${isBooked ? styles.timeBtnBooked : ''}`}
                         >
                           {hour > 12 ? `${hour - 12} PM` : (hour === 12 ? '12 PM' : `${hour} AM`)}
                         </button>
@@ -450,13 +287,14 @@ function BookPageContent() {
                 </div>
               )}
 
-              {/* Duration */}
+              {/* 4. DURATION */}
               {time && (
-                <div className={styles.field}>
-                  <label className={styles.label}>
-                    <span>Session Duration</span>
-                    <span className={styles.labelHint}>{duration} Hour{duration > 1 ? 's' : ''}</span>
-                  </label>
+                <div className={styles.section}>
+                  <div className={styles.sectionTitleRow}>
+                    <span className={styles.stepNum}>4</span>
+                    <label className={styles.sectionLabel}>Duration</label>
+                    <span className={styles.hintActive}>{duration} Hour{duration > 1 ? 's' : ''}</span>
+                  </div>
                   <div className={styles.durationGrid}>
                     {[1, 2, 3, 4, 5].map(h => {
                       const valid = isDurationValid(h);
@@ -467,8 +305,6 @@ function BookPageContent() {
                           disabled={!valid}
                           onClick={() => setDuration(h)}
                           className={`${styles.durationBtn} ${duration === h ? styles.durationBtnActive : ''}`}
-                          style={{ opacity: valid ? 1 : 0.35, cursor: valid ? 'pointer' : 'not-allowed' }}
-                          title={!valid ? 'Duration exceeds closing time (11 PM) or overlaps with another reservation' : `${h} Hour(s)`}
                         >
                           {h} hr
                         </button>
@@ -478,16 +314,14 @@ function BookPageContent() {
                 </div>
               )}
 
-              {/* Dynamic Price Summary Card */}
+              {/* 5. SUMMARY & SUBMIT */}
               {selectedConsole && time && (
-                <div className={styles.summaryCard}>
+                <div className={styles.summaryBar}>
                   <div>
-                    <div className={styles.summaryLabel}>
-                      Estimated Total <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>(Pay at Desk)</span>
+                    <div className={styles.summaryText}>
+                      {selectedConsoleObj?.hardwareTitle} • {duration} hr{duration > 1 ? 's' : ''}
                     </div>
-                    <div className={styles.summarySub}>
-                      {selectedConsoleObj?.hardwareTitle} • {duration} hr{duration > 1 ? 's' : ''} @ PKR {currentHourlyRate}/hr
-                    </div>
+                    <div className={styles.summaryNote}>Pay upon check-in at reception desk</div>
                   </div>
                   <div className={styles.summaryPrice}>
                     PKR {totalPrice}
@@ -500,7 +334,7 @@ function BookPageContent() {
                 disabled={isSubmitting || !isSelectionValid() || !time}
                 className={styles.submitBtn}
               >
-                {isSubmitting ? 'Reserving Station...' : 'Confirm Reservation'}
+                {isSubmitting ? 'Confirming...' : 'Confirm Reservation'}
               </button>
 
             </form>
