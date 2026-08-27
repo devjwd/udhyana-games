@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect, useMemo } from 'react';
+import { Suspense, useState, useEffect, useMemo, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
@@ -22,6 +22,17 @@ const DEFAULT_GAMES_BY_TYPE: Record<string, string[]> = {
   xbox: ['Forza Horizon 5', 'Halo Infinite', 'EA FC 24', 'Starfield', 'Call of Duty: Warzone', 'Gears 5']
 };
 
+const HOT_GAMES = [
+  'EA FC 24',
+  'Tekken 8',
+  'Valorant',
+  'Call of Duty: Warzone',
+  'GTA V',
+  'Counter-Strike 2',
+  'Spider-Man 2',
+  'Forza Horizon 5'
+];
+
 function getConsoleGamesList(consoleObj: any): string[] {
   if (consoleObj?.games && consoleObj.games.length > 0) {
     return consoleObj.games.map((g: any) => g.game?.name || g.name).filter(Boolean);
@@ -42,9 +53,11 @@ function BookPageContent() {
   const [baseRate, setBaseRate] = useState<number>(1000);
   const [selectedConsole, setSelectedConsole] = useState(consoleParam);
   
-  // Game Search & Filter
+  // Game Search & Selection State
   const [gameSearch, setGameSearch] = useState('');
-  const [selectedGameFilter, setSelectedGameFilter] = useState('');
+  const [selectedGame, setSelectedGame] = useState<string | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   const today = getLocalTodayString();
   const [date, setDate] = useState(today);
@@ -56,6 +69,17 @@ function BookPageContent() {
 
   // 10 AM to 10 PM (22:00)
   const OPERATING_HOURS = Array.from({ length: 13 }, (_, i) => i + 10);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     async function loadCatalog() {
@@ -93,44 +117,45 @@ function BookPageContent() {
     fetchBookedSlots();
   }, [selectedConsole, date]);
 
-  // Aggregate popular unique games for quick tags
-  const popularGames = useMemo(() => {
-    const gameSet = new Set<string>();
+  // Aggregate all unique installed games across all stations
+  const allInstalledGames = useMemo(() => {
+    const gameMap = new Map<string, number>();
     consoles.forEach(c => {
-      getConsoleGamesList(c).forEach(g => gameSet.add(g));
+      getConsoleGamesList(c).forEach(g => {
+        gameMap.set(g, (gameMap.get(g) || 0) + 1);
+      });
     });
-    return Array.from(gameSet).slice(0, 8);
+    return Array.from(gameMap.entries()).map(([name, count]) => ({ name, count }));
   }, [consoles]);
 
-  // Filter stations by searched / selected game
-  const activeGameQuery = gameSearch.trim() || selectedGameFilter;
+  // Filtered games based on search text in dropdown
+  const displayedGamesInDropdown = useMemo(() => {
+    if (!gameSearch.trim()) return allInstalledGames;
+    return allInstalledGames.filter(g => g.name.toLowerCase().includes(gameSearch.toLowerCase()));
+  }, [allInstalledGames, gameSearch]);
 
-  const filteredConsoles = useMemo(() => {
-    if (!activeGameQuery) return consoles;
+  // Filter stations based on chosen game
+  const stationsForSelectedGame = useMemo(() => {
+    if (!selectedGame || selectedGame === 'ALL') return consoles;
     return consoles.filter(c => {
       const games = getConsoleGamesList(c);
-      return games.some(g => g.toLowerCase().includes(activeGameQuery.toLowerCase()));
+      return games.some(g => g.toLowerCase() === selectedGame.toLowerCase());
     });
-  }, [consoles, activeGameQuery]);
+  }, [consoles, selectedGame]);
 
   // Auto-switch selected console if current console isn't in filtered list
   useEffect(() => {
-    if (filteredConsoles.length > 0) {
-      const isCurrentInFiltered = filteredConsoles.some(c => c.id === selectedConsole);
-      if (!isCurrentInFiltered) {
-        setSelectedConsole(filteredConsoles[0].id);
+    if (stationsForSelectedGame.length > 0) {
+      const isCurrentInList = stationsForSelectedGame.some(c => c.id === selectedConsole);
+      if (!isCurrentInList) {
+        setSelectedConsole(stationsForSelectedGame[0].id);
       }
     }
-  }, [filteredConsoles, selectedConsole]);
+  }, [stationsForSelectedGame, selectedConsole]);
 
-  // Selected console object & installed games
   const selectedConsoleObj = useMemo(() => {
     return consoles.find(c => c.id === selectedConsole) || consoles[0];
   }, [consoles, selectedConsole]);
-
-  const installedGames = useMemo(() => {
-    return selectedConsoleObj ? getConsoleGamesList(selectedConsoleObj) : [];
-  }, [selectedConsoleObj]);
 
   const currentHourlyRate = selectedConsoleObj?.hourlyRate || baseRate;
   const totalPrice = currentHourlyRate * duration;
@@ -203,6 +228,12 @@ function BookPageContent() {
     }
   };
 
+  const selectGame = (gameName: string) => {
+    setSelectedGame(gameName);
+    setGameSearch('');
+    setIsDropdownOpen(false);
+  };
+
   return (
     <>
       <Header />
@@ -211,10 +242,10 @@ function BookPageContent() {
         {/* ─── HERO (Minimal) ─── */}
         <section className={styles.hero}>
           <div className={styles.heroGlow} aria-hidden="true" />
-          <span className={styles.kicker}>Station & Game Reservation</span>
-          <h1 className={styles.headline}>Book a Gaming Station</h1>
+          <span className={styles.kicker}>Station Reservation</span>
+          <h1 className={styles.headline}>Book a Station</h1>
           <p className={styles.sub}>
-            Find stations by game title or browse rigs, select your time slot, and pay at check-in.
+            Search your favorite game to find available stations, select your slot, and pay at check-in.
           </p>
         </section>
 
@@ -230,127 +261,145 @@ function BookPageContent() {
 
             <form onSubmit={handleBooking} className={styles.form}>
 
-              {/* 1. SEARCH GAME & SELECT STATION */}
-              <div className={styles.section}>
+              {/* 1. SEARCH FOR GAME */}
+              <div className={styles.section} ref={searchContainerRef}>
                 <div className={styles.sectionTitleRow}>
                   <span className={styles.stepNum}>1</span>
-                  <label className={styles.sectionLabel}>Find by Game & Select Station</label>
-                </div>
-
-                {/* Minimal Game Search Bar */}
-                <div className={styles.searchBox}>
-                  <span className={styles.searchIcon}>🔍</span>
-                  <input
-                    type="text"
-                    placeholder="Search game title (e.g. Tekken 8, Valorant, FC 24, GTA V)..."
-                    value={gameSearch}
-                    onChange={(e) => {
-                      setGameSearch(e.target.value);
-                      if (selectedGameFilter) setSelectedGameFilter('');
-                    }}
-                    className={styles.searchInput}
-                  />
-                  {(gameSearch || selectedGameFilter) && (
+                  <label className={styles.sectionLabel}>Search Game</label>
+                  {selectedGame && (
                     <button
                       type="button"
                       onClick={() => {
+                        setSelectedGame(null);
                         setGameSearch('');
-                        setSelectedGameFilter('');
                       }}
-                      className={styles.clearBtn}
-                      title="Clear search"
+                      className={styles.resetGameBtn}
                     >
-                      ✕
+                      Reset
                     </button>
                   )}
                 </div>
 
-                {/* Quick Game Filter Pills */}
-                <div className={styles.quickGameChips}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedGameFilter('');
-                      setGameSearch('');
+                {/* Search Input */}
+                <div className={styles.searchWrapper}>
+                  <span className={styles.searchIcon}>🔍</span>
+                  <input
+                    type="text"
+                    placeholder={selectedGame ? `Selected: ${selectedGame}` : "Click or type to search game (e.g. Tekken 8, Valorant, FC 24)..."}
+                    value={gameSearch}
+                    onFocus={() => setIsDropdownOpen(true)}
+                    onChange={(e) => {
+                      setGameSearch(e.target.value);
+                      setIsDropdownOpen(true);
                     }}
-                    className={`${styles.gameChip} ${!activeGameQuery ? styles.gameChipActive : ''}`}
-                  >
-                    All Stations
-                  </button>
-                  {popularGames.map(game => {
-                    const isSelected = activeGameQuery.toLowerCase() === game.toLowerCase();
-                    return (
-                      <button
-                        key={game}
-                        type="button"
-                        onClick={() => {
-                          if (isSelected) {
-                            setSelectedGameFilter('');
-                            setGameSearch('');
-                          } else {
-                            setSelectedGameFilter(game);
-                            setGameSearch('');
-                          }
-                        }}
-                        className={`${styles.gameChip} ${isSelected ? styles.gameChipActive : ''}`}
-                      >
-                        {game}
-                      </button>
-                    );
-                  })}
+                    className={`${styles.searchInput} ${selectedGame ? styles.searchInputSelected : ''}`}
+                  />
+                  {(gameSearch || selectedGame) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGameSearch('');
+                        setSelectedGame(null);
+                        setIsDropdownOpen(false);
+                      }}
+                      className={styles.clearSearchBtn}
+                    >
+                      ✕
+                    </button>
+                  )}
+
+                  {/* Recommendations & Autocomplete Dropdown */}
+                  {isDropdownOpen && (
+                    <div className={styles.dropdownMenu}>
+                      
+                      {/* Hot & Trending Section */}
+                      {!gameSearch && (
+                        <div className={styles.dropdownSection}>
+                          <div className={styles.dropdownSectionTitle}>
+                            <span>🔥</span> Popular / Hot Games
+                          </div>
+                          <div className={styles.hotGamesList}>
+                            {HOT_GAMES.map(hotGame => (
+                              <button
+                                key={hotGame}
+                                type="button"
+                                onClick={() => selectGame(hotGame)}
+                                className={styles.hotGameBadge}
+                              >
+                                {hotGame}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Installed Games List */}
+                      <div className={styles.dropdownSection}>
+                        <div className={styles.dropdownSectionTitle}>
+                          <span>🎮</span> {gameSearch ? `Search Results (${displayedGamesInDropdown.length})` : 'All Installed Games'}
+                        </div>
+                        <div className={styles.gameResultsList}>
+                          <button
+                            type="button"
+                            onClick={() => selectGame('ALL')}
+                            className={`${styles.gameResultItem} ${selectedGame === 'ALL' ? styles.gameResultItemActive : ''}`}
+                          >
+                            <span>⚡ Browse all stations (No game filter)</span>
+                            <span className={styles.stationCountTag}>{consoles.length} stations</span>
+                          </button>
+
+                          {displayedGamesInDropdown.map(({ name, count }) => (
+                            <button
+                              key={name}
+                              type="button"
+                              onClick={() => selectGame(name)}
+                              className={`${styles.gameResultItem} ${selectedGame === name ? styles.gameResultItemActive : ''}`}
+                            >
+                              <span>🎮 {name}</span>
+                              <span className={styles.stationCountTag}>{count} {count > 1 ? 'stations' : 'station'}</span>
+                            </button>
+                          ))}
+
+                          {displayedGamesInDropdown.length === 0 && (
+                            <div className={styles.noResults}>
+                              No installed game found matching "{gameSearch}".
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                    </div>
+                  )}
                 </div>
 
-                {/* Filter Feedback */}
-                {activeGameQuery && (
-                  <div className={styles.filterFeedback}>
-                    🎮 Showing stations equipped with <strong>"{activeGameQuery}"</strong> ({filteredConsoles.length} found):
-                  </div>
-                )}
-
-                {/* Station Tabs */}
-                {filteredConsoles.length > 0 ? (
-                  <div className={styles.stationTabs}>
-                    {filteredConsoles.map(c => {
-                      const isSelected = selectedConsole === c.id;
-                      const rate = c.hourlyRate || baseRate;
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => setSelectedConsole(c.id)}
-                          className={`${styles.stationTab} ${isSelected ? styles.stationTabActive : ''}`}
-                        >
-                          <span className={styles.stationTabName}>{c.hardwareTitle}</span>
-                          <span className={styles.stationTabRate}>PKR {rate}/hr</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className={styles.noMatchNote}>
-                    No stations found with "{activeGameQuery}". Try another game or browse all stations.
-                  </div>
-                )}
-
-                {/* Installed Games under Selected Station */}
-                {selectedConsoleObj && (
-                  <div className={styles.gamesBanner}>
-                    <div className={styles.gamesBannerHeader}>
-                      <span className={styles.gamesBannerTitle}>
-                        🎮 Ready on {selectedConsoleObj.hardwareTitle}:
+                {/* SHOW AVAILABLE STATIONS (Only shown when a game or all stations is selected) */}
+                {selectedGame && (
+                  <div className={styles.stationResultsContainer}>
+                    <div className={styles.stationResultsHeader}>
+                      <span>
+                        {selectedGame === 'ALL' 
+                          ? 'Available Stations:' 
+                          : `Available Stations for "${selectedGame}":`}
                       </span>
-                      <span className={styles.gamesCount}>{installedGames.length} games installed</span>
+                      <span className={styles.stationCountBadge}>
+                        {stationsForSelectedGame.length} {stationsForSelectedGame.length > 1 ? 'Stations' : 'Station'} Ready
+                      </span>
                     </div>
-                    <div className={styles.gamesList}>
-                      {installedGames.map((gameName) => {
-                        const isMatch = activeGameQuery && gameName.toLowerCase().includes(activeGameQuery.toLowerCase());
+
+                    <div className={styles.stationTabs}>
+                      {stationsForSelectedGame.map(c => {
+                        const isSelected = selectedConsole === c.id;
+                        const rate = c.hourlyRate || baseRate;
                         return (
-                          <span 
-                            key={gameName} 
-                            className={`${styles.gamePill} ${isMatch ? styles.gamePillMatch : ''}`}
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => setSelectedConsole(c.id)}
+                            className={`${styles.stationTab} ${isSelected ? styles.stationTabActive : ''}`}
                           >
-                            {isMatch ? '★ ' : ''}{gameName}
-                          </span>
+                            <span className={styles.stationTabName}>{c.hardwareTitle}</span>
+                            <span className={styles.stationTabRate}>PKR {rate}/hr</span>
+                          </button>
                         );
                       })}
                     </div>
@@ -358,7 +407,7 @@ function BookPageContent() {
                 )}
               </div>
 
-              {/* 2. PICK DATE */}
+              {/* 2. CHOOSE DATE */}
               <div className={styles.section}>
                 <div className={styles.sectionTitleRow}>
                   <span className={styles.stepNum}>2</span>
@@ -380,7 +429,9 @@ function BookPageContent() {
                 <div className={styles.section}>
                   <div className={styles.sectionTitleRow}>
                     <span className={styles.stepNum}>3</span>
-                    <label className={styles.sectionLabel}>Select Time for {selectedConsoleObj?.hardwareTitle}</label>
+                    <label className={styles.sectionLabel}>
+                      Select Time for {selectedConsoleObj?.hardwareTitle}
+                    </label>
                     {time && <span className={styles.hintActive}>Selected: {time}</span>}
                   </div>
                   <div className={styles.timeGrid}>
@@ -436,7 +487,7 @@ function BookPageContent() {
                 <div className={styles.summaryBar}>
                   <div>
                     <div className={styles.summaryText}>
-                      {selectedConsoleObj?.hardwareTitle} • {duration} hr{duration > 1 ? 's' : ''}
+                      {selectedConsoleObj?.hardwareTitle} {selectedGame && selectedGame !== 'ALL' ? `(${selectedGame})` : ''} • {duration} hr{duration > 1 ? 's' : ''}
                     </div>
                     <div className={styles.summaryNote}>Pay upon check-in at reception desk</div>
                   </div>

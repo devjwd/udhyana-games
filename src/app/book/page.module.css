@@ -81,6 +81,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  position: relative;
 }
 
 .sectionTitleRow {
@@ -110,6 +111,22 @@
   color: #e2e8f0;
 }
 
+.resetGameBtn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--accent, #c1ff1c);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.resetGameBtn:hover {
+  text-decoration: underline;
+}
+
 .hint {
   margin-left: auto;
   font-size: 0.7rem;
@@ -123,16 +140,17 @@
   font-weight: 700;
 }
 
-/* ── Search Bar (Step 1) ── */
-.searchBox {
+/* ── Search Input (Step 1) ── */
+.searchWrapper {
   position: relative;
-  display: flex;
-  align-items: center;
+  width: 100%;
 }
 
 .searchIcon {
   position: absolute;
   left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
   font-size: 0.85rem;
   pointer-events: none;
   opacity: 0.7;
@@ -141,11 +159,11 @@
 .searchInput {
   width: 100%;
   background: var(--page-bg, #0b0d10);
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
   color: #ffffff;
-  padding: 0.75rem 2.2rem 0.75rem 2.4rem;
+  padding: 0.85rem 2.2rem 0.85rem 2.4rem;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-family: inherit;
   outline: none;
   transition: all 0.2s ease;
@@ -153,78 +171,185 @@
 
 .searchInput:focus {
   border-color: var(--accent, #c1ff1c);
-  box-shadow: 0 0 10px rgba(193, 255, 28, 0.15);
+  box-shadow: 0 0 12px rgba(193, 255, 28, 0.18);
 }
 
-.clearBtn {
+.searchInputSelected {
+  border-color: rgba(193, 255, 28, 0.4);
+}
+
+.clearSearchBtn {
   position: absolute;
-  right: 0.65rem;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
   background: transparent;
   border: none;
   color: #94a3b8;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   cursor: pointer;
   padding: 0.2rem 0.4rem;
   border-radius: 4px;
 }
 
-.clearBtn:hover {
+.clearSearchBtn:hover {
   color: #ffffff;
 }
 
-/* Quick Game Pills */
-.quickGameChips {
+/* ── Dropdown Recommendation Menu ── */
+.dropdownMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #11141a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 0.85rem;
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.6);
+  z-index: 50;
+  max-height: 320px;
+  overflow-y: auto;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.dropdownMenu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.dropdownMenu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.dropdownSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dropdownSectionTitle {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
   gap: 0.35rem;
 }
 
-.gameChip {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-secondary, #94a3b8);
-  padding: 0.28rem 0.6rem;
-  border-radius: 5px;
-  font-size: 0.72rem;
-  font-weight: 600;
+/* Hot Games Pills */
+.hotGamesList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.hotGameBadge {
+  background: rgba(193, 255, 28, 0.08);
+  border: 1px solid rgba(193, 255, 28, 0.25);
+  color: #e2e8f0;
+  padding: 0.32rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
   font-family: inherit;
 }
 
-.gameChip:hover {
-  border-color: rgba(193, 255, 28, 0.35);
+.hotGameBadge:hover {
+  background: var(--accent, #c1ff1c);
+  border-color: var(--accent, #c1ff1c);
+  color: #000000;
+  box-shadow: 0 0 10px rgba(193, 255, 28, 0.3);
+}
+
+/* Game Results List in Dropdown */
+.gameResultsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.gameResultItem {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #e2e8f0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.gameResultItem:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
   color: #ffffff;
 }
 
-.gameChipActive {
-  background: var(--accent, #c1ff1c) !important;
+.gameResultItemActive {
+  background: rgba(193, 255, 28, 0.12) !important;
   border-color: var(--accent, #c1ff1c) !important;
-  color: #000000 !important;
-  font-weight: 800;
-  box-shadow: 0 0 10px rgba(193, 255, 28, 0.25);
+  color: var(--accent, #c1ff1c) !important;
 }
 
-.filterFeedback {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  padding: 0.2rem 0;
+.stationCountTag {
+  font-size: 0.68rem;
+  color: #64748b;
+  font-weight: 600;
 }
 
-.filterFeedback strong {
-  color: var(--accent, #c1ff1c);
-}
-
-.noMatchNote {
-  background: rgba(255, 80, 80, 0.06);
-  border: 1px solid rgba(255, 80, 80, 0.2);
-  border-radius: 6px;
-  padding: 0.65rem 0.85rem;
-  color: #ff8080;
+.noResults {
+  padding: 0.75rem;
   font-size: 0.78rem;
+  color: #94a3b8;
+  text-align: center;
 }
 
-/* ── Station Tabs (Step 1) ── */
+/* ── Station Results (Revealed after Game Selection) ── */
+.stationResultsContainer {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  animation: fadeIn 0.25s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.stationResultsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.stationCountBadge {
+  background: rgba(193, 255, 28, 0.1);
+  color: var(--accent, #c1ff1c);
+  border: 1px solid rgba(193, 255, 28, 0.25);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 12px;
+}
+
 .stationTabs {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
@@ -268,59 +393,6 @@
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--accent, #c1ff1c);
-}
-
-/* Available Games Banner */
-.gamesBanner {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  padding: 0.85rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.gamesBannerHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.gamesBannerTitle {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #cbd5e1;
-}
-
-.gamesCount {
-  font-size: 0.68rem;
-  color: var(--accent, #c1ff1c);
-  font-weight: 700;
-}
-
-.gamesList {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.gamePill {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #e2e8f0;
-  font-size: 0.72rem;
-  font-weight: 600;
-  padding: 0.25rem 0.55rem;
-  border-radius: 4px;
-  transition: all 0.15s ease;
-}
-
-.gamePillMatch {
-  background: rgba(193, 255, 28, 0.12) !important;
-  border-color: var(--accent, #c1ff1c) !important;
-  color: var(--accent, #c1ff1c) !important;
-  font-weight: 800;
 }
 
 /* ── Date Input (Step 2) ── */
