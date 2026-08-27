@@ -50,7 +50,7 @@
 .sub {
   color: var(--text-secondary, #94a3b8);
   font-size: 0.95rem;
-  max-width: 520px;
+  max-width: 540px;
   margin: 0 auto;
   line-height: 1.5;
 }
@@ -121,6 +121,107 @@
   font-size: 0.7rem;
   color: var(--accent, #c1ff1c);
   font-weight: 700;
+}
+
+/* ── Search Bar (Step 1) ── */
+.searchBox {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 0.85rem;
+  font-size: 0.85rem;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.searchInput {
+  width: 100%;
+  background: var(--page-bg, #0b0d10);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  color: #ffffff;
+  padding: 0.75rem 2.2rem 0.75rem 2.4rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.searchInput:focus {
+  border-color: var(--accent, #c1ff1c);
+  box-shadow: 0 0 10px rgba(193, 255, 28, 0.15);
+}
+
+.clearBtn {
+  position: absolute;
+  right: 0.65rem;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+}
+
+.clearBtn:hover {
+  color: #ffffff;
+}
+
+/* Quick Game Pills */
+.quickGameChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.gameChip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary, #94a3b8);
+  padding: 0.28rem 0.6rem;
+  border-radius: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.gameChip:hover {
+  border-color: rgba(193, 255, 28, 0.35);
+  color: #ffffff;
+}
+
+.gameChipActive {
+  background: var(--accent, #c1ff1c) !important;
+  border-color: var(--accent, #c1ff1c) !important;
+  color: #000000 !important;
+  font-weight: 800;
+  box-shadow: 0 0 10px rgba(193, 255, 28, 0.25);
+}
+
+.filterFeedback {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  padding: 0.2rem 0;
+}
+
+.filterFeedback strong {
+  color: var(--accent, #c1ff1c);
+}
+
+.noMatchNote {
+  background: rgba(255, 80, 80, 0.06);
+  border: 1px solid rgba(255, 80, 80, 0.2);
+  border-radius: 6px;
+  padding: 0.65rem 0.85rem;
+  color: #ff8080;
+  font-size: 0.78rem;
 }
 
 /* ── Station Tabs (Step 1) ── */
@@ -212,6 +313,14 @@
   font-weight: 600;
   padding: 0.25rem 0.55rem;
   border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.gamePillMatch {
+  background: rgba(193, 255, 28, 0.12) !important;
+  border-color: var(--accent, #c1ff1c) !important;
+  color: var(--accent, #c1ff1c) !important;
+  font-weight: 800;
 }
 
 /* ── Date Input (Step 2) ── */

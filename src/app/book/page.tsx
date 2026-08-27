@@ -42,6 +42,10 @@ function BookPageContent() {
   const [baseRate, setBaseRate] = useState<number>(1000);
   const [selectedConsole, setSelectedConsole] = useState(consoleParam);
   
+  // Game Search & Filter
+  const [gameSearch, setGameSearch] = useState('');
+  const [selectedGameFilter, setSelectedGameFilter] = useState('');
+
   const today = getLocalTodayString();
   const [date, setDate] = useState(today);
   const [time, setTime] = useState('');
@@ -88,6 +92,36 @@ function BookPageContent() {
     }
     fetchBookedSlots();
   }, [selectedConsole, date]);
+
+  // Aggregate popular unique games for quick tags
+  const popularGames = useMemo(() => {
+    const gameSet = new Set<string>();
+    consoles.forEach(c => {
+      getConsoleGamesList(c).forEach(g => gameSet.add(g));
+    });
+    return Array.from(gameSet).slice(0, 8);
+  }, [consoles]);
+
+  // Filter stations by searched / selected game
+  const activeGameQuery = gameSearch.trim() || selectedGameFilter;
+
+  const filteredConsoles = useMemo(() => {
+    if (!activeGameQuery) return consoles;
+    return consoles.filter(c => {
+      const games = getConsoleGamesList(c);
+      return games.some(g => g.toLowerCase().includes(activeGameQuery.toLowerCase()));
+    });
+  }, [consoles, activeGameQuery]);
+
+  // Auto-switch selected console if current console isn't in filtered list
+  useEffect(() => {
+    if (filteredConsoles.length > 0) {
+      const isCurrentInFiltered = filteredConsoles.some(c => c.id === selectedConsole);
+      if (!isCurrentInFiltered) {
+        setSelectedConsole(filteredConsoles[0].id);
+      }
+    }
+  }, [filteredConsoles, selectedConsole]);
 
   // Selected console object & installed games
   const selectedConsoleObj = useMemo(() => {
@@ -177,10 +211,10 @@ function BookPageContent() {
         {/* ─── HERO (Minimal) ─── */}
         <section className={styles.hero}>
           <div className={styles.heroGlow} aria-hidden="true" />
-          <span className={styles.kicker}>Station Reservation</span>
-          <h1 className={styles.headline}>Book a Station</h1>
+          <span className={styles.kicker}>Station & Game Reservation</span>
+          <h1 className={styles.headline}>Book a Gaming Station</h1>
           <p className={styles.sub}>
-            Select your gaming rig, pick an open time slot, and pay at the desk upon check-in.
+            Find stations by game title or browse rigs, select your time slot, and pay at check-in.
           </p>
         </section>
 
@@ -196,46 +230,129 @@ function BookPageContent() {
 
             <form onSubmit={handleBooking} className={styles.form}>
 
-              {/* 1. SELECT STATION */}
+              {/* 1. SEARCH GAME & SELECT STATION */}
               <div className={styles.section}>
                 <div className={styles.sectionTitleRow}>
                   <span className={styles.stepNum}>1</span>
-                  <label className={styles.sectionLabel}>Select Station</label>
+                  <label className={styles.sectionLabel}>Find by Game & Select Station</label>
                 </div>
 
-                <div className={styles.stationTabs}>
-                  {consoles.map(c => {
-                    const isSelected = selectedConsole === c.id;
-                    const rate = c.hourlyRate || baseRate;
+                {/* Minimal Game Search Bar */}
+                <div className={styles.searchBox}>
+                  <span className={styles.searchIcon}>🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Search game title (e.g. Tekken 8, Valorant, FC 24, GTA V)..."
+                    value={gameSearch}
+                    onChange={(e) => {
+                      setGameSearch(e.target.value);
+                      if (selectedGameFilter) setSelectedGameFilter('');
+                    }}
+                    className={styles.searchInput}
+                  />
+                  {(gameSearch || selectedGameFilter) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGameSearch('');
+                        setSelectedGameFilter('');
+                      }}
+                      className={styles.clearBtn}
+                      title="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Quick Game Filter Pills */}
+                <div className={styles.quickGameChips}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedGameFilter('');
+                      setGameSearch('');
+                    }}
+                    className={`${styles.gameChip} ${!activeGameQuery ? styles.gameChipActive : ''}`}
+                  >
+                    All Stations
+                  </button>
+                  {popularGames.map(game => {
+                    const isSelected = activeGameQuery.toLowerCase() === game.toLowerCase();
                     return (
                       <button
-                        key={c.id}
+                        key={game}
                         type="button"
-                        onClick={() => setSelectedConsole(c.id)}
-                        className={`${styles.stationTab} ${isSelected ? styles.stationTabActive : ''}`}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedGameFilter('');
+                            setGameSearch('');
+                          } else {
+                            setSelectedGameFilter(game);
+                            setGameSearch('');
+                          }
+                        }}
+                        className={`${styles.gameChip} ${isSelected ? styles.gameChipActive : ''}`}
                       >
-                        <span className={styles.stationTabName}>{c.hardwareTitle}</span>
-                        <span className={styles.stationTabRate}>PKR {rate}/hr</span>
+                        {game}
                       </button>
                     );
                   })}
                 </div>
+
+                {/* Filter Feedback */}
+                {activeGameQuery && (
+                  <div className={styles.filterFeedback}>
+                    🎮 Showing stations equipped with <strong>"{activeGameQuery}"</strong> ({filteredConsoles.length} found):
+                  </div>
+                )}
+
+                {/* Station Tabs */}
+                {filteredConsoles.length > 0 ? (
+                  <div className={styles.stationTabs}>
+                    {filteredConsoles.map(c => {
+                      const isSelected = selectedConsole === c.id;
+                      const rate = c.hourlyRate || baseRate;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setSelectedConsole(c.id)}
+                          className={`${styles.stationTab} ${isSelected ? styles.stationTabActive : ''}`}
+                        >
+                          <span className={styles.stationTabName}>{c.hardwareTitle}</span>
+                          <span className={styles.stationTabRate}>PKR {rate}/hr</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className={styles.noMatchNote}>
+                    No stations found with "{activeGameQuery}". Try another game or browse all stations.
+                  </div>
+                )}
 
                 {/* Installed Games under Selected Station */}
                 {selectedConsoleObj && (
                   <div className={styles.gamesBanner}>
                     <div className={styles.gamesBannerHeader}>
                       <span className={styles.gamesBannerTitle}>
-                        🎮 Available Games on {selectedConsoleObj.hardwareTitle}:
+                        🎮 Ready on {selectedConsoleObj.hardwareTitle}:
                       </span>
-                      <span className={styles.gamesCount}>{installedGames.length} titles</span>
+                      <span className={styles.gamesCount}>{installedGames.length} games installed</span>
                     </div>
                     <div className={styles.gamesList}>
-                      {installedGames.map((gameName) => (
-                        <span key={gameName} className={styles.gamePill}>
-                          {gameName}
-                        </span>
-                      ))}
+                      {installedGames.map((gameName) => {
+                        const isMatch = activeGameQuery && gameName.toLowerCase().includes(activeGameQuery.toLowerCase());
+                        return (
+                          <span 
+                            key={gameName} 
+                            className={`${styles.gamePill} ${isMatch ? styles.gamePillMatch : ''}`}
+                          >
+                            {isMatch ? '★ ' : ''}{gameName}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -263,7 +380,7 @@ function BookPageContent() {
                 <div className={styles.section}>
                   <div className={styles.sectionTitleRow}>
                     <span className={styles.stepNum}>3</span>
-                    <label className={styles.sectionLabel}>Select Start Time</label>
+                    <label className={styles.sectionLabel}>Select Time for {selectedConsoleObj?.hardwareTitle}</label>
                     {time && <span className={styles.hintActive}>Selected: {time}</span>}
                   </div>
                   <div className={styles.timeGrid}>
