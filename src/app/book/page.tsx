@@ -22,7 +22,7 @@ const DEFAULT_GAMES_BY_TYPE: Record<string, string[]> = {
   xbox: ['Forza Horizon 5', 'Halo Infinite', 'EA FC 24', 'Starfield', 'Call of Duty: Warzone', 'Gears 5']
 };
 
-const HOT_GAMES = [
+const HOT_TITLES = new Set([
   'EA FC 24',
   'Tekken 8',
   'Valorant',
@@ -31,7 +31,7 @@ const HOT_GAMES = [
   'Counter-Strike 2',
   'Spider-Man 2',
   'Forza Horizon 5'
-];
+]);
 
 function getConsoleGamesList(consoleObj: any): string[] {
   if (consoleObj?.games && consoleObj.games.length > 0) {
@@ -53,7 +53,7 @@ function BookPageContent() {
   const [baseRate, setBaseRate] = useState<number>(1000);
   const [selectedConsole, setSelectedConsole] = useState(consoleParam);
   
-  // Game Search & Selection State
+  // Game Selection & Dropdown State
   const [gameSearch, setGameSearch] = useState('');
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -117,7 +117,7 @@ function BookPageContent() {
     fetchBookedSlots();
   }, [selectedConsole, date]);
 
-  // Aggregate all unique installed games across all stations
+  // Aggregate all unique installed games
   const allInstalledGames = useMemo(() => {
     const gameMap = new Map<string, number>();
     consoles.forEach(c => {
@@ -125,11 +125,23 @@ function BookPageContent() {
         gameMap.set(g, (gameMap.get(g) || 0) + 1);
       });
     });
-    return Array.from(gameMap.entries()).map(([name, count]) => ({ name, count }));
+    
+    // Sort with hot games first, then alphabetically
+    return Array.from(gameMap.entries())
+      .map(([name, count]) => ({
+        name,
+        count,
+        isHot: HOT_TITLES.has(name)
+      }))
+      .sort((a, b) => {
+        if (a.isHot && !b.isHot) return -1;
+        if (!a.isHot && b.isHot) return 1;
+        return a.name.localeCompare(b.name);
+      });
   }, [consoles]);
 
-  // Filtered games based on search text in dropdown
-  const displayedGamesInDropdown = useMemo(() => {
+  // Filtered list for search input
+  const filteredDropdownGames = useMemo(() => {
     if (!gameSearch.trim()) return allInstalledGames;
     return allInstalledGames.filter(g => g.name.toLowerCase().includes(gameSearch.toLowerCase()));
   }, [allInstalledGames, gameSearch]);
@@ -239,17 +251,17 @@ function BookPageContent() {
       <Header />
       <main className={styles.main}>
 
-        {/* ─── HERO (Minimal) ─── */}
+        {/* ─── HERO ─── */}
         <section className={styles.hero}>
           <div className={styles.heroGlow} aria-hidden="true" />
           <span className={styles.kicker}>Station Reservation</span>
           <h1 className={styles.headline}>Book a Station</h1>
           <p className={styles.sub}>
-            Search your favorite game to find available stations, select your slot, and pay at check-in.
+            Find stations by game title, pick an open slot, and pay at check-in.
           </p>
         </section>
 
-        {/* ─── UNIFIED BOOKING CARD ─── */}
+        {/* ─── UNIFIED MINIMAL CARD ─── */}
         <div className={styles.container}>
           <div className={styles.card}>
 
@@ -261,7 +273,7 @@ function BookPageContent() {
 
             <form onSubmit={handleBooking} className={styles.form}>
 
-              {/* 1. SEARCH FOR GAME */}
+              {/* 1. MINIMAL GAME SEARCH & STATION SELECTION */}
               <div className={styles.section} ref={searchContainerRef}>
                 <div className={styles.sectionTitleRow}>
                   <span className={styles.stepNum}>1</span>
@@ -275,17 +287,21 @@ function BookPageContent() {
                       }}
                       className={styles.resetGameBtn}
                     >
-                      Reset
+                      Clear
                     </button>
                   )}
                 </div>
 
-                {/* Search Input */}
+                {/* Minimal Search Bar */}
                 <div className={styles.searchWrapper}>
                   <span className={styles.searchIcon}>🔍</span>
                   <input
                     type="text"
-                    placeholder={selectedGame ? `Selected: ${selectedGame}` : "Click or type to search game (e.g. Tekken 8, Valorant, FC 24)..."}
+                    placeholder={
+                      selectedGame && selectedGame !== 'ALL' 
+                        ? `Selected: ${selectedGame}` 
+                        : "Search game title (e.g. Tekken 8, Valorant, FC 24)..."
+                    }
                     value={gameSearch}
                     onFocus={() => setIsDropdownOpen(true)}
                     onChange={(e) => {
@@ -308,81 +324,55 @@ function BookPageContent() {
                     </button>
                   )}
 
-                  {/* Recommendations & Autocomplete Dropdown */}
+                  {/* Clean Unified Dropdown */}
                   {isDropdownOpen && (
                     <div className={styles.dropdownMenu}>
-                      
-                      {/* Hot & Trending Section */}
-                      {!gameSearch && (
-                        <div className={styles.dropdownSection}>
-                          <div className={styles.dropdownSectionTitle}>
-                            <span>🔥</span> Popular / Hot Games
-                          </div>
-                          <div className={styles.hotGamesList}>
-                            {HOT_GAMES.map(hotGame => (
-                              <button
-                                key={hotGame}
-                                type="button"
-                                onClick={() => selectGame(hotGame)}
-                                className={styles.hotGameBadge}
-                              >
-                                {hotGame}
-                              </button>
-                            ))}
-                          </div>
+                      <button
+                        type="button"
+                        onClick={() => selectGame('ALL')}
+                        className={`${styles.gameResultItem} ${selectedGame === 'ALL' ? styles.gameResultItemActive : ''}`}
+                      >
+                        <span className={styles.gameItemLeft}>⚡ All Stations (No game filter)</span>
+                        <span className={styles.stationCountTag}>{consoles.length} stations</span>
+                      </button>
+
+                      {filteredDropdownGames.map(({ name, count, isHot }) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => selectGame(name)}
+                          className={`${styles.gameResultItem} ${selectedGame === name ? styles.gameResultItemActive : ''}`}
+                        >
+                          <span className={styles.gameItemLeft}>
+                            <span>{isHot ? '🔥' : '🎮'}</span>
+                            <span>{name}</span>
+                          </span>
+                          <span className={styles.stationCountTag}>
+                            {count} {count > 1 ? 'stations' : 'station'}
+                          </span>
+                        </button>
+                      ))}
+
+                      {filteredDropdownGames.length === 0 && (
+                        <div className={styles.noResults}>
+                          No installed game found matching "{gameSearch}".
                         </div>
                       )}
-
-                      {/* Installed Games List */}
-                      <div className={styles.dropdownSection}>
-                        <div className={styles.dropdownSectionTitle}>
-                          <span>🎮</span> {gameSearch ? `Search Results (${displayedGamesInDropdown.length})` : 'All Installed Games'}
-                        </div>
-                        <div className={styles.gameResultsList}>
-                          <button
-                            type="button"
-                            onClick={() => selectGame('ALL')}
-                            className={`${styles.gameResultItem} ${selectedGame === 'ALL' ? styles.gameResultItemActive : ''}`}
-                          >
-                            <span>⚡ Browse all stations (No game filter)</span>
-                            <span className={styles.stationCountTag}>{consoles.length} stations</span>
-                          </button>
-
-                          {displayedGamesInDropdown.map(({ name, count }) => (
-                            <button
-                              key={name}
-                              type="button"
-                              onClick={() => selectGame(name)}
-                              className={`${styles.gameResultItem} ${selectedGame === name ? styles.gameResultItemActive : ''}`}
-                            >
-                              <span>🎮 {name}</span>
-                              <span className={styles.stationCountTag}>{count} {count > 1 ? 'stations' : 'station'}</span>
-                            </button>
-                          ))}
-
-                          {displayedGamesInDropdown.length === 0 && (
-                            <div className={styles.noResults}>
-                              No installed game found matching "{gameSearch}".
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
                     </div>
                   )}
                 </div>
 
-                {/* SHOW AVAILABLE STATIONS (Only shown when a game or all stations is selected) */}
+                {/* AVAILABLE STATIONS FOR SELECTED GAME */}
                 {selectedGame && (
                   <div className={styles.stationResultsContainer}>
                     <div className={styles.stationResultsHeader}>
                       <span>
                         {selectedGame === 'ALL' 
-                          ? 'Available Stations:' 
+                          ? 'Choose Station:' 
                           : `Available Stations for "${selectedGame}":`}
                       </span>
                       <span className={styles.stationCountBadge}>
-                        {stationsForSelectedGame.length} {stationsForSelectedGame.length > 1 ? 'Stations' : 'Station'} Ready
+                        {stationsForSelectedGame.length} {stationsForSelectedGame.length > 1 ? 'Stations' : 'Station'}
                       </span>
                     </div>
 
@@ -430,7 +420,7 @@ function BookPageContent() {
                   <div className={styles.sectionTitleRow}>
                     <span className={styles.stepNum}>3</span>
                     <label className={styles.sectionLabel}>
-                      Select Time for {selectedConsoleObj?.hardwareTitle}
+                      Select Time ({selectedConsoleObj?.hardwareTitle})
                     </label>
                     {time && <span className={styles.hintActive}>Selected: {time}</span>}
                   </div>

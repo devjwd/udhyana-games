@@ -12,7 +12,7 @@
 .hero {
   position: relative;
   text-align: center;
-  padding: clamp(3rem, 5vw, 4.5rem) 1.5rem clamp(1.5rem, 3vw, 2.5rem);
+  padding: clamp(2.5rem, 4vw, 3.5rem) 1.5rem clamp(1.25rem, 2.5vw, 2rem);
   overflow: hidden;
 }
 
@@ -21,8 +21,8 @@
   top: -100px;
   left: 50%;
   transform: translateX(-50%);
-  width: 500px;
-  height: 300px;
+  width: 450px;
+  height: 250px;
   border-radius: 50%;
   background: radial-gradient(ellipse, rgba(193, 255, 28, 0.08) 0%, transparent 70%);
   pointer-events: none;
@@ -35,52 +35,52 @@
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.2em;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
 .headline {
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: clamp(1.8rem, 3.5vw, 2.75rem);
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: -0.02em;
   color: #ffffff;
-  margin: 0 0 0.5rem 0;
+  margin: 0 0 0.4rem 0;
 }
 
 .sub {
   color: var(--text-secondary, #94a3b8);
-  font-size: 0.95rem;
-  max-width: 540px;
+  font-size: 0.92rem;
+  max-width: 500px;
   margin: 0 auto;
   line-height: 1.5;
 }
 
 /* ── Container & Card ── */
 .container {
-  max-width: 680px;
+  max-width: 620px;
   margin: 0 auto;
-  padding: 0 1.25rem clamp(3rem, 5vw, 5rem);
+  padding: 0 1.25rem clamp(2.5rem, 4vw, 4rem);
 }
 
 .card {
   background: var(--surface-1, #13161c);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
-  border-radius: var(--radius-card, 16px);
-  padding: clamp(1.5rem, 4vw, 2.25rem);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  border-radius: var(--radius-card, 14px);
+  padding: clamp(1.25rem, 3.5vw, 2rem);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
+  gap: 1.5rem;
 }
 
 /* ── Step Section ── */
 .section {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.65rem;
   position: relative;
 }
 
@@ -91,12 +91,12 @@
 }
 
 .stepNum {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: rgba(193, 255, 28, 0.15);
   color: var(--accent, #c1ff1c);
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 900;
   display: inline-flex;
   align-items: center;
@@ -104,7 +104,7 @@
 }
 
 .sectionLabel {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -119,7 +119,7 @@
   font-size: 0.72rem;
   font-weight: 700;
   cursor: pointer;
-  padding: 0.2rem 0.5rem;
+  padding: 0.15rem 0.4rem;
   border-radius: 4px;
 }
 
@@ -153,7 +153,7 @@
   transform: translateY(-50%);
   font-size: 0.85rem;
   pointer-events: none;
-  opacity: 0.7;
+  opacity: 0.65;
 }
 
 .searchInput {
@@ -161,7 +161,7 @@
   background: var(--page-bg, #0b0d10);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
   color: #ffffff;
-  padding: 0.85rem 2.2rem 0.85rem 2.4rem;
+  padding: 0.8rem 2.2rem 0.8rem 2.4rem;
   border-radius: 8px;
   font-size: 0.88rem;
   font-family: inherit;
@@ -171,7 +171,7 @@
 
 .searchInput:focus {
   border-color: var(--accent, #c1ff1c);
-  box-shadow: 0 0 12px rgba(193, 255, 28, 0.18);
+  box-shadow: 0 0 10px rgba(193, 255, 28, 0.18);
 }
 
 .searchInputSelected {
@@ -196,23 +196,23 @@
   color: #ffffff;
 }
 
-/* ── Dropdown Recommendation Menu ── */
+/* ── Single Compact Dropdown Menu ── */
 .dropdownMenu {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 5px);
   left: 0;
   right: 0;
   background: #11141a;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-  padding: 0.85rem;
-  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 0.35rem;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
   z-index: 50;
-  max-height: 320px;
+  max-height: 240px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.15rem;
 }
 
 .dropdownMenu::-webkit-scrollbar {
@@ -224,63 +224,12 @@
   border-radius: 4px;
 }
 
-.dropdownSection {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.dropdownSectionTitle {
-  font-size: 0.7rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #94a3b8;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-/* Hot Games Pills */
-.hotGamesList {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.hotGameBadge {
-  background: rgba(193, 255, 28, 0.08);
-  border: 1px solid rgba(193, 255, 28, 0.25);
-  color: #e2e8f0;
-  padding: 0.32rem 0.65rem;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-family: inherit;
-}
-
-.hotGameBadge:hover {
-  background: var(--accent, #c1ff1c);
-  border-color: var(--accent, #c1ff1c);
-  color: #000000;
-  box-shadow: 0 0 10px rgba(193, 255, 28, 0.3);
-}
-
-/* Game Results List in Dropdown */
-.gameResultsList {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
 .gameResultItem {
   background: transparent;
   border: 1px solid transparent;
   color: #e2e8f0;
-  padding: 0.55rem 0.75rem;
-  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+  border-radius: 5px;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -288,20 +237,25 @@
   justify-content: space-between;
   align-items: center;
   text-align: left;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
   font-family: inherit;
 }
 
 .gameResultItem:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.07);
   color: #ffffff;
 }
 
 .gameResultItemActive {
-  background: rgba(193, 255, 28, 0.12) !important;
+  background: rgba(193, 255, 28, 0.1) !important;
   border-color: var(--accent, #c1ff1c) !important;
   color: var(--accent, #c1ff1c) !important;
+}
+
+.gameItemLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
 }
 
 .stationCountTag {
@@ -312,22 +266,22 @@
 
 .noResults {
   padding: 0.75rem;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: #94a3b8;
   text-align: center;
 }
 
-/* ── Station Results (Revealed after Game Selection) ── */
+/* ── Station Results (Revealed after Selection) ── */
 .stationResultsContainer {
-  margin-top: 0.5rem;
+  margin-top: 0.35rem;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  animation: fadeIn 0.25s ease;
+  gap: 0.5rem;
+  animation: fadeIn 0.2s ease;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
+  from { opacity: 0; transform: translateY(-3px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -335,37 +289,37 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  color: #cbd5e1;
+  color: #94a3b8;
 }
 
 .stationCountBadge {
   background: rgba(193, 255, 28, 0.1);
   color: var(--accent, #c1ff1c);
   border: 1px solid rgba(193, 255, 28, 0.25);
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 700;
-  padding: 0.15rem 0.45rem;
-  border-radius: 12px;
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
 }
 
 .stationTabs {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.45rem;
 }
 
 .stationTab {
   background: var(--page-bg, #0b0d10);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
-  border-radius: 8px;
-  padding: 0.75rem 0.6rem;
+  border-radius: 6px;
+  padding: 0.65rem 0.55rem;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.25rem;
+  gap: 0.2rem;
   transition: all 0.15s ease;
   font-family: inherit;
   text-align: left;
@@ -379,18 +333,18 @@
 .stationTabActive {
   background: rgba(193, 255, 28, 0.08) !important;
   border-color: var(--accent, #c1ff1c) !important;
-  box-shadow: 0 0 14px rgba(193, 255, 28, 0.15);
+  box-shadow: 0 0 12px rgba(193, 255, 28, 0.15);
 }
 
 .stationTabName {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 800;
   color: #ffffff;
   line-height: 1.2;
 }
 
 .stationTabRate {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   color: var(--accent, #c1ff1c);
 }
@@ -400,9 +354,9 @@
   background: var(--page-bg, #0b0d10);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   color: #ffffff;
-  padding: 0.8rem 1rem;
+  padding: 0.75rem 1rem;
   border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-family: inherit;
   outline: none;
   transition: border-color 0.2s ease;
@@ -417,17 +371,17 @@
 /* ── Time Slots (Step 3) ── */
 .timeGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
-  gap: 0.4rem;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 0.35rem;
 }
 
 .timeBtn {
   background: var(--page-bg, #0b0d10);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
   color: var(--text-secondary, #94a3b8);
-  padding: 0.65rem 0.25rem;
-  border-radius: 6px;
-  font-size: 0.78rem;
+  padding: 0.6rem 0.2rem;
+  border-radius: 5px;
+  font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -445,7 +399,7 @@
   border-color: var(--accent, #c1ff1c) !important;
   color: #000000 !important;
   font-weight: 900;
-  box-shadow: 0 0 12px rgba(193, 255, 28, 0.3);
+  box-shadow: 0 0 10px rgba(193, 255, 28, 0.25);
 }
 
 .timeBtnBooked {
@@ -457,7 +411,7 @@
 /* ── Duration (Step 4) ── */
 .durationGrid {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .durationBtn {
@@ -465,9 +419,9 @@
   background: var(--page-bg, #0b0d10);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
   color: var(--text-secondary, #94a3b8);
-  padding: 0.7rem 0.4rem;
-  border-radius: 6px;
-  font-size: 0.8rem;
+  padding: 0.65rem 0.35rem;
+  border-radius: 5px;
+  font-size: 0.78rem;
   font-weight: 800;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -485,7 +439,7 @@
   border-color: var(--accent, #c1ff1c) !important;
   color: #000000 !important;
   font-weight: 900;
-  box-shadow: 0 0 12px rgba(193, 255, 28, 0.3);
+  box-shadow: 0 0 10px rgba(193, 255, 28, 0.25);
 }
 
 /* ── Summary & Submit (Step 5) ── */
@@ -493,26 +447,26 @@
   background: rgba(193, 255, 28, 0.06);
   border: 1px solid rgba(193, 255, 28, 0.25);
   border-radius: 8px;
-  padding: 1rem 1.25rem;
+  padding: 0.9rem 1.15rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
 .summaryText {
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: #ffffff;
 }
 
 .summaryNote {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: rgba(255, 255, 255, 0.5);
   margin-top: 2px;
 }
 
 .summaryPrice {
-  font-size: 1.4rem;
+  font-size: 1.35rem;
   font-weight: 900;
   color: var(--accent, #c1ff1c);
   white-space: nowrap;
@@ -520,11 +474,11 @@
 
 .submitBtn {
   width: 100%;
-  padding: 0.95rem;
+  padding: 0.9rem;
   background: var(--accent, #c1ff1c);
   color: #000000;
   font-weight: 900;
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   border: none;
@@ -536,7 +490,7 @@
 
 .submitBtn:hover:not(:disabled) {
   background: #d4ff4d;
-  box-shadow: 0 0 20px rgba(193, 255, 28, 0.35);
+  box-shadow: 0 0 18px rgba(193, 255, 28, 0.35);
   transform: translateY(-1px);
 }
 
