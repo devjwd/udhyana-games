@@ -1,4 +1,4 @@
-ww'use client';
+'use client';
 
 import React, { useState } from 'react';
 import { cancelBooking } from '@/backend/actions';

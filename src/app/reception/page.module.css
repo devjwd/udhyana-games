@@ -311,7 +311,8 @@
   font-weight: 800;
 }
 
-.input, .select {
+.input,
+.select {
   background-color: #060608;
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #fff;
@@ -323,7 +324,8 @@
   transition: border-color 0.2s ease;
 }
 
-.input:focus, .select:focus {
+.input:focus,
+.select:focus {
   border-color: var(--primary-accent, #c1ff1c);
   box-shadow: 0 0 0 2px rgba(193, 255, 28, 0.15);
 }
@@ -1428,7 +1430,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* =========================================
@@ -1442,9 +1446,12 @@
   body * {
     visibility: hidden !important;
   }
-  .printableReceipt, .printableReceipt * {
+
+  .printableReceipt,
+  .printableReceipt * {
     visibility: visible !important;
   }
+
   .printableReceipt {
     display: block !important;
     position: absolute;
@@ -1458,48 +1465,59 @@
     font-size: 12px;
     line-height: 1.4;
   }
+
   .printHeader {
     text-align: center;
     margin-bottom: 6px;
   }
+
   .printBrand {
     font-size: 16px;
     font-weight: 900;
     letter-spacing: 1px;
   }
+
   .printSub {
     font-size: 10px;
     margin-top: 2px;
   }
+
   .printMeta {
     display: flex;
     justify-content: space-between;
     font-size: 10px;
     margin-top: 6px;
   }
+
   .printDivider {
     border-top: 1px dashed #000;
     margin: 8px 0;
   }
+
   .printItems {
     display: flex;
     flex-direction: column;
     gap: 4px;
   }
+
   .printItemRow {
     display: flex;
     justify-content: space-between;
   }
+
   .printItemName {
     display: flex;
     flex-direction: column;
   }
+
   .printItemSub {
     font-size: 10px;
   }
+
   .printItemPrice {
     font-weight: bold;
   }
+
   .printTotalRow {
     display: flex;
     justify-content: space-between;
@@ -1507,12 +1525,14 @@
     font-weight: 900;
     margin-top: 4px;
   }
+
   .printMethodRow {
     display: flex;
     justify-content: space-between;
     font-size: 11px;
     margin-top: 4px;
   }
+
   .printFooter {
     text-align: center;
     font-size: 10px;
