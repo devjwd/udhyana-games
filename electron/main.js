@@ -232,6 +232,24 @@ async function callTerminalApi(endpoint, options = {}) {
   return await res.json();
 }
 
+let pgPool = null;
+function getDirectDbPool() {
+  if (pgPool) return pgPool;
+  try {
+    const { Pool } = require('pg');
+    const dbUrl = process.env.DIRECT_URL || process.env.DATABASE_URL || 'postgresql://postgres.phyrzsgkloxdggjjlfba:UdhyanaGamesDb2026%21%23%24@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres';
+    pgPool = new Pool({
+      connectionString: dbUrl,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 5000,
+    });
+    return pgPool;
+  } catch (err) {
+    console.warn('[Direct DB] pg client initialization error:', err.message);
+    return null;
+  }
+}
+
 ipcMain.handle('terminal:get-config', async () => {
   const config = loadConfig();
   return {
@@ -240,40 +258,191 @@ ipcMain.handle('terminal:get-config', async () => {
 });
 
 ipcMain.handle('terminal:search-members', async (event, query) => {
+  // 1. Try local or remote API
   try {
     return await callTerminalApi(`/api/terminal?action=members&q=${encodeURIComponent(query || '')}`);
-  } catch (err) {
-    return { success: false, isOffline: true, error: err.message, members: [] };
+  } catch (apiErr) {
+    console.log('[API Unavailable] Falling back to direct Supabase PostgreSQL query for members...');
+    // 2. Direct Supabase DB Fallback
+    try {
+      const pool = getDirectDbPool();
+      if (!pool) throw apiErr;
+      const q = `%${(query || '').trim()}%`;
+      const r = await pool.query(
+        `SELECT id, username, "fullName", phone, rank, "loyaltyPoints", "playtimeHours", "sessionsCount"
+         FROM "User"
+         WHERE username ILIKE $1 OR "fullName" ILIKE $1 OR phone ILIKE $1
+         ORDER BY "loyaltyPoints" DESC LIMIT 10`,
+        [q]
+      );
+      return { success: true, members: r.rows };
+    } catch (dbErr) {
+      console.warn('[DB Error]', dbErr.message);
+      return { success: false, isOffline: true, error: dbErr.message, members: [] };
+    }
   }
 });
 
 ipcMain.handle('terminal:fetch-live', async () => {
+  // 1. Try API first
   try {
     return await callTerminalApi('/api/terminal?action=catalog-and-live');
-  } catch (err) {
-    return { success: false, isOffline: true, error: err.message };
+  } catch (apiErr) {
+    console.log('[API Unavailable] Falling back to direct Supabase PostgreSQL query for live catalog...');
+    // 2. Direct Supabase DB Fallback
+    try {
+      const pool = getDirectDbPool();
+      if (!pool) throw apiErr;
+      const [consoles, snacks, activeSessions, bookings, baseRateR, extraRateR] = await Promise.all([
+        pool.query('SELECT id, "hardwareTitle" AS name, "hardwareSlug" AS type, "hourlyRate" AS rate FROM "Console" ORDER BY id ASC'),
+        pool.query('SELECT id, name, price FROM "Snack" ORDER BY name ASC'),
+        pool.query(`SELECT s.id, s."consoleId", s."guestName", s."startTime", s."endTime", s.status, s."pausedRemainingSeconds", s."userId", u.username, u."fullName", u.phone
+                    FROM "GameSession" s LEFT JOIN "User" u ON s."userId" = u.id
+                    WHERE s.status IN ('ACTIVE', 'PAUSED') ORDER BY s."endTime" ASC`),
+        pool.query(`SELECT b.id, b."consoleId", c."hardwareTitle" AS "consoleName", b."startTime", b."endTime", u."fullName", u.username, u.phone
+                    FROM "Booking" b JOIN "Console" c ON b."consoleId" = c.id JOIN "User" u ON b."userId" = u.id
+                    WHERE b.status = 'CONFIRMED' AND b."startTime" >= CURRENT_DATE ORDER BY b."startTime" ASC`),
+        pool.query(`SELECT value FROM "Settings" WHERE key = 'baseHourlyRate' LIMIT 1`),
+        pool.query(`SELECT value FROM "Settings" WHERE key = 'extraControllerRate' LIMIT 1`),
+      ]);
+
+      return {
+        success: true,
+        baseRate: baseRateR.rows[0]?.value ? parseInt(baseRateR.rows[0].value, 10) : 1000,
+        extraControllerRate: extraRateR.rows[0]?.value ? parseInt(extraRateR.rows[0].value, 10) : 200,
+        consoles: consoles.rows,
+        snacks: snacks.rows,
+        activeSessions: activeSessions.rows.map(s => ({
+          id: s.id,
+          consoleId: s.consoleId,
+          playerName: s.guestName || s.fullName || s.username || 'Guest',
+          phone: s.phone,
+          userId: s.userId,
+          startTime: s.startTime?.toISOString ? s.startTime.toISOString() : s.startTime,
+          endTime: s.endTime?.toISOString ? s.endTime.toISOString() : s.endTime,
+          status: s.status,
+          pausedRemainingSeconds: s.pausedRemainingSeconds || 0,
+        })),
+        upcomingBookings: bookings.rows.map(b => ({
+          id: b.id,
+          consoleId: b.consoleId,
+          consoleName: b.consoleName,
+          playerName: b.fullName || b.username || 'Reserved Player',
+          phone: b.phone,
+          startTime: b.startTime?.toISOString ? b.startTime.toISOString() : b.startTime,
+          endTime: b.endTime?.toISOString ? b.endTime.toISOString() : b.endTime,
+        })),
+      };
+    } catch (dbErr) {
+      console.warn('[DB Error]', dbErr.message);
+      return { success: false, isOffline: true, error: dbErr.message };
+    }
   }
 });
 
 ipcMain.handle('terminal:checkout', async (event, orderPayload) => {
+  // 1. Try API first
   try {
     return await callTerminalApi('/api/terminal', {
       method: 'POST',
       body: JSON.stringify({ action: 'CHECKOUT', ...orderPayload }),
     });
-  } catch (err) {
-    return { success: false, isOffline: true, error: err.message };
+  } catch (apiErr) {
+    console.log('[API Unavailable] Falling back to direct Supabase PostgreSQL checkout...');
+    // 2. Direct Supabase DB Fallback
+    try {
+      const pool = getDirectDbPool();
+      if (!pool) throw apiErr;
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const { cartItems, totalAmount, paymentMethod = 'cash', sessionData = [], walkInName, walkInPhone, userId: pUserId } = orderPayload;
+        let userId = pUserId;
+        if (!userId && walkInName && walkInName.trim()) {
+          const match = await client.query('SELECT id FROM "User" WHERE username ILIKE $1 OR "fullName" ILIKE $1 LIMIT 1', [walkInName.trim()]);
+          if (match.rows.length > 0) userId = match.rows[0].id;
+        }
+
+        const orderId = 'ord_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+        await client.query(
+          'INSERT INTO "Order" (id, "userId", "totalAmount", "paymentMethod", status, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, NOW(), NOW())',
+          [orderId, userId || null, totalAmount, paymentMethod, 'COMPLETED']
+        );
+
+        for (const it of (cartItems || [])) {
+          const itemId = 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+          await client.query(
+            'INSERT INTO "OrderItem" (id, "orderId", name, price, type, quantity) VALUES ($1, $2, $3, $4, $5, $6)',
+            [itemId, orderId, it.name, it.price, it.type || 'session', it.quantity || 1]
+          );
+        }
+
+        for (const s of sessionData) {
+          const sessId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+          const durSec = Number(s.durationSeconds) || (Number(s.durationHours) * 3600) || 3600;
+          await client.query(
+            'INSERT INTO "GameSession" (id, "consoleId", "guestName", "startTime", "endTime", status, "pausedRemainingSeconds", "userId", "createdAt", "updatedAt") VALUES ($1, $2, $3, NOW(), NOW() + make_interval(secs => $4), $5, 0, $6, NOW(), NOW())',
+            [sessId, s.consoleId, s.playerName || walkInName || 'Guest', durSec, 'ACTIVE', userId || null]
+          );
+        }
+
+        let updatedProfile = null;
+        if (userId) {
+          const pts = Math.floor(totalAmount / 10);
+          const uRes = await client.query(
+            'UPDATE "User" SET "loyaltyPoints" = COALESCE("loyaltyPoints", 0) + $1, "sessionsCount" = COALESCE("sessionsCount", 0) + $2, "playtimeHours" = COALESCE("playtimeHours", 0) + $3 WHERE id = $4 RETURNING "loyaltyPoints", rank, "playtimeHours"',
+            [pts, sessionData.length, Math.max(1, sessionData.length), userId]
+          );
+          if (uRes.rows[0]) updatedProfile = uRes.rows[0];
+        }
+
+        await client.query('COMMIT');
+        return { success: true, orderId, totalAmount, updatedProfile };
+      } catch (dbErr) {
+        await client.query('ROLLBACK');
+        throw dbErr;
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      console.warn('[DB Checkout Error]', err.message);
+      return { success: false, isOffline: true, error: err.message };
+    }
   }
 });
 
 ipcMain.handle('terminal:session-action', async (event, { action, payload }) => {
+  // 1. Try API first
   try {
     return await callTerminalApi('/api/terminal', {
       method: 'POST',
       body: JSON.stringify({ action, ...payload }),
     });
-  } catch (err) {
-    return { success: false, isOffline: true, error: err.message };
+  } catch (apiErr) {
+    console.log('[API Unavailable] Falling back to direct Supabase PostgreSQL session action...');
+    try {
+      const pool = getDirectDbPool();
+      if (!pool) throw apiErr;
+
+      if (action === 'PAUSE') {
+        const { consoleId, remainingSeconds } = payload;
+        await pool.query('UPDATE "GameSession" SET status = $1, "pausedRemainingSeconds" = $2 WHERE "consoleId" = $3 AND status = $4', ['PAUSED', remainingSeconds || 60, consoleId, 'ACTIVE']);
+        return { success: true };
+      } else if (action === 'RESUME') {
+        const { consoleId } = payload;
+        const s = await pool.query('SELECT "pausedRemainingSeconds" FROM "GameSession" WHERE "consoleId" = $1 AND status = $2', [consoleId, 'PAUSED']);
+        const sec = s.rows[0]?.pausedRemainingSeconds || 60;
+        await pool.query('UPDATE "GameSession" SET status = $1, "endTime" = NOW() + make_interval(secs => $2), "pausedRemainingSeconds" = 0 WHERE "consoleId" = $3 AND status = $4', ['ACTIVE', sec, consoleId, 'PAUSED']);
+        return { success: true };
+      } else if (action === 'END') {
+        const { consoleId } = payload;
+        await pool.query('UPDATE "GameSession" SET status = $1 WHERE "consoleId" = $2 AND status IN ($3, $4)', ['COMPLETED', consoleId, 'ACTIVE', 'PAUSED']);
+        return { success: true };
+      }
+      return { success: true };
+    } catch (err) {
+      return { success: false, isOffline: true, error: err.message };
+    }
   }
 });
 

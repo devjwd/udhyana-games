@@ -8,7 +8,17 @@
     "electron/**/*",
     "package.json",
     "reception-config.json",
-    "!node_modules/**/*"
+    "node_modules/pg/**/*",
+    "node_modules/pg-protocol/**/*",
+    "node_modules/pg-types/**/*",
+    "node_modules/pg-int8/**/*",
+    "node_modules/postgres-array/**/*",
+    "node_modules/postgres-bytea/**/*",
+    "node_modules/postgres-date/**/*",
+    "node_modules/postgres-interval/**/*",
+    "!node_modules/next/**/*",
+    "!node_modules/@prisma/**/*",
+    "!node_modules/react*/**/*"
   ],
   "nodeGypRebuild": false,
   "npmRebuild": false,
