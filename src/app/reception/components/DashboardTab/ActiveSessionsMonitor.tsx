@@ -9,7 +9,8 @@ interface ActiveSessionsMonitorProps {
   onOpenAddTime: (session: Session) => void;
   onTogglePause: (session: Session) => void;
   onOpenTransfer: (session: Session) => void;
-  onEndSession: (sessionId: string) => void;
+  onEndSession: (sessionId: string, isExpired?: boolean) => void;
+  onEndAllExpired?: () => void;
 }
 
 function SessionCard({
@@ -23,7 +24,7 @@ function SessionCard({
   onOpenAddTime: (session: Session) => void;
   onTogglePause: (session: Session) => void;
   onOpenTransfer: (session: Session) => void;
-  onEndSession: (sessionId: string) => void;
+  onEndSession: (sessionId: string, isExpired?: boolean) => void;
 }) {
   const [remainingSeconds, setRemainingSeconds] = useState<number>(() => {
     if (session.status === 'PAUSED' && session.pausedRemainingSeconds != null) {
@@ -119,10 +120,10 @@ function SessionCard({
         </button>
         <button
           type="button"
-          className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
-          onClick={() => onEndSession(session.id)}
+          className={`${styles.actionBtn} ${isTimeUp ? styles.actionBtnDangerFilled : styles.actionBtnDanger}`}
+          onClick={() => onEndSession(session.id, isTimeUp)}
         >
-          End
+          {isTimeUp ? 'Check Out' : 'End'}
         </button>
       </div>
     </div>
@@ -134,13 +135,30 @@ export default function ActiveSessionsMonitor({
   onOpenAddTime,
   onTogglePause,
   onOpenTransfer,
-  onEndSession
+  onEndSession,
+  onEndAllExpired
 }: ActiveSessionsMonitorProps) {
+  const expiredSessionsCount = sessions.filter(s => {
+    if (s.status === 'PAUSED') return false;
+    return new Date(s.endTime).getTime() <= Date.now();
+  }).length;
+
   return (
     <div className={styles.panel}>
       <div className={styles.panelHeaderRow}>
-        <h2 className={styles.panelHeader} style={{ borderBottom: 'none', paddingBottom: 0 }}>Active Sessions Monitor</h2>
-        <span className={styles.panelBadge}>{sessions.length} In-Use</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <h2 className={styles.panelHeader} style={{ borderBottom: 'none', paddingBottom: 0 }}>Active Sessions Monitor</h2>
+          <span className={styles.panelBadge}>{sessions.length} In-Use</span>
+        </div>
+        {expiredSessionsCount > 0 && onEndAllExpired && (
+          <button
+            type="button"
+            className={styles.clearExpiredBtn}
+            onClick={onEndAllExpired}
+          >
+            End All Expired ({expiredSessionsCount})
+          </button>
+        )}
       </div>
 
       <div className={styles.sessionGrid}>

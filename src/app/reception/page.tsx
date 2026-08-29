@@ -30,6 +30,7 @@ import {
   removeWaitlistEntry,
   startSessionFromWaitlist,
   endGameSession,
+  endAllExpiredSessions,
   addTimeToSession,
   pauseGameSession,
   resumeGameSession,
@@ -468,14 +469,32 @@ export default function ReceptionPortal() {
     }
   };
 
-  const handleEndSession = async (sessionId: string) => {
-    if (confirm('Are you sure you want to end this game session early?')) {
+  const handleEndSession = async (sessionId: string, isExpired?: boolean) => {
+    const promptText = isExpired
+      ? 'Check out and complete this game session?'
+      : 'Are you sure you want to end this game session early?';
+
+    if (confirm(promptText)) {
       try {
         await endGameSession(sessionId);
-        toast.success('Session ended.');
+        toast.success(isExpired ? 'Session completed & checked out.' : 'Session ended.');
         await fetchLiveDashboardData();
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Failed to end session.';
+        toast.error(message);
+      }
+    }
+  };
+
+  const handleEndAllExpired = async () => {
+    if (confirm('End and check out all expired game sessions?')) {
+      try {
+        const res = await endAllExpiredSessions();
+        soundManager.playSuccessTone();
+        toast.success(`Closed ${res.count} expired session(s).`);
+        await fetchLiveDashboardData();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to end expired sessions.';
         toast.error(message);
       }
     }
@@ -713,6 +732,7 @@ export default function ReceptionPortal() {
                 onTogglePause={handleTogglePause}
                 onOpenTransfer={setTransferModalSession}
                 onEndSession={handleEndSession}
+                onEndAllExpired={handleEndAllExpired}
               />
               <UpcomingReservationsTable
                 bookings={upcomingBookings}

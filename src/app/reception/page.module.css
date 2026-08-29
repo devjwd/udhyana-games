@@ -273,6 +273,27 @@
   text-transform: uppercase;
 }
 
+.clearExpiredBtn {
+  background: rgba(255, 77, 77, 0.15);
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 77, 77, 0.4);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clearExpiredBtn:hover {
+  background: rgba(255, 77, 77, 0.28);
+  border-color: #ff4d4d;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(255, 77, 77, 0.3);
+}
+
 /* =========================================
    Form Controls
    ========================================= */
@@ -1040,6 +1061,20 @@
 .actionBtnDanger:hover {
   background: rgba(255, 77, 77, 0.15);
   border-color: #ff4d4d;
+}
+
+.actionBtnDangerFilled {
+  background: #ff4d4d;
+  color: #000;
+  border: 1px solid #ff4d4d;
+  font-weight: 900;
+  box-shadow: 0 0 12px rgba(255, 77, 77, 0.4);
+}
+
+.actionBtnDangerFilled:hover {
+  background: #ff6666;
+  border-color: #ff6666;
+  color: #fff;
 }
 
 .actionBtnOutline {

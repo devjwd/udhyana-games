@@ -843,8 +843,78 @@ export async function acceptBooking(bookingId: string) {
 // ACTIVE SESSIONS (GameSession)
 // ========================
 
+async function internalCompleteSessionRecord(session: {
+  id: string;
+  status: string;
+  startTime: Date;
+  endTime: Date;
+  userId: string | null;
+}) {
+  if (session.status === 'COMPLETED') return null;
+
+  const now = new Date();
+  const endToUse = now > session.endTime ? session.endTime : now;
+  const hoursPlayed = Math.max(0, Math.ceil((endToUse.getTime() - session.startTime.getTime()) / (1000 * 60 * 60)));
+
+  const updatedSession = await prisma.gameSession.update({
+    where: { id: session.id },
+    data: { status: 'COMPLETED' }
+  });
+
+  if (session.userId) {
+    try {
+      const { pointsPerHour } = await getLoyaltyRates();
+      const pointsEarned = Math.max(1, hoursPlayed * pointsPerHour);
+      const user = await prisma.user.update({
+        where: { id: session.userId },
+        data: {
+          sessionsCount: { increment: 1 },
+          playtimeHours: { increment: hoursPlayed },
+          loyaltyPoints: { increment: pointsEarned }
+        }
+      });
+
+      let newRank = user.rank;
+      if (user.loyaltyPoints >= 1000) newRank = 'Elite';
+      else if (user.loyaltyPoints >= 500) newRank = 'Pro';
+      else if (user.loyaltyPoints >= 100) newRank = 'Regular';
+      else newRank = 'Rookie';
+
+      if (newRank !== user.rank) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { rank: newRank }
+        });
+      }
+    } catch (loyaltyErr) {
+      console.error('Failed to update loyalty during session completion:', loyaltyErr);
+    }
+  }
+
+  return updatedSession;
+}
+
 export async function getActiveSessions() {
   await requireReceptionAuth();
+  const now = new Date();
+
+  // Auto-complete stale sessions that have been expired for over 15 minutes
+  const staleThreshold = new Date(now.getTime() - 15 * 60 * 1000);
+  try {
+    const staleSessions = await prisma.gameSession.findMany({
+      where: {
+        status: { in: ['ACTIVE', 'PAUSED'] },
+        endTime: { lt: staleThreshold }
+      }
+    });
+
+    for (const sess of staleSessions) {
+      await internalCompleteSessionRecord(sess);
+    }
+  } catch (err) {
+    console.error('Error auto-completing stale sessions in getActiveSessions:', err);
+  }
+
   return await prisma.gameSession.findMany({
     where: { status: { in: ['ACTIVE', 'PAUSED'] } },
     include: {
@@ -946,44 +1016,30 @@ export async function endGameSession(sessionId: string) {
   const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
   if (!session || session.status === 'COMPLETED') return null;
 
-  const now = new Date();
-  const endToUse = now > session.endTime ? session.endTime : now;
-  const hoursPlayed = Math.max(0, Math.ceil((endToUse.getTime() - session.startTime.getTime()) / (1000 * 60 * 60)));
-
-  const updatedSession = await prisma.gameSession.update({
-    where: { id: sessionId },
-    data: { status: 'COMPLETED' }
-  });
-
-  if (session.userId) {
-    const { pointsPerHour } = await getLoyaltyRates();
-    const pointsEarned = Math.max(1, hoursPlayed * pointsPerHour);
-    const user = await prisma.user.update({
-      where: { id: session.userId },
-      data: {
-        sessionsCount: { increment: 1 },
-        playtimeHours: { increment: hoursPlayed },
-        loyaltyPoints: { increment: pointsEarned }
-      }
-    });
-
-    let newRank = user.rank;
-    if (user.loyaltyPoints >= 1000) newRank = 'Elite';
-    else if (user.loyaltyPoints >= 500) newRank = 'Pro';
-    else if (user.loyaltyPoints >= 100) newRank = 'Regular';
-    else newRank = 'Rookie';
-
-    if (newRank !== user.rank) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { rank: newRank }
-      });
-    }
-  }
+  const updatedSession = await internalCompleteSessionRecord(session);
 
   revalidatePath('/reception');
   revalidatePath('/profile');
   return updatedSession;
+}
+
+export async function endAllExpiredSessions() {
+  await requireReceptionAuth();
+  const now = new Date();
+  const expiredSessions = await prisma.gameSession.findMany({
+    where: {
+      status: { in: ['ACTIVE', 'PAUSED'] },
+      endTime: { lte: now }
+    }
+  });
+
+  for (const sess of expiredSessions) {
+    await internalCompleteSessionRecord(sess);
+  }
+
+  revalidatePath('/reception');
+  revalidatePath('/profile');
+  return { success: true, count: expiredSessions.length };
 }
 
 // ========================
@@ -1179,6 +1235,16 @@ export async function processPosCheckout(
           const booking = overlappingBookings[0];
           throw new Error(`Station is reserved for an online booking at ${booking.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`);
         }
+
+        // Auto-complete any expired sessions currently on these consoles to prevent stacking
+        await tx.gameSession.updateMany({
+          where: {
+            consoleId: { in: consoleIds },
+            status: { in: ['ACTIVE', 'PAUSED'] },
+            endTime: { lte: now }
+          },
+          data: { status: 'COMPLETED' }
+        });
       } else {
         await cleanupPromise;
       }
@@ -1349,6 +1415,16 @@ export async function startSessionFromWaitlist(
           }
         }
       }
+
+      // Auto-complete any expired session on this console before starting
+      await tx.gameSession.updateMany({
+        where: {
+          consoleId,
+          status: { in: ['ACTIVE', 'PAUSED'] },
+          endTime: { lte: now }
+        },
+        data: { status: 'COMPLETED' }
+      });
 
       // 2. Create Active GameSession
       const createdSession = await tx.gameSession.create({
@@ -1954,6 +2030,16 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
   }
 
   const result = await prisma.$transaction(async (tx) => {
+    // Auto-complete any expired session on this console
+    await tx.gameSession.updateMany({
+      where: {
+        consoleId: booking.consoleId,
+        status: { in: ['ACTIVE', 'PAUSED'] },
+        endTime: { lte: now }
+      },
+      data: { status: 'COMPLETED' }
+    });
+
     const order = await tx.order.create({
       data: {
         userId: booking.userId,
