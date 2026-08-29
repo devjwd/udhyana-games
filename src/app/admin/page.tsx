@@ -1943,7 +1943,8 @@ export default function BackendAdmin() {
                           <tr>
                             <th className={styles.th}>Station / Hardware</th>
                             <th className={styles.th}>Start Time</th>
-                            <th className={styles.th}>End Time</th>
+                            <th className={styles.th}>Expired At</th>
+                            <th className={styles.th}>Checked Out</th>
                             <th className={styles.th}>Status</th>
                           </tr>
                         </thead>
@@ -1953,6 +1954,17 @@ export default function BackendAdmin() {
                               <td className={styles.td}><strong>{s.console?.hardwareTitle || s.consoleId}</strong></td>
                               <td className={styles.td} style={{ fontSize: '0.8rem' }}>{new Date(s.startTime).toLocaleString()}</td>
                               <td className={styles.td} style={{ fontSize: '0.8rem' }}>{new Date(s.endTime).toLocaleString()}</td>
+                              <td className={styles.td} style={{ fontSize: '0.8rem' }}>
+                                {s.checkedOutAt ? (
+                                  <span style={{ color: 'var(--primary-accent, #c1ff1c)' }}>
+                                    {new Date(s.checkedOutAt).toLocaleString()}
+                                  </span>
+                                ) : s.status === 'ACTIVE' ? (
+                                  <span style={{ color: '#ffb400' }}>In-Session</span>
+                                ) : (
+                                  <span style={{ opacity: 0.5 }}>—</span>
+                                )}
+                              </td>
                               <td className={styles.td}>
                                 <span style={{
                                   padding: '2px 8px',

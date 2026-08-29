@@ -858,7 +858,10 @@ async function internalCompleteSessionRecord(session: {
 
   const updatedSession = await prisma.gameSession.update({
     where: { id: session.id },
-    data: { status: 'COMPLETED' }
+    data: {
+      status: 'COMPLETED',
+      checkedOutAt: now
+    }
   });
 
   if (session.userId) {
@@ -1068,6 +1071,7 @@ export async function getUserSessions(userId: string) {
   await requireUserOrStaff(userId);
   return await prisma.gameSession.findMany({
     where: { userId, status: 'COMPLETED' },
+    include: { console: { select: { hardwareTitle: true } } },
     orderBy: { startTime: 'desc' }
   });
 }
@@ -1243,7 +1247,10 @@ export async function processPosCheckout(
             status: { in: ['ACTIVE', 'PAUSED'] },
             endTime: { lte: now }
           },
-          data: { status: 'COMPLETED' }
+          data: {
+            status: 'COMPLETED',
+            checkedOutAt: now
+          }
         });
       } else {
         await cleanupPromise;
@@ -1423,7 +1430,10 @@ export async function startSessionFromWaitlist(
           status: { in: ['ACTIVE', 'PAUSED'] },
           endTime: { lte: now }
         },
-        data: { status: 'COMPLETED' }
+        data: {
+          status: 'COMPLETED',
+          checkedOutAt: now
+        }
       });
 
       // 2. Create Active GameSession
@@ -2037,7 +2047,10 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
         status: { in: ['ACTIVE', 'PAUSED'] },
         endTime: { lte: now }
       },
-      data: { status: 'COMPLETED' }
+      data: {
+        status: 'COMPLETED',
+        checkedOutAt: now
+      }
     });
 
     const order = await tx.order.create({

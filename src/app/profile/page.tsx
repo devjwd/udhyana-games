@@ -254,17 +254,29 @@ async function SessionHistory({ userId }: { userId: string }) {
 
   return (
     <div>
-      {sessions.slice(0, 5).map((session) => {
+      {sessions.slice(0, 5).map((session: any) => {
         const diffHours = session.endTime && session.startTime 
           ? ((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60 * 60)).toFixed(1)
           : '0';
+        const consoleName = session.console?.hardwareTitle || session.consoleId || 'Console Session';
+        const startStr = new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const endStr = new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const checkoutStr = session.checkedOutAt 
+          ? new Date(session.checkedOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : null;
+
         return (
           <div key={session.id} className={styles.activityBlock}>
             <div className={styles.activityInfo}>
-              <span className={styles.activityTitle}>{session.consoleId || 'Console Session'}</span>
+              <span className={styles.activityTitle}>{consoleName}</span>
               <span className={styles.activityDetail}>
-                {diffHours} Hours • {new Date(session.startTime).toLocaleDateString()}
+                {new Date(session.startTime).toLocaleDateString()} • {startStr} – {checkoutStr || endStr} ({diffHours}h)
               </span>
+              {checkoutStr && (
+                <span style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.45)', marginTop: '0.15rem', display: 'block' }}>
+                  Expires: {endStr} • Left: {checkoutStr}
+                </span>
+              )}
             </div>
             <div className={styles.activityStatus}>
               Completed

@@ -32,6 +32,11 @@ function SessionCard({
     }
     return Math.max(0, Math.floor((new Date(session.endTime).getTime() - Date.now()) / 1000));
   });
+  const [elapsedOvertime, setElapsedOvertime] = useState<number>(() => {
+    if (session.status === 'PAUSED') return 0;
+    const diff = Math.floor((Date.now() - new Date(session.endTime).getTime()) / 1000);
+    return diff > 0 ? diff : 0;
+  });
 
   useEffect(() => {
     if (session.status === 'PAUSED') {
@@ -42,8 +47,12 @@ function SessionCard({
     }
 
     const tick = () => {
-      const rem = Math.max(0, Math.floor((new Date(session.endTime).getTime() - Date.now()) / 1000));
+      const now = Date.now();
+      const endMs = new Date(session.endTime).getTime();
+      const rem = Math.max(0, Math.floor((endMs - now) / 1000));
       setRemainingSeconds(rem);
+      const over = Math.max(0, Math.floor((now - endMs) / 1000));
+      setElapsedOvertime(over);
     };
 
     tick();
@@ -78,6 +87,7 @@ function SessionCard({
   }
 
   const playerName = session.guestName || session.user?.fullName || session.user?.username || 'Guest Player';
+  const endTimeStr = new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
     <div className={`${styles.sessionCard} ${isTimeUp ? styles.sessionCardDanger : isEndingSoon ? styles.sessionCardWarning : ''}`}>
@@ -93,7 +103,10 @@ function SessionCard({
       </div>
 
       <div className={`${styles.timerDisplay} ${isTimeUp ? styles.timerDisplayDanger : isEndingSoon ? styles.timerDisplayWarning : ''}`}>
-        {formatTime(remainingSeconds)}
+        <div>{isTimeUp ? `+${formatTime(elapsedOvertime)}` : formatTime(remainingSeconds)}</div>
+        <div style={{ fontSize: '0.68rem', fontWeight: 600, opacity: 0.8, letterSpacing: 'normal', marginTop: '0.2rem' }}>
+          {isTimeUp ? `Expired at ${endTimeStr}` : `Ends at ${endTimeStr}`}
+        </div>
       </div>
 
       <div className={styles.sessionControls}>
