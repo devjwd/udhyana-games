@@ -38,7 +38,8 @@ import {
   acceptBooking,
   cancelBooking,
   processPosCheckout,
-  getDailyShiftSummary
+  getDailyShiftSummary,
+  searchUsers
 } from '@/backend/actions';
 
 // Modals & Feature Components
@@ -176,11 +177,59 @@ export default function ReceptionPortal() {
     }
   }, [isStaff, fetchLiveDashboardData]);
 
+  // Global USB Handheld Barcode Scanner Listener
+  // Intercepts rapid keystrokes (<60ms per char) ending in Enter
+  useEffect(() => {
+    let buffer = '';
+    let lastKeyTime = 0;
+
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      const now = Date.now();
+      const timeDiff = now - lastKeyTime;
+      lastKeyTime = now;
+
+      if (e.key === 'Enter') {
+        if (buffer.length >= 3 && timeDiff < 60) {
+          const scannedCode = buffer.trim();
+          buffer = '';
+          try {
+            const results = await searchUsers(scannedCode);
+            if (results && results.length > 0) {
+              const found = results[0];
+              soundManager.playSuccessTone();
+              toast.success(`Pass Scanned: ${found.fullName || found.username} (${found.rank || 'Member'})!`);
+              setPrefilledWaitlistName(found.fullName || found.username || '');
+            } else {
+              toast.error(`No member pass found for: "${scannedCode}"`);
+            }
+          } catch {
+            toast.error('Failed to verify scanned pass.');
+          }
+        } else {
+          buffer = '';
+        }
+        return;
+      }
+
+      if (e.key.length === 1) {
+        if (timeDiff > 80) {
+          buffer = e.key;
+        } else {
+          buffer += e.key;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Console Station Availability Checker
   const checkConsoleAvailability = useCallback((consoleId: string, durationSeconds: number) => {
-    // 1. Active walk-in sessions
+    // 1. Active walk-in sessions (including paused)
     const active = dbSessions.find(s => {
       if (s.consoleId !== consoleId) return false;
+      if (s.status === 'PAUSED') return true;
       const rem = Math.max(0, Math.floor((new Date(s.endTime).getTime() - Date.now()) / 1000));
       return rem > 0 && s.status !== 'COMPLETED' && s.status !== 'CANCELLED';
     });
@@ -400,14 +449,17 @@ export default function ReceptionPortal() {
 
   // Active Session Handlers
   const handleTogglePause = async (s: Session) => {
-    const rem = Math.max(0, Math.floor((new Date(s.endTime).getTime() - Date.now()) / 1000));
+    const rem = s.status === 'PAUSED'
+      ? (s.pausedRemainingSeconds && s.pausedRemainingSeconds > 0 ? s.pausedRemainingSeconds : 60)
+      : Math.max(1, Math.floor((new Date(s.endTime).getTime() - Date.now()) / 1000));
+
     try {
       if (s.status === 'PAUSED') {
         await resumeGameSession(s.id, rem);
         toast.success(`Session resumed on ${s.console.hardwareTitle}`);
       } else {
         await pauseGameSession(s.id, rem);
-        toast.success(`Session paused on ${s.console.hardwareTitle}`);
+        toast.success(`Session paused on ${s.console.hardwareTitle} (${Math.round(rem / 60)}m frozen)`);
       }
       await fetchLiveDashboardData();
     } catch (err: unknown) {

@@ -6,8 +6,12 @@
   },
   "files": [
     "electron/**/*",
-    "package.json"
+    "package.json",
+    "reception-config.json",
+    "!node_modules/**/*"
   ],
+  "nodeGypRebuild": false,
+  "npmRebuild": false,
   "win": {
     "target": [
       {

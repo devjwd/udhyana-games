@@ -846,7 +846,7 @@ export async function acceptBooking(bookingId: string) {
 export async function getActiveSessions() {
   await requireReceptionAuth();
   return await prisma.gameSession.findMany({
-    where: { status: 'ACTIVE' },
+    where: { status: { in: ['ACTIVE', 'PAUSED'] } },
     include: {
       user: { select: { id: true, username: true, fullName: true, phone: true } },
       console: { select: { id: true, hardwareTitle: true } }
@@ -867,7 +867,7 @@ export async function addTimeToSession(
       where: { id: sessionId },
       include: { console: true, user: true }
     });
-    if (!session || session.status !== 'ACTIVE') {
+    if (!session || (session.status !== 'ACTIVE' && session.status !== 'PAUSED')) {
       return { error: 'Active session not found.' };
     }
 
@@ -878,9 +878,14 @@ export async function addTimeToSession(
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Update Game Session
+      const updateData: { endTime: Date; pausedRemainingSeconds?: number } = { endTime: newEndTime };
+      if (session.status === 'PAUSED') {
+        updateData.pausedRemainingSeconds = (session.pausedRemainingSeconds || 0) + additionalSeconds;
+      }
+
       const updatedSession = await tx.gameSession.update({
         where: { id: sessionId },
-        data: { endTime: newEndTime },
+        data: updateData,
         include: { console: true, user: true }
       });
 
@@ -1148,7 +1153,7 @@ export async function processPosCheckout(
           tx.gameSession.findMany({
             where: {
               consoleId: { in: consoleIds },
-              status: 'ACTIVE',
+              status: { in: ['ACTIVE', 'PAUSED'] },
               endTime: { gt: now }
             },
             select: { consoleId: true, endTime: true }
@@ -1179,10 +1184,13 @@ export async function processPosCheckout(
       }
 
       // 3. Create Order & Game Sessions & Waitlist entries in parallel
+      const calculatedSum = orderItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+      const verifiedTotal = (totalAmount >= 0 && totalAmount <= calculatedSum) ? totalAmount : calculatedSum;
+
       const orderPromise = tx.order.create({
         data: {
           userId: userId || null,
-          totalAmount,
+          totalAmount: verifiedTotal,
           paymentMethod,
           items: {
             create: orderItems.map(item => ({
@@ -2001,7 +2009,7 @@ export async function transferGameSession(sessionId: string, newConsoleId: strin
   });
 
   if (!session || (session.status !== 'ACTIVE' && session.status !== 'PAUSED')) {
-    return { error: 'Active session not found.' };
+    return { error: 'Active or paused session not found.' };
   }
 
   if (session.consoleId === newConsoleId) {
@@ -2009,19 +2017,37 @@ export async function transferGameSession(sessionId: string, newConsoleId: strin
   }
 
   const now = new Date();
-  const destActive = await prisma.gameSession.findFirst({
-    where: { consoleId: newConsoleId, status: 'ACTIVE', endTime: { gt: now } }
-  });
+  const sessionEndTime = session.endTime;
 
-  if (destActive) {
-    return { error: 'Target station is currently occupied.' };
+  const [destActive, overlappingBooking, destConsole] = await Promise.all([
+    prisma.gameSession.findFirst({
+      where: {
+        consoleId: newConsoleId,
+        status: { in: ['ACTIVE', 'PAUSED'] },
+        endTime: { gt: now }
+      }
+    }),
+    prisma.booking.findFirst({
+      where: {
+        consoleId: newConsoleId,
+        status: 'CONFIRMED',
+        startTime: { lt: sessionEndTime },
+        endTime: { gt: now }
+      }
+    }),
+    prisma.console.findUnique({ where: { id: newConsoleId } })
+  ]);
+
+  if (!destConsole) {
+    return { error: 'Target station was not found in catalog.' };
   }
 
-  const destConsole = await prisma.console.findUnique({ where: { id: newConsoleId } });
-  if (!destConsole) {
-    await prisma.console.create({
-      data: { id: newConsoleId, hardwareTitle: newConsoleId.toUpperCase() }
-    });
+  if (destActive) {
+    return { error: `Target station is currently occupied until ${destActive.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.` };
+  }
+
+  if (overlappingBooking) {
+    return { error: `Target station is reserved for an online booking at ${overlappingBooking.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.` };
   }
 
   const updated = await prisma.gameSession.update({
@@ -2036,11 +2062,21 @@ export async function transferGameSession(sessionId: string, newConsoleId: strin
 export async function pauseGameSession(sessionId: string, remainingSeconds: number) {
   await requireReceptionAuth();
 
+  const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
+  if (!session) return { error: 'Session not found.' };
+
+  const validRemaining = Math.max(
+    1,
+    remainingSeconds > 0
+      ? remainingSeconds
+      : Math.floor((session.endTime.getTime() - Date.now()) / 1000)
+  );
+
   const updated = await prisma.gameSession.update({
     where: { id: sessionId },
     data: { 
       status: 'PAUSED',
-      endTime: new Date(Date.now() + remainingSeconds * 1000)
+      pausedRemainingSeconds: validRemaining
     }
   });
 
@@ -2048,15 +2084,23 @@ export async function pauseGameSession(sessionId: string, remainingSeconds: numb
   return { success: true, session: updated };
 }
 
-export async function resumeGameSession(sessionId: string, remainingSeconds: number) {
+export async function resumeGameSession(sessionId: string, remainingSeconds?: number) {
   await requireReceptionAuth();
 
-  const newEndTime = new Date(Date.now() + remainingSeconds * 1000);
+  const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
+  if (!session) return { error: 'Session not found.' };
+
+  const secToUse = (session.pausedRemainingSeconds && session.pausedRemainingSeconds > 0)
+    ? session.pausedRemainingSeconds
+    : (remainingSeconds && remainingSeconds > 0 ? remainingSeconds : 60);
+
+  const newEndTime = new Date(Date.now() + secToUse * 1000);
   const updated = await prisma.gameSession.update({
     where: { id: sessionId },
     data: {
       status: 'ACTIVE',
-      endTime: newEndTime
+      endTime: newEndTime,
+      pausedRemainingSeconds: 0
     }
   });
 

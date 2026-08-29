@@ -30,6 +30,10 @@ let state = {
   history: [], // operational log
   sales: [],   // financial audit records
   members: [], // [{ name, phone, visits }]
+  selectedMember: null, // { id, username, fullName, phone, rank, loyaltyPoints }
+  upcomingBookings: [],
+  offlineQueue: [],
+  isCloudConnected: false,
   discountPercent: 0,
   paymentMethod: 'cash',
   selectedConsoleId: null,
@@ -209,6 +213,11 @@ function renderStationsMonitor() {
     const tile = document.createElement('div');
 
     if (!session) {
+      const upcomingBooking = (state.upcomingBookings || []).find(b => b.consoleId === c.id || b.consoleName === c.name);
+      const bookingBadge = upcomingBooking
+        ? `<div class="station-reserved-badge">📅 Res: ${upcomingBooking.playerName} (${new Date(upcomingBooking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</div>`
+        : '';
+
       tile.className = 'station-tile';
       tile.innerHTML = `
         <div class="station-tile-header">
@@ -221,6 +230,7 @@ function renderStationsMonitor() {
         <div class="station-player-meta">
           <span class="player-meta-lbl">Status</span>
           <span class="player-meta-name" style="color: #64748b;">Ready for player</span>
+          ${bookingBadge}
         </div>
         <div class="station-tile-actions" style="grid-template-columns: 1fr;">
           <button class="btn btn-primary btn-sm btn-block" onclick="quickAssign('${c.id}')">Assign Station</button>
@@ -367,10 +377,16 @@ window.togglePauseSession = function(consoleId) {
     // Pause session
     session.isPaused = true;
     session.pausedRemainingMs = Math.max(0, session.endTime - Date.now());
+    if (window.terminalAPI?.sessionAction) {
+      window.terminalAPI.sessionAction('PAUSE', { consoleId, remainingSeconds: Math.floor(session.pausedRemainingMs / 1000) });
+    }
   } else {
     // Resume session
     session.isPaused = false;
     session.endTime = Date.now() + (session.pausedRemainingMs || 0);
+    if (window.terminalAPI?.sessionAction) {
+      window.terminalAPI.sessionAction('RESUME', { consoleId });
+    }
     delete session.pausedRemainingMs;
   }
 
@@ -443,40 +459,154 @@ document.getElementById('confirm-transfer-btn').onclick = () => {
 };
 
 // =========================================================
-// MEMBER AUTOCOMPLETE SEARCH
+// MEMBER AUTOCOMPLETE SEARCH (WITH CLOUD DB LOOKUP)
 // =========================================================
 
 const playerInput = document.getElementById('player-name');
+const phoneInput = document.getElementById('player-phone');
 const suggestionsBox = document.getElementById('member-suggestions');
+const memberBadge = document.getElementById('selected-member-badge');
+const clearMemberBtn = document.getElementById('clear-member-btn');
+
+function setSelectedMember(member) {
+  state.selectedMember = member;
+  if (!member) {
+    if (memberBadge) memberBadge.style.display = 'none';
+    return;
+  }
+
+  if (memberBadge) {
+    const rankEl = document.getElementById('member-rank-tag');
+    const nameEl = document.getElementById('member-name-tag');
+    const pointsEl = document.getElementById('member-points-tag');
+    if (rankEl) {
+      rankEl.textContent = (member.rank || 'ROOKIE').toUpperCase();
+      rankEl.className = `member-rank-tag rank-${(member.rank || 'rookie').toLowerCase()}`;
+    }
+    if (nameEl) nameEl.textContent = member.fullName || member.username || member.name;
+    if (pointsEl) pointsEl.textContent = `🪙 ${member.loyaltyPoints || 0} Pts`;
+    memberBadge.style.display = 'inline-flex';
+  }
+}
+
+if (clearMemberBtn) {
+  clearMemberBtn.onclick = () => {
+    setSelectedMember(null);
+    playerInput.value = '';
+    if (phoneInput) phoneInput.value = '';
+  };
+}
+
+let searchDebounceTimer = null;
+
+async function handleMemberSearch(query) {
+  if (!query) {
+    suggestionsBox.style.display = 'none';
+    return;
+  }
+
+  // 1. Check local members first
+  const localMatches = state.members.filter(m =>
+    m.name.toLowerCase().includes(query) || (m.phone && m.phone.includes(query))
+  );
+
+  // 2. Query cloud database via terminalAPI
+  let cloudMatches = [];
+  if (window.terminalAPI?.searchMembers) {
+    try {
+      const res = await window.terminalAPI.searchMembers(query);
+      if (res && res.success && res.members) {
+        cloudMatches = res.members;
+        setCloudStatus(true);
+      }
+    } catch (err) {
+      console.warn('[Search] Cloud DB search failed, using local cache:', err);
+    }
+  }
+
+  // Combine and deduplicate
+  const combined = [];
+  const seenNames = new Set();
+
+  cloudMatches.forEach(cm => {
+    const displayName = cm.fullName || cm.username;
+    seenNames.add(displayName.toLowerCase());
+    combined.push({
+      id: cm.id,
+      name: displayName,
+      username: cm.username,
+      phone: cm.phone,
+      rank: cm.rank || 'Rookie',
+      loyaltyPoints: cm.loyaltyPoints || 0,
+      playtimeHours: cm.playtimeHours || 0,
+    });
+  });
+
+  localMatches.forEach(lm => {
+    if (!seenNames.has(lm.name.toLowerCase())) {
+      combined.push({
+        id: null,
+        name: lm.name,
+        username: null,
+        phone: lm.phone,
+        rank: 'Rookie',
+        loyaltyPoints: 0,
+        playtimeHours: 0,
+      });
+    }
+  });
+
+  if (combined.length === 0) {
+    suggestionsBox.style.display = 'none';
+    return;
+  }
+
+  suggestionsBox.innerHTML = '';
+  combined.slice(0, 6).forEach(m => {
+    const item = document.createElement('div');
+    item.className = 'member-suggestion-item';
+    const rankClass = `rank-${(m.rank || 'rookie').toLowerCase()}`;
+
+    item.innerHTML = `
+      <div class="suggestion-info">
+        <span class="suggestion-name">${m.name}</span>
+        <span class="suggestion-tag">${m.username ? `@${m.username}` : ''} ${m.phone ? `• ${m.phone}` : ''}</span>
+      </div>
+      <div class="suggestion-meta">
+        <span class="rank-badge ${rankClass}">${m.rank || 'ROOKIE'}</span>
+        <span class="points-pill">🪙 ${m.loyaltyPoints || 0} pts</span>
+      </div>
+    `;
+
+    item.onclick = () => {
+      playerInput.value = m.name;
+      if (phoneInput && m.phone) phoneInput.value = m.phone;
+      setSelectedMember(m);
+      suggestionsBox.style.display = 'none';
+    };
+
+    suggestionsBox.appendChild(item);
+  });
+
+  suggestionsBox.style.display = 'block';
+}
 
 if (playerInput && suggestionsBox) {
   playerInput.oninput = () => {
     const val = playerInput.value.trim().toLowerCase();
-    if (!val || state.members.length === 0) {
-      suggestionsBox.style.display = 'none';
-      return;
-    }
-
-    const matches = state.members.filter(m => m.name.toLowerCase().includes(val) || (m.phone && m.phone.includes(val)));
-    if (matches.length === 0) {
-      suggestionsBox.style.display = 'none';
-      return;
-    }
-
-    suggestionsBox.innerHTML = '';
-    matches.slice(0, 5).forEach(m => {
-      const item = document.createElement('div');
-      item.className = 'member-item';
-      item.innerHTML = `<span><strong>${m.name}</strong> ${m.phone ? `(${m.phone})` : ''}</span><span style="color: #06b6d4; font-size: 0.75rem;">${m.visits || 1} Visits</span>`;
-      item.onclick = () => {
-        playerInput.value = m.name;
-        if (m.phone) document.getElementById('player-phone').value = m.phone;
-        suggestionsBox.style.display = 'none';
-      };
-      suggestionsBox.appendChild(item);
-    });
-    suggestionsBox.style.display = 'block';
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => handleMemberSearch(val), 150);
   };
+
+  if (phoneInput) {
+    phoneInput.oninput = () => {
+      const val = phoneInput.value.trim();
+      if (val.length >= 3) {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => handleMemberSearch(val), 150);
+      }
+    };
+  }
 
   document.addEventListener('click', (e) => {
     if (!playerInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
@@ -892,6 +1022,7 @@ document.getElementById('session-form').onsubmit = (e) => {
     consoleName: consoleObj?.name,
     playerName: name,
     phone: phone,
+    userId: state.selectedMember?.id || null,
     durationHours: durationHours,
     controllers: state.selectedControllersCount,
     name: `${consoleObj?.name} (${name})`,
@@ -901,6 +1032,7 @@ document.getElementById('session-form').onsubmit = (e) => {
 
   document.getElementById('player-name').value = '';
   document.getElementById('player-phone').value = '';
+  setSelectedMember(null);
   state.selectedConsoleId = null;
   renderConsolesSelector();
 };
@@ -915,6 +1047,7 @@ document.getElementById('checkout-btn').onclick = () => {
   const now = Date.now();
 
   const sessionData = [];
+  const cloudSessionData = [];
 
   state.cart.forEach((item) => {
     if (item.type === 'session') {
@@ -922,6 +1055,7 @@ document.getElementById('checkout-btn').onclick = () => {
       state.activeSessions[item.consoleId] = {
         playerName: item.playerName,
         phone: item.phone,
+        userId: item.userId || null,
         startTime: now,
         endTime: now + durationMs,
         totalSeconds: item.durationHours * 3600,
@@ -937,6 +1071,15 @@ document.getElementById('checkout-btn').onclick = () => {
         endTime: new Date(now + durationMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         duration: `${item.durationHours} Hour${item.durationHours > 1 ? 's' : ''}`,
         controllers: item.controllers || 0,
+      });
+
+      cloudSessionData.push({
+        consoleId: item.consoleId,
+        playerName: item.playerName,
+        phone: item.phone,
+        userId: item.userId || null,
+        durationHours: item.durationHours,
+        durationSeconds: item.durationHours * 3600,
       });
     }
   });
@@ -958,6 +1101,43 @@ document.getElementById('checkout-btn').onclick = () => {
     paymentMethod: state.paymentMethod,
     type: sessionData.length > 0 ? 'session' : 'snack',
   });
+
+  // Prepare Cloud Payload
+  const orderPayload = {
+    cartItems: state.cart.map(c => ({
+      name: c.name,
+      price: c.price,
+      type: c.type || 'session',
+      quantity: 1,
+    })),
+    totalAmount: finalTotal,
+    paymentMethod: state.paymentMethod,
+    sessionData: cloudSessionData,
+    walkInName: cloudSessionData[0]?.playerName || null,
+    walkInPhone: cloudSessionData[0]?.phone || null,
+    userId: cloudSessionData[0]?.userId || null,
+  };
+
+  // Commit to Cloud Database in real time
+  if (window.terminalAPI?.checkoutOrder) {
+    window.terminalAPI.checkoutOrder(orderPayload).then((res) => {
+      if (res && res.success) {
+        setCloudStatus(true);
+        console.log('[Cloud DB] Order synced to Supabase successfully:', res);
+        if (res.updatedProfile) {
+          console.log(`[Loyalty] Updated member profile: ${res.updatedProfile.loyaltyPoints} pts, Rank: ${res.updatedProfile.rank}`);
+        }
+      } else {
+        console.warn('[Cloud DB] Sync failed or offline. Queued for background sync:', res?.error);
+        setCloudStatus(false);
+        queueOfflineMutation('CHECKOUT', orderPayload);
+      }
+    }).catch((err) => {
+      console.warn('[Cloud DB] Network error. Queued for background sync:', err);
+      setCloudStatus(false);
+      queueOfflineMutation('CHECKOUT', orderPayload);
+    });
+  }
 
   showReceiptModal({
     token: Math.floor(1000 + Math.random() * 9000),
@@ -1112,6 +1292,17 @@ document.getElementById('confirm-extend-btn').onclick = () => {
     type: 'session',
   });
 
+  // Sync extension with Cloud DB
+  if (window.terminalAPI?.sessionAction) {
+    window.terminalAPI.sessionAction('EXTEND', {
+      consoleId: extendingConsoleId,
+      addedSeconds: extendHours * 3600,
+      addedPrice,
+      paymentMethod: 'cash',
+      playerName: session.playerName,
+    }).catch(err => console.warn('[Extend Sync] Failed, queued locally:', err));
+  }
+
   document.getElementById('extend-modal').classList.remove('active');
   saveState();
   renderStationsMonitor();
@@ -1144,6 +1335,9 @@ document.getElementById('confirm-extend-btn').onclick = () => {
 window.endSession = function(consoleId) {
   if (confirm('End this gaming session early? Station will become free.')) {
     delete state.activeSessions[consoleId];
+    if (window.terminalAPI?.sessionAction) {
+      window.terminalAPI.sessionAction('END', { consoleId }).catch(err => console.warn('[End Sync] Failed:', err));
+    }
     saveState();
     renderConsolesSelector();
     renderStationsMonitor();
@@ -1271,6 +1465,105 @@ setInterval(() => {
   }
 }, 1000);
 
+// =========================================================
+// CLOUD DATABASE SYNC & OFFLINE QUEUE
+// =========================================================
+
+function queueOfflineMutation(action, payload) {
+  if (!state.offlineQueue) state.offlineQueue = [];
+  state.offlineQueue.push({ action, payload, timestamp: Date.now() });
+  saveState();
+}
+
+async function flushOfflineQueue() {
+  if (!state.offlineQueue || state.offlineQueue.length === 0) return;
+  if (!window.terminalAPI) return;
+
+  const queueCopy = [...state.offlineQueue];
+  state.offlineQueue = [];
+  saveState();
+
+  for (const item of queueCopy) {
+    try {
+      if (item.action === 'CHECKOUT' && window.terminalAPI.checkoutOrder) {
+        await window.terminalAPI.checkoutOrder(item.payload);
+      } else if (window.terminalAPI.sessionAction) {
+        await window.terminalAPI.sessionAction(item.action, item.payload);
+      }
+    } catch (err) {
+      console.warn('[Offline Queue] Retrying failed item later:', err);
+      state.offlineQueue.push(item);
+      saveState();
+      break;
+    }
+  }
+}
+
+async function syncWithCloudDatabase() {
+  if (!window.terminalAPI?.fetchLiveState) return;
+
+  try {
+    const data = await window.terminalAPI.fetchLiveState();
+    if (data && data.success) {
+      setCloudStatus(true);
+
+      // Consoles from cloud
+      if (data.consoles && data.consoles.length > 0) {
+        data.consoles.forEach(dc => {
+          const existing = state.consoles.find(c => c.id === dc.id);
+          if (!existing) {
+            state.consoles.push({ id: dc.id, name: dc.name, type: dc.type, rate: dc.rate });
+          } else {
+            existing.name = dc.name;
+            existing.type = dc.type;
+          }
+        });
+      }
+
+      // Snacks from cloud
+      if (data.snacks && data.snacks.length > 0) {
+        state.snacks = data.snacks.map(s => ({ id: s.id, name: s.name, price: s.price }));
+        renderSnacks();
+      }
+
+      // Rates from cloud
+      if (data.baseRate) state.baseRate = data.baseRate;
+      if (data.extraControllerRate) state.ctrlRate = data.extraControllerRate;
+
+      // Online bookings from website
+      if (data.upcomingBookings) {
+        state.upcomingBookings = data.upcomingBookings;
+      }
+
+      // Flush offline queue if pending
+      flushOfflineQueue();
+
+      renderConsolesSelector();
+      renderStationsMonitor();
+    } else {
+      setCloudStatus(false);
+    }
+  } catch (err) {
+    console.warn('[Sync] Could not reach cloud backend, running locally:', err);
+    setCloudStatus(false);
+  }
+}
+
+function setCloudStatus(isOnline) {
+  state.isCloudConnected = isOnline;
+  const indicator = document.getElementById('cloud-status-indicator');
+  const text = document.getElementById('cloud-status-text');
+  if (indicator && text) {
+    if (isOnline) {
+      indicator.classList.remove('offline');
+      text.textContent = 'Cloud Synced';
+    } else {
+      indicator.classList.add('offline');
+      text.textContent = 'Offline Mode';
+    }
+  }
+}
+
 // Init
 loadState();
 renderConsolesSelector();
@@ -1279,3 +1572,7 @@ renderCart();
 renderStationsMonitor();
 renderWaitlist();
 renderHistory();
+
+// Background Cloud Synchronization
+syncWithCloudDatabase();
+setInterval(syncWithCloudDatabase, 10000);

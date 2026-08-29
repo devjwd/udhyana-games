@@ -68,9 +68,9 @@
       </nav>
 
       <div class="sidebar-status">
-        <div class="status-indicator">
-          <span class="status-dot"></span>
-          <span>Terminal Online</span>
+        <div class="status-indicator" id="cloud-status-indicator">
+          <span class="status-dot" id="cloud-status-dot"></span>
+          <span id="cloud-status-text">Cloud Synced</span>
         </div>
         <div class="system-clock" id="live-clock">00:00:00</div>
       </div>
@@ -107,6 +107,12 @@
                   <input type="text" id="player-name" placeholder="Search member or enter name..." required
                     autocomplete="off">
                   <div class="member-suggestions" id="member-suggestions" style="display: none;"></div>
+                  <div id="selected-member-badge" class="selected-member-badge" style="display: none;">
+                    <span class="member-rank-tag" id="member-rank-tag">PRO</span>
+                    <span class="member-name-tag" id="member-name-tag">Player</span>
+                    <span class="member-points-tag" id="member-points-tag">🪙 0 Points</span>
+                    <button type="button" class="clear-member-btn" id="clear-member-btn" title="Unlink Member">✕</button>
+                  </div>
                 </div>
                 <div class="form-field">
                   <label>Phone Number (Optional)</label>

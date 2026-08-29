@@ -11,6 +11,7 @@ export interface Session {
   status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
   startTime: string | Date;
   endTime: string | Date;
+  pausedRemainingSeconds?: number | null;
   consoleId: string;
   console: {
     id?: string;

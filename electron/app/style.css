@@ -978,11 +978,163 @@ input:focus, select:focus {
 
 .modal-buttons .btn { flex: 1; }
 
+/* Member Search Dropdown */
+.position-relative {
+  position: relative;
+}
+
+.member-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #0f131a;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.member-suggestion-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #1a202c;
+  transition: background 0.15s ease;
+}
+
+.member-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.member-suggestion-item:hover,
+.member-suggestion-item.selected {
+  background: rgba(99, 102, 241, 0.18);
+}
+
+.suggestion-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.suggestion-name {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: #fff;
+}
+
+.suggestion-tag {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.suggestion-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rank-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.rank-rookie { background: #334155; color: #94a3b8; }
+.rank-regular { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
+.rank-pro { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
+.rank-elite { background: rgba(234, 179, 8, 0.2); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.4); }
+
+.points-pill {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: #34d399;
+  font-weight: 600;
+}
+
+/* Selected Member Badge */
+.selected-member-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.82rem;
+}
+
+.member-rank-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+}
+
+.member-name-tag {
+  font-weight: 600;
+  color: #fff;
+}
+
+.member-points-tag {
+  font-family: var(--font-mono);
+  color: #34d399;
+  font-size: 0.78rem;
+}
+
+.clear-member-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.clear-member-btn:hover {
+  color: #ef4444;
+}
+
+/* Cloud Status Indicator */
+.status-indicator.offline .status-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+}
+
+.status-indicator.offline {
+  color: #f59e0b;
+}
+
+.station-reserved-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
 /* Thermal Printing */
 @media print {
   body { background: #fff; color: #000; }
   .app-layout, .modal-buttons { display: none !important; }
-  .modal-overlay { position: static !important; display: block !important; background: none !important; padding: 0 !important; }
+  .modal-overlay { display: none !important; }
+  .modal-overlay.active { position: static !important; display: block !important; background: none !important; padding: 0 !important; }
   .modal-window { background: none !important; border: none !important; padding: 0 !important; box-shadow: none !important; }
   .thermal-receipt { width: 100% !important; box-shadow: none !important; padding: 0 !important; }
 }

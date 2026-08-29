@@ -114,7 +114,7 @@ export function generateThermalReceiptBytes(data: ESCPOSReceiptData): Uint8Array
     .align('center')
     .size('double')
     .bold(true)
-    .line(data.storeName || 'M80 GAMING LOUNGE')
+    .line(data.storeName || 'UDHYANA GAMES')
     .size('normal')
     .bold(false)
     .line(data.storeSub || 'Official POS Receipt')

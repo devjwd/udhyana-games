@@ -1,4 +1,7 @@
 {
+  "loadRemoteUrl": false,
   "serverUrl": "http://localhost:3000/reception",
-  "notes": "Change serverUrl to your live domain e.g. https://udhyanagames.com/reception when connecting over the internet"
+  "apiBaseUrl": "http://localhost:3000",
+  "terminalSecret": "super-secret-key-for-next-auth-123",
+  "notes": "apiBaseUrl can be changed to your live domain e.g. https://udhyanagames.com to connect directly to the cloud database."
 }

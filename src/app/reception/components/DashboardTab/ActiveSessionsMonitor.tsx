@@ -26,11 +26,19 @@ function SessionCard({
   onEndSession: (sessionId: string) => void;
 }) {
   const [remainingSeconds, setRemainingSeconds] = useState<number>(() => {
+    if (session.status === 'PAUSED' && session.pausedRemainingSeconds != null) {
+      return Math.max(0, session.pausedRemainingSeconds);
+    }
     return Math.max(0, Math.floor((new Date(session.endTime).getTime() - Date.now()) / 1000));
   });
 
   useEffect(() => {
-    if (session.status === 'PAUSED') return;
+    if (session.status === 'PAUSED') {
+      if (session.pausedRemainingSeconds != null) {
+        setRemainingSeconds(Math.max(0, session.pausedRemainingSeconds));
+      }
+      return;
+    }
 
     const tick = () => {
       const rem = Math.max(0, Math.floor((new Date(session.endTime).getTime() - Date.now()) / 1000));
@@ -40,7 +48,7 @@ function SessionCard({
     tick();
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [session.endTime, session.status]);
+  }, [session.endTime, session.status, session.pausedRemainingSeconds]);
 
   const formatTime = (totalSeconds: number) => {
     if (totalSeconds <= 0) return '00:00:00';

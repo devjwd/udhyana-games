@@ -132,7 +132,7 @@ export default function ReceiptSlipModal({
     setIsPrinting(true);
     try {
       const receiptBytes = generateThermalReceiptBytes({
-        storeName: 'M80 GAMING LOUNGE',
+        storeName: 'UDHYANA GAMES',
         storeSub: 'Official POS Receipt',
         staffName,
         dateStr,
@@ -158,7 +158,7 @@ export default function ReceiptSlipModal({
       {/* Printable Thermal Receipt (Visible Only In @media print) */}
       <div className={styles.printableReceipt}>
         <div className={styles.printHeader}>
-          <div className={styles.printBrand}>M80 GAMING LOUNGE</div>
+          <div className={styles.printBrand}>UDHYANA GAMES</div>
           <div className={styles.printSub}>Official Receipt & Game Pass</div>
           <div className={styles.printMeta}>
             <span>Date: {dateStr} {timeStr}</span>

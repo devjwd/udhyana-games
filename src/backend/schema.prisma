@@ -119,16 +119,17 @@ model User {
 }
 
 model GameSession {
-  id          String   @id @default(cuid())
-  userId      String?
-  guestName   String?
-  consoleId   String
-  startTime   DateTime @default(now())
-  endTime     DateTime
-  status      String   @default("ACTIVE") // ACTIVE, COMPLETED
+  id                     String   @id @default(cuid())
+  userId                 String?
+  guestName              String?
+  consoleId              String
+  startTime              DateTime @default(now())
+  endTime                DateTime
+  status                 String   @default("ACTIVE") // ACTIVE, COMPLETED, PAUSED
+  pausedRemainingSeconds Int?     @default(0)
   
-  user        User?    @relation(fields: [userId], references: [id])
-  console     Console  @relation(fields: [consoleId], references: [id])
+  user                   User?    @relation(fields: [userId], references: [id])
+  console                Console  @relation(fields: [consoleId], references: [id])
 
   @@index([status])
   @@index([consoleId])
