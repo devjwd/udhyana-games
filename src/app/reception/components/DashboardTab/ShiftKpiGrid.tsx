@@ -18,7 +18,7 @@ export default function ShiftKpiGrid({
   return (
     <div className={styles.kpiGrid}>
       <div className={styles.kpiCard}>
-        <span className={styles.kpiLabel}>Today's Revenue</span>
+        <span className={styles.kpiLabel}>Today&apos;s Revenue</span>
         <span className={styles.kpiValue} style={{ color: 'var(--primary-accent)' }}>
           PKR {shiftSummary?.grandTotal?.toLocaleString() || 0}
         </span>

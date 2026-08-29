@@ -33,9 +33,9 @@ const HOT_TITLES = new Set([
   'Forza Horizon 5'
 ]);
 
-function getConsoleGamesList(consoleObj: any): string[] {
+function getConsoleGamesList(consoleObj: { hardwareTitle?: string; games?: { game?: { name: string }; name?: string }[] }): string[] {
   if (consoleObj?.games && consoleObj.games.length > 0) {
-    return consoleObj.games.map((g: any) => g.game?.name || g.name).filter(Boolean);
+    return consoleObj.games.map((g: { game?: { name: string }; name?: string }) => g.game?.name || g.name).filter(Boolean) as string[];
   }
   const title = (consoleObj?.hardwareTitle || '').toLowerCase();
   if (title.includes('pc')) return DEFAULT_GAMES_BY_TYPE.pc;
@@ -49,7 +49,7 @@ function BookPageContent() {
   const searchParams = useSearchParams();
   const consoleParam = searchParams.get('console') || '';
 
-  const [consoles, setConsoles] = useState<any[]>([]);
+  const [consoles, setConsoles] = useState<{ id: string; hardwareTitle: string; hourlyRate?: number | null; games?: { game?: { name: string } }[] }[]>([]);
   const [baseRate, setBaseRate] = useState<number>(1000);
   const [selectedConsole, setSelectedConsole] = useState(consoleParam);
   
@@ -91,10 +91,10 @@ function BookPageContent() {
         setConsoles(fetchedConsoles || []);
         if (fetchedBaseRate) setBaseRate(fetchedBaseRate);
 
-        if (consoleParam && fetchedConsoles?.some(c => c.id === consoleParam)) {
+        if (consoleParam) {
           setSelectedConsole(consoleParam);
-        } else if (fetchedConsoles?.length && !selectedConsole) {
-          setSelectedConsole(fetchedConsoles[0].id);
+        } else if (fetchedConsoles?.length) {
+          setSelectedConsole(curr => curr || fetchedConsoles[0].id);
         }
       } catch (err) {
         console.error('Failed to load consoles catalog:', err);
@@ -155,19 +155,20 @@ function BookPageContent() {
     });
   }, [consoles, selectedGame]);
 
-  // Auto-switch selected console if current console isn't in filtered list
-  useEffect(() => {
+  // Auto-derive selected console — if current isn't in filtered list, pick the first one
+  const effectiveSelectedConsole = useMemo(() => {
     if (stationsForSelectedGame.length > 0) {
       const isCurrentInList = stationsForSelectedGame.some(c => c.id === selectedConsole);
       if (!isCurrentInList) {
-        setSelectedConsole(stationsForSelectedGame[0].id);
+        return stationsForSelectedGame[0].id;
       }
     }
+    return selectedConsole;
   }, [stationsForSelectedGame, selectedConsole]);
 
   const selectedConsoleObj = useMemo(() => {
-    return consoles.find(c => c.id === selectedConsole) || consoles[0];
-  }, [consoles, selectedConsole]);
+    return consoles.find(c => c.id === effectiveSelectedConsole) || consoles[0];
+  }, [consoles, effectiveSelectedConsole]);
 
   const currentHourlyRate = selectedConsoleObj?.hourlyRate || baseRate;
   const totalPrice = currentHourlyRate * duration;
@@ -225,7 +226,7 @@ function BookPageContent() {
     setIsSubmitting(true);
     try {
       const startTime = new Date(`${date}T${time}:00`);
-      // @ts-ignore
+      // @ts-expect-error - session user id type mismatch
       const res = await createBooking(session?.user?.id, selectedConsole, startTime, duration);
       if (res && 'error' in res && res.error) {
         setError(res.error);
@@ -233,8 +234,9 @@ function BookPageContent() {
       }
       alert(`Booking Confirmed for ${selectedConsoleObj?.hardwareTitle || 'Station'}! You can pay at the reception desk.`);
       router.push('/profile');
-    } catch (err: any) {
-      setError(err?.message || 'Failed to create booking.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to create booking.';
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -355,7 +357,7 @@ function BookPageContent() {
 
                       {filteredDropdownGames.length === 0 && (
                         <div className={styles.noResults}>
-                          No installed game found matching "{gameSearch}".
+                          No installed game found matching &ldquo;{gameSearch}&rdquo;.
                         </div>
                       )}
                     </div>

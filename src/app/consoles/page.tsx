@@ -10,9 +10,8 @@ import { getConsoles, getBaseHourlyRate } from '@/backend/actions';
 
 export default function Consoles() {
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
-  const [dbConsoles, setDbConsoles] = useState<any[]>([]);
+  const [dbConsoles, setDbConsoles] = useState<{ id: string; hardwareTitle: string; hourlyRate?: number | null; imagePath?: string | null; specs?: string | null; games: { game: { name: string } }[] }[]>([]);
   const [baseRate, setBaseRate] = useState(1000);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
@@ -25,8 +24,6 @@ export default function Consoles() {
         setBaseRate(rate);
       } catch (err) {
         console.error('Failed to load consoles:', err);
-      } finally {
-        setLoading(false);
       }
     }
     loadData();
@@ -119,10 +116,10 @@ export default function Consoles() {
                   title={c.hardwareTitle}
                   specs={c.specs || `PKR ${c.hourlyRate || baseRate}/hr · High Refresh Display`}
                   description={`Equipped station available at ${currentLocation?.title}. Play top competitive titles with low latency.`}
-                  image={getStationImage(c.hardwareTitle, c.imagePath)}
+                  image={getStationImage(c.hardwareTitle, c.imagePath || undefined)}
                   status="Available Now"
                   statusColor="#d6ff01"
-                  games={c.games && c.games.length > 0 ? c.games.map((g: any) => g.game.name) : ["Tekken 8", "FC 24", "Call of Duty", "Valorant"]}
+                  games={c.games && c.games.length > 0 ? c.games.map((g: { game: { name: string } }) => g.game.name) : ["Tekken 8", "FC 24", "Call of Duty", "Valorant"]}
                 />
               ))
             )}

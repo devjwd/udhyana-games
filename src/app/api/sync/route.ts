@@ -3,18 +3,44 @@ import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    // Allow authorized staff
-    const isStaff = session?.user?.role === 'ADMIN' || session?.user?.role === 'RECEPTIONIST';
+    const role = session?.user?.role;
+    const isStaff = role === 'ADMIN' || role === 'RECEPTIONIST';
 
-    // Even if not logged in (e.g. initial fetch during local launch), let's fetch consoles/snacks
-    const [consoles, snacks, activeSessions, bookings, waitlist] = await Promise.all([
+    // Public data: consoles & snacks (no PII)
+    const [consoles, snacks] = await Promise.all([
       prisma.console.findMany({
         include: { games: { include: { game: true } } },
       }),
       prisma.snack.findMany(),
+    ]);
+
+    const formattedConsoles = consoles.map((c) => ({
+      id: c.id,
+      hardwareTitle: c.hardwareTitle,
+      hardwareSlug: c.hardwareSlug,
+      hourlyRate: c.hourlyRate,
+      imagePath: c.imagePath,
+      specs: c.specs,
+      games: c.games.map((g) => g.game.name),
+    }));
+
+    // PII-containing data: only for authenticated staff
+    if (!isStaff) {
+      return NextResponse.json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        consoles: formattedConsoles,
+        snacks,
+        activeSessions: [],
+        bookings: [],
+        waitlist: [],
+      });
+    }
+
+    const [activeSessions, bookings, waitlist] = await Promise.all([
       prisma.gameSession.findMany({
         where: { status: 'ACTIVE' },
         include: {
@@ -38,16 +64,6 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    const formattedConsoles = consoles.map((c) => ({
-      id: c.id,
-      hardwareTitle: c.hardwareTitle,
-      hardwareSlug: c.hardwareSlug,
-      hourlyRate: c.hourlyRate,
-      imagePath: c.imagePath,
-      specs: c.specs,
-      games: c.games.map((g) => g.game.name),
-    }));
-
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
@@ -57,9 +73,10 @@ export async function GET(req: NextRequest) {
       bookings,
       waitlist,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
     console.error('[API /api/sync GET Error]', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 
@@ -99,9 +116,9 @@ export async function POST(req: NextRequest) {
               paymentMethod: paymentMethod || 'cash',
               status: 'COMPLETED',
               items: {
-                create: (orderItems || []).map((item: any) => ({
+                create: (orderItems || []).map((item: { name: string; price: string | number; quantity?: number; type?: string }) => ({
                   name: item.name,
-                  price: parseFloat(item.price),
+                  price: parseFloat(String(item.price)),
                   quantity: item.quantity || 1,
                   type: item.type || 'session',
                 })),
@@ -162,9 +179,9 @@ export async function POST(req: NextRequest) {
             paymentMethod: paymentMethod || 'cash',
             status: 'COMPLETED',
             items: {
-              create: (items || []).map((i: any) => ({
+              create: (items || []).map((i: { name: string; price: string | number; quantity?: number; type?: string }) => ({
                 name: i.name,
-                price: parseFloat(i.price),
+                price: parseFloat(String(i.price)),
                 quantity: i.quantity || 1,
                 type: i.type || 'snack',
               })),
@@ -207,8 +224,9 @@ export async function POST(req: NextRequest) {
       default:
         return NextResponse.json({ success: false, error: `Unknown action: ${action}` }, { status: 400 });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
     console.error('[API /api/sync POST Error]', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

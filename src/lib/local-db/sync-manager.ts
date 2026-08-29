@@ -1,4 +1,4 @@
-import { localDb, SyncMutation, LocalGameSession, LocalOrder, LocalWaitlist } from './db';
+import { localDb, SyncMutation, LocalGameSession, LocalWaitlist } from './db';
 
 export type SyncState = 'ONLINE' | 'OFFLINE' | 'SYNCING';
 
@@ -81,7 +81,7 @@ class SyncManager {
   /**
    * Enqueues an action to be synchronized with the remote PostgreSQL database.
    */
-  public async enqueue(actionType: SyncMutation['actionType'], payload: any): Promise<string> {
+  public async enqueue(actionType: SyncMutation['actionType'], payload: Record<string, unknown>): Promise<string> {
     const id = `mut_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const mutation: SyncMutation = {
       id,
@@ -114,6 +114,9 @@ class SyncManager {
     await this.notify();
 
     try {
+      // 0. Clean up stale mutations older than 24 hours
+      await this.cleanupStaleMutations();
+
       // 1. Push local mutations
       await this.pushPendingMutations();
 
@@ -121,12 +124,29 @@ class SyncManager {
       await this.pullRemoteUpdates();
 
       this.lastSyncedAt = new Date();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Sync failed';
       console.error('[SyncManager] Sync failed:', err);
-      this.lastError = err.message || 'Sync failed';
+      this.lastError = message;
     } finally {
       this.isSyncing = false;
       await this.notify();
+    }
+  }
+
+  private async cleanupStaleMutations(): Promise<void> {
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const stale = await localDb.syncQueue
+      .where('status')
+      .equals('PENDING')
+      .filter((m) => new Date(m.createdAt).getTime() < oneDayAgo)
+      .toArray();
+
+    for (const m of stale) {
+      await localDb.syncQueue.update(m.id, {
+        status: 'DEAD',
+        lastError: 'Expired: mutation pending for more than 24 hours without sync.',
+      });
     }
   }
 
@@ -139,8 +159,20 @@ class SyncManager {
     if (pendingMutations.length === 0) return;
 
     for (const mutation of pendingMutations) {
+      const nextAttempts = mutation.attempts + 1;
+      
+      // If mutation exceeded maximum retry threshold, move to DEAD queue
+      if (nextAttempts > 5) {
+        await localDb.syncQueue.update(mutation.id, {
+          status: 'DEAD',
+          attempts: nextAttempts,
+          lastError: 'Exceeded maximum retry limit (5 attempts). Moved to dead-letter queue.',
+        });
+        continue;
+      }
+
       try {
-        await localDb.syncQueue.update(mutation.id, { status: 'SYNCING', attempts: mutation.attempts + 1 });
+        await localDb.syncQueue.update(mutation.id, { status: 'SYNCING', attempts: nextAttempts });
 
         const res = await fetch('/api/sync', {
           method: 'POST',
@@ -154,19 +186,35 @@ class SyncManager {
 
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
-          throw new Error(errorData.error || `Server responded with status ${res.status}`);
+          const errorMsg = errorData.error || `Server error ${res.status}`;
+          
+          // If 4xx client/payload error, don't block subsequent mutations — mark DEAD
+          if (res.status >= 400 && res.status < 500) {
+            await localDb.syncQueue.update(mutation.id, {
+              status: 'DEAD',
+              lastError: `Rejected by server (${res.status}): ${errorMsg}`,
+            });
+            continue;
+          }
+          
+          throw new Error(errorMsg);
         }
 
         // Successfully synced
         await localDb.syncQueue.delete(mutation.id);
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Network error';
         console.error(`[SyncManager] Failed to sync mutation ${mutation.id}:`, error);
+        
         await localDb.syncQueue.update(mutation.id, {
-          status: 'PENDING',
-          lastError: error.message || 'Network error',
+          status: nextAttempts >= 5 ? 'DEAD' : 'PENDING',
+          lastError: message,
         });
-        // Stop batch execution on network failure
-        throw error;
+
+        // If genuinely offline, halt remaining batch
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          throw error;
+        }
       }
     }
   }
@@ -190,10 +238,18 @@ class SyncManager {
     }
     if (data.activeSessions) {
       // Sync remote sessions to local
-      const sessionsToPut: LocalGameSession[] = data.activeSessions.map((s: any) => ({
+      const sessionsToPut: LocalGameSession[] = (data.activeSessions as Array<{
+        id: string;
+        userId?: string | null;
+        guestName?: string | null;
+        consoleId: string;
+        startTime: string | Date;
+        endTime: string | Date;
+        status: 'ACTIVE' | 'COMPLETED';
+      }>).map((s) => ({
         id: s.id,
-        userId: s.userId,
-        guestName: s.guestName,
+        userId: s.userId || undefined,
+        guestName: s.guestName || undefined,
         consoleId: s.consoleId,
         startTime: new Date(s.startTime).toISOString(),
         endTime: new Date(s.endTime).toISOString(),
@@ -207,10 +263,16 @@ class SyncManager {
       await localDb.bookings.bulkPut(data.bookings);
     }
     if (data.waitlist) {
-      const waitlistToPut: LocalWaitlist[] = data.waitlist.map((w: any) => ({
+      const waitlistToPut: LocalWaitlist[] = (data.waitlist as Array<{
+        id: string;
+        name: string;
+        requested?: string;
+        status: 'WAITING' | 'ASSIGNED' | 'CANCELLED';
+        createdAt: string | Date;
+      }>).map((w) => ({
         id: w.id,
         name: w.name,
-        requested: w.requested,
+        requested: w.requested || 'Any Console',
         status: w.status,
         createdAt: new Date(w.createdAt).toISOString(),
         synced: true,

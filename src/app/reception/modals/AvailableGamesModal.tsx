@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styles from '../page.module.css';
 import { getAllMasterGames, createMasterGame, toggleConsoleGame, deleteMasterGame } from '@/backend/actions';
 import { ConsoleStation } from '../types';
@@ -13,30 +13,43 @@ interface AvailableGamesModalProps {
   onSelectStation?: (consoleId: string) => void;
 }
 
+interface MasterGameItem {
+  id: string;
+  name: string;
+  consoles?: { consoleId: string; console?: { hardwareTitle: string } }[];
+}
+
 export default function AvailableGamesModal({
   isOpen,
   onClose,
   consoles,
   onSelectStation
 }: AvailableGamesModalProps) {
-  const [games, setGames] = useState<any[]>([]);
+  const [games, setGames] = useState<MasterGameItem[]>([]);
   const [search, setSearch] = useState('');
   const [newGameTitle, setNewGameTitle] = useState('');
   const [isAdding, setIsAdding] = useState(false);
-  const [selectedGame, setSelectedGame] = useState<any | null>(null);
 
-  const loadGames = async () => {
+  const loadGames = useCallback(async () => {
     try {
       const data = await getAllMasterGames();
-      setGames(data);
+      setGames(data as unknown as MasterGameItem[]);
     } catch {
       // ignore
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
-      loadGames();
+      let active = true;
+      getAllMasterGames()
+        .then((data) => {
+          if (active) setGames(data as unknown as MasterGameItem[]);
+        })
+        .catch(() => {});
+      return () => {
+        active = false;
+      };
     }
   }, [isOpen]);
 
@@ -50,8 +63,9 @@ export default function AvailableGamesModal({
       toast.success(`"${newGameTitle.trim()}" added to library!`);
       setNewGameTitle('');
       await loadGames();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to add game.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to add game.';
+      toast.error(message);
     } finally {
       setIsAdding(false);
     }
@@ -135,7 +149,7 @@ export default function AvailableGamesModal({
         {/* Games List */}
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.25rem' }}>
           {filteredGames.map(g => {
-            const installedConsoleIds = g.consoles?.map((c: any) => c.consoleId) || [];
+            const installedConsoleIds = g.consoles?.map((c: { consoleId: string }) => c.consoleId) || [];
 
             return (
               <div

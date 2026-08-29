@@ -67,7 +67,7 @@ const DEFAULT_SNACKS: SnackItem[] = [
 export default function ReceptionPortal() {
   const { data: session, status: authStatus } = useSession();
   const [activeTab, setActiveTab] = useState<'register' | 'data'>('register');
-  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(() => typeof window !== 'undefined' ? soundManager.getMuted() : false);
 
   // Business Rates & Catalog
   const [baseRate, setBaseRate] = useState<number>(1000);
@@ -97,10 +97,8 @@ export default function ReceptionPortal() {
 
   const expiredNotifiedRef = useRef<Set<string>>(new Set());
 
-  const isStaff = session?.user && (
-    (session.user as any).role === 'ADMIN' ||
-    (session.user as any).role === 'RECEPTIONIST'
-  );
+  const userRole = (session?.user as { role?: string } | undefined)?.role;
+  const isStaff = userRole === 'ADMIN' || userRole === 'RECEPTIONIST';
 
   // Calculated Duration Options
   const durations: DurationOption[] = [
@@ -137,15 +135,13 @@ export default function ReceptionPortal() {
           toast.error(`Session Time Expired: ${s.console.hardwareTitle} (${pName})`, { duration: 6000 });
         }
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to fetch dashboard data:', err);
     }
   }, []);
 
   // Initial Load & Polling Interval (15 seconds)
   useEffect(() => {
-    setIsMuted(soundManager.getMuted());
-
     async function loadCatalog() {
       try {
         const [rate, extraRate, fetchedSnacks, fetchedConsoles] = await Promise.all([
@@ -167,7 +163,7 @@ export default function ReceptionPortal() {
         }
 
         await fetchLiveDashboardData();
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to load initial catalog:', err);
       }
     }
@@ -332,8 +328,9 @@ export default function ReceptionPortal() {
 
       // Refresh live dashboard in background without blocking UI
       fetchLiveDashboardData().catch(console.error);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to process checkout.', { id: 'checkout' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to process checkout.';
+      toast.error(message, { id: 'checkout' });
       setIsSubmittingOrder(false);
     }
   };
@@ -344,8 +341,9 @@ export default function ReceptionPortal() {
       await addWaitlistEntry(name, requestedStation);
       toast.success(`${name} added to waitlist queue!`);
       await fetchLiveDashboardData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to add to waitlist.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to add to waitlist.';
+      toast.error(message);
     }
   };
 
@@ -381,8 +379,9 @@ export default function ReceptionPortal() {
       toast.success(`Station assigned to ${guestName}! Gaming timer is now ACTIVE.${paymentNotice}`);
       setAssignWaitlistModalWaiter(null);
       await fetchLiveDashboardData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to assign station from waitlist.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to assign station from waitlist.';
+      toast.error(message);
     }
   };
 
@@ -391,8 +390,9 @@ export default function ReceptionPortal() {
       await removeWaitlistEntry(id);
       toast.success('Waitlist entry removed.');
       await fetchLiveDashboardData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to remove waitlist entry.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to remove waitlist entry.';
+      toast.error(message);
     }
   };
 
@@ -408,8 +408,9 @@ export default function ReceptionPortal() {
         toast.success(`Session paused on ${s.console.hardwareTitle}`);
       }
       await fetchLiveDashboardData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to toggle session state.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to toggle session state.';
+      toast.error(message);
     }
   };
 
@@ -419,8 +420,9 @@ export default function ReceptionPortal() {
         await endGameSession(sessionId);
         toast.success('Session ended.');
         await fetchLiveDashboardData();
-      } catch (err: any) {
-        toast.error(err.message || 'Failed to end session.');
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to end session.';
+        toast.error(message);
       }
     }
   };
@@ -440,8 +442,9 @@ export default function ReceptionPortal() {
       toast.success(`Added +${Math.round(additionalSeconds / 60)} minutes (Paid PKR ${amount} via ${paymentMethod.toUpperCase()})!`);
       setAddTimeModalSession(null);
       await fetchLiveDashboardData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to extend session.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to extend session.';
+      toast.error(message);
     }
   };
 
@@ -454,8 +457,9 @@ export default function ReceptionPortal() {
       toast.success('Station transferred successfully!');
       setTransferModalSession(null);
       await fetchLiveDashboardData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to transfer station.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to transfer station.';
+      toast.error(message);
     }
   };
 
@@ -470,8 +474,9 @@ export default function ReceptionPortal() {
       toast.success('Reservation checked in! Station is now ACTIVE.');
       setCheckInModalBooking(null);
       await fetchLiveDashboardData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to check in reservation.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to check in reservation.';
+      toast.error(message);
     }
   };
 
@@ -484,8 +489,9 @@ export default function ReceptionPortal() {
         }
         toast.success(`Reservation for ${playerName} cancelled.`);
         await fetchLiveDashboardData();
-      } catch (err: any) {
-        toast.error(err.message || 'Failed to cancel reservation.');
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to cancel reservation.';
+        toast.error(message);
       }
     }
   };

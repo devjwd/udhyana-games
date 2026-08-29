@@ -163,14 +163,25 @@ export async function printDirectWebSerial(bytes: Uint8Array): Promise<boolean> 
   }
 
   try {
-    const port = await (navigator as any).serial.requestPort();
+    interface SerialPortLike {
+      open: (options: { baudRate: number }) => Promise<void>;
+      writable: {
+        getWriter: () => {
+          write: (data: Uint8Array) => Promise<void>;
+          releaseLock: () => void;
+        };
+      };
+      close: () => Promise<void>;
+    }
+    const nav = navigator as unknown as { serial: { requestPort: () => Promise<SerialPortLike> } };
+    const port = await nav.serial.requestPort();
     await port.open({ baudRate: 9600 });
     const writer = port.writable.getWriter();
     await writer.write(bytes);
     writer.releaseLock();
     await port.close();
     return true;
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Web Serial Print Error:', err);
     throw err;
   }

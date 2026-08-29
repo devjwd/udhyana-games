@@ -16,6 +16,24 @@ interface ReceiptSlipModalProps {
   staffName?: string;
 }
 
+interface ElectronPrinter {
+  name: string;
+  isDefault?: boolean;
+}
+
+interface ElectronApi {
+  isDesktop?: boolean;
+  getPrinters?: () => Promise<ElectronPrinter[]>;
+  printReceipt?: (options: { silent?: boolean; deviceName?: string }) => Promise<boolean>;
+}
+
+function getElectronApi(): ElectronApi | undefined {
+  if (typeof window !== 'undefined') {
+    return (window as unknown as { electronAPI?: ElectronApi }).electronAPI;
+  }
+  return undefined;
+}
+
 export default function ReceiptSlipModal({
   isOpen,
   onClose,
@@ -25,11 +43,22 @@ export default function ReceiptSlipModal({
   onConfirmPayment,
   staffName = 'Staff'
 }: ReceiptSlipModalProps) {
-  const [printers, setPrinters] = useState<any[]>([]);
-  const [selectedPrinter, setSelectedPrinter] = useState<string>('');
-  const [silentPrint, setSilentPrint] = useState<boolean>(true);
+  const [printers, setPrinters] = useState<ElectronPrinter[]>([]);
+  const [selectedPrinter, setSelectedPrinter] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('pos_thermal_printer_name') || '';
+    }
+    return '';
+  });
+  const [silentPrint, setSilentPrint] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('pos_thermal_silent_print') !== 'false';
+    }
+    return true;
+  });
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
-  const isDesktop = typeof window !== 'undefined' && Boolean((window as any).electronAPI?.isDesktop);
+  const electronApi = getElectronApi();
+  const isDesktop = Boolean(electronApi?.isDesktop);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -40,27 +69,22 @@ export default function ReceiptSlipModal({
     if (isOpen) {
       window.addEventListener('keydown', handleKeyDown);
 
-      // Load saved printer preference
-      const savedPrinter = localStorage.getItem('pos_thermal_printer_name');
-      const savedSilent = localStorage.getItem('pos_thermal_silent_print');
-      if (savedPrinter) setSelectedPrinter(savedPrinter);
-      if (savedSilent !== null) setSilentPrint(savedSilent === 'true');
-
       // Fetch installed printers if in Electron Desktop app
-      if (isDesktop && (window as any).electronAPI?.getPrinters) {
-        (window as any).electronAPI.getPrinters().then((list: any[]) => {
+      if (isDesktop && electronApi?.getPrinters) {
+        electronApi.getPrinters().then((list) => {
           if (Array.isArray(list) && list.length > 0) {
             setPrinters(list);
-            if (!savedPrinter) {
+            setSelectedPrinter((curr) => {
+              if (curr) return curr;
               const defaultP = list.find(p => p.isDefault) || list[0];
-              if (defaultP) setSelectedPrinter(defaultP.name);
-            }
+              return defaultP ? defaultP.name : '';
+            });
           }
         }).catch(console.error);
       }
     }
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isSubmitting, isDesktop, onClose]);
+  }, [isOpen, isSubmitting, isDesktop, electronApi, onClose]);
 
   if (!isOpen) return null;
 
@@ -82,8 +106,8 @@ export default function ReceiptSlipModal({
   const handlePrint = async () => {
     setIsPrinting(true);
     try {
-      if (isDesktop && (window as any).electronAPI?.printReceipt) {
-        const success = await (window as any).electronAPI.printReceipt({
+      if (isDesktop && electronApi?.printReceipt) {
+        const success = await electronApi.printReceipt({
           silent: silentPrint,
           deviceName: selectedPrinter || undefined,
         });
@@ -96,8 +120,9 @@ export default function ReceiptSlipModal({
         // In standard browser: if print dialog fallback
         window.print();
       }
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to print receipt.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to print receipt.';
+      toast.error(message);
     } finally {
       setIsPrinting(false);
     }
@@ -118,8 +143,9 @@ export default function ReceiptSlipModal({
       });
       await printDirectWebSerial(receiptBytes);
       toast.success('ESC/POS direct print successful!');
-    } catch (err: any) {
-      toast.error(err?.message || 'Direct USB/Serial print failed.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Direct USB/Serial print failed.';
+      toast.error(message);
     } finally {
       setIsPrinting(false);
     }

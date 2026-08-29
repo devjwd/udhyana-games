@@ -812,7 +812,7 @@ document.getElementById('admin-restore-file').onchange = (e) => {
         saveState();
         location.reload();
       }
-    } catch (err) {
+    } catch {
       alert('Invalid backup file.');
     }
   };
@@ -853,11 +853,11 @@ window.removeFromCart = function(index) {
   renderCart();
 };
 
-function quickAssign(consoleId) {
+window.quickAssign = function quickAssign(consoleId) {
   state.selectedConsoleId = consoleId;
   switchTab('register');
   renderConsolesSelector();
-}
+};
 
 // Form Submission
 document.getElementById('session-form').onsubmit = (e) => {

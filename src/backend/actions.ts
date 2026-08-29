@@ -206,6 +206,14 @@ export async function deleteProduct(id: string) {
   revalidatePath('/shop');
 }
 
+export const getProductById = unstable_cache(
+  async (id: string) => {
+    return await prisma.product.findUnique({ where: { id } });
+  },
+  ['product-by-id'],
+  { tags: ['products'] }
+);
+
 // ========================
 // SNACKS
 // ========================
@@ -1900,7 +1908,7 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
   const durationHours = durationSeconds / 3600;
 
   const baseRate = await getBaseHourlyRate();
-  const hourlyRateToUse = (booking.console as any)?.hourlyRate || baseRate;
+  const hourlyRateToUse = booking.console.hourlyRate || baseRate;
   const totalAmount = Math.round(durationHours * hourlyRateToUse);
 
   const activeSession = await prisma.gameSession.findFirst({

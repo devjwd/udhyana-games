@@ -30,8 +30,9 @@ export default function CancelBookingButton({
       }
       alert('Reservation cancelled successfully. Your time slot has been released.');
       router.refresh();
-    } catch (err: any) {
-      alert(err?.message || 'Failed to cancel reservation.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to cancel reservation.';
+      alert(message);
     } finally {
       setIsCancelling(false);
     }

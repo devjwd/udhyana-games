@@ -12,26 +12,29 @@ interface TransferModalProps {
   onConfirm: (sessionId: string, targetConsoleId: string) => Promise<void>;
 }
 
-export default function TransferModal({
+function TransferDialog({
   session,
   consoles,
   checkAvailability,
   onClose,
   onConfirm
-}: TransferModalProps) {
+}: {
+  session: Session;
+  consoles: ConsoleStation[];
+  checkAvailability: (consoleId: string, durationSeconds: number) => { available: boolean; reason: string };
+  onClose: () => void;
+  onConfirm: (sessionId: string, targetConsoleId: string) => Promise<void>;
+}) {
   const [targetConsoleId, setTargetConsoleId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    setTargetConsoleId('');
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isSubmitting) onClose();
     };
-    if (session) window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [session, isSubmitting, onClose]);
-
-  if (!session) return null;
+  }, [isSubmitting, onClose]);
 
   const handleSubmit = async () => {
     if (!targetConsoleId) return;
@@ -101,4 +104,9 @@ export default function TransferModal({
       </div>
     </div>
   );
+}
+
+export default function TransferModal(props: TransferModalProps) {
+  if (!props.session) return null;
+  return <TransferDialog key={props.session.id} {...props} session={props.session} />;
 }

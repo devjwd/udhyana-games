@@ -14,8 +14,7 @@ export default function DigitalGamerPass({
   userId,
   username,
   fullName,
-  rank = 'Rookie',
-  loyaltyPoints = 0
+  rank = 'Rookie'
 }: DigitalGamerPassProps) {
   const [copied, setCopied] = useState(false);
   const passId = `UDH-${userId.slice(-8).toUpperCase()}`;

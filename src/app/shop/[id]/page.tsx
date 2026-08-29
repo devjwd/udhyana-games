@@ -1,18 +1,57 @@
 'use client';
 
-import { products } from '@/data/products';
 import Image from 'next/image';
 import Link from 'next/link';
-import { use } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { useCart } from '@/context/CartContext';
+import { getProductById } from '@/backend/actions';
+import { use } from 'react';
 import styles from './page.module.css';
+
+interface ProductData {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+  imageUrl: string;
+  description: string | null;
+}
 
 export default function ProductDetails({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const product = products.find(p => p.id === id);
   const { addItem } = useCart();
+  const [product, setProduct] = useState<ProductData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadProduct() {
+      try {
+        const data = await getProductById(id);
+        setProduct(data as ProductData | null);
+      } catch {
+        setProduct(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadProduct();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <main className={styles.main}>
+          <div className={styles.notFound}>
+            <h2>Loading...</h2>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   if (!product) {
     return (
@@ -32,11 +71,13 @@ export default function ProductDetails({ params }: { params: Promise<{ id: strin
   const handleAddToCart = () => {
     addItem({
       id: product.id,
-      name: product.title,
-      price: parseFloat(product.price.replace('$', '')),
-      image: product.image,
+      name: product.name,
+      price: product.price,
+      image: product.imageUrl,
     });
   };
+
+  const formattedPrice = `PKR ${product.price.toLocaleString()}`;
 
   return (
     <>
@@ -51,25 +92,25 @@ export default function ProductDetails({ params }: { params: Promise<{ id: strin
         <div className={styles.productContainer}>
           <div className={styles.imageSection}>
             <div className={styles.imageWrapper}>
-              <Image src={product.image} alt={product.title} fill className={styles.image} />
+              <Image src={product.imageUrl} alt={product.name} fill className={styles.image} />
             </div>
             <div className={styles.glowBg}></div>
           </div>
           
           <div className={styles.infoSection}>
             <div className={styles.categoryBadge}>{product.category}</div>
-            <h1 className={styles.title}>{product.title}</h1>
-            <p className={styles.price}>{product.price}</p>
+            <h1 className={styles.title}>{product.name}</h1>
+            <p className={styles.price}>{formattedPrice}</p>
             
             <div className={styles.divider}></div>
             
             <h3 className={styles.descriptionTitle}>Overview</h3>
-            <p className={styles.description}>{product.description}</p>
+            <p className={styles.description}>{product.description || 'No description available.'}</p>
             
             <div className={styles.features}>
               <div className={styles.featureItem}>✓ Premium Quality</div>
-              <div className={styles.featureItem}>✓ Free Shipping</div>
-              <div className={styles.featureItem}>✓ 1 Year Warranty</div>
+              <div className={styles.featureItem}>✓ Available at Reception</div>
+              <div className={styles.featureItem}>✓ Loyalty Points Earned</div>
             </div>
 
             <button className={styles.addBtn} onClick={handleAddToCart}>Add to Cart</button>
@@ -80,4 +121,3 @@ export default function ProductDetails({ params }: { params: Promise<{ id: strin
     </>
   );
 }
-

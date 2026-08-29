@@ -27,55 +27,53 @@ interface AssignWaitlistModalProps {
   ) => Promise<void>;
 }
 
-export default function AssignWaitlistModal({
+function parseInitialDuration(requested: string): string {
+  const req = requested.toLowerCase();
+  if (req.includes('3h') || req.includes('3 hours') || req.includes('10800')) return '10800';
+  if (req.includes('2h') || req.includes('2 hours') || req.includes('7200')) return '7200';
+  if (req.includes('30m') || req.includes('0.5h') || req.includes('1800')) return '1800';
+  return '3600';
+}
+
+function parseInitialConsole(
+  requested: string,
+  consoles: { id: string; name: string }[],
+  checkAvailability: (id: string, sec: number) => { available: boolean }
+): string {
+  const req = requested.toLowerCase();
+  const matched = consoles.find(c =>
+    c.name.toLowerCase().includes(req.split(' •')[0].trim().toLowerCase()) ||
+    c.id.toLowerCase() === req.split(' •')[0].trim().toLowerCase()
+  );
+  if (matched) return matched.id;
+  const firstAvailable = consoles.find(c => checkAvailability(c.id, 3600).available);
+  return firstAvailable ? firstAvailable.id : (consoles[0]?.id || '');
+}
+
+function AssignWaitlistDialog({
   waiter,
   consoles,
   durations,
   checkAvailability,
   onClose,
   onConfirm
-}: AssignWaitlistModalProps) {
-  const [selectedConsoleId, setSelectedConsoleId] = useState<string>('');
-  const [selectedDurationId, setSelectedDurationId] = useState<string>('3600');
+}: AssignWaitlistModalProps & { waiter: WaitlistEntry }) {
+  const [selectedConsoleId, setSelectedConsoleId] = useState<string>(() =>
+    parseInitialConsole(waiter.requested, consoles, checkAvailability)
+  );
+  const [selectedDurationId, setSelectedDurationId] = useState<string>(() =>
+    parseInitialDuration(waiter.requested)
+  );
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'account'>('cash');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (waiter) {
-      setPaymentMethod('cash');
-      // Try to parse duration from requested string
-      const req = waiter.requested.toLowerCase();
-      if (req.includes('3h') || req.includes('3 hours') || req.includes('10800')) {
-        setSelectedDurationId('10800');
-      } else if (req.includes('2h') || req.includes('2 hours') || req.includes('7200')) {
-        setSelectedDurationId('7200');
-      } else if (req.includes('30m') || req.includes('0.5h') || req.includes('1800')) {
-        setSelectedDurationId('1800');
-      } else {
-        setSelectedDurationId('3600');
-      }
-
-      // Try to match requested console
-      const matched = consoles.find(c =>
-        c.name.toLowerCase().includes(req.split(' •')[0].trim().toLowerCase()) ||
-        c.id.toLowerCase() === req.split(' •')[0].trim().toLowerCase()
-      );
-      if (matched) {
-        setSelectedConsoleId(matched.id);
-      } else {
-        const firstAvailable = consoles.find(c => checkAvailability(c.id, 3600).available);
-        setSelectedConsoleId(firstAvailable ? firstAvailable.id : (consoles[0]?.id || ''));
-      }
-    }
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isSubmitting) onClose();
     };
-    if (waiter) window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [waiter, consoles, checkAvailability, isSubmitting, onClose]);
-
-  if (!waiter) return null;
+  }, [isSubmitting, onClose]);
 
   const isPrepaid = waiter.requested.toUpperCase().includes('PAID');
   const currentDuration = durations.find(d => d.id === selectedDurationId) || durations[1] || durations[0];
@@ -264,4 +262,9 @@ export default function AssignWaitlistModal({
       </div>
     </div>
   );
+}
+
+export default function AssignWaitlistModal(props: AssignWaitlistModalProps) {
+  if (!props.waiter) return null;
+  return <AssignWaitlistDialog key={props.waiter.id} {...props} waiter={props.waiter} />;
 }

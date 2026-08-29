@@ -15,8 +15,15 @@ export default function WaitlistQueueTable({
   onAssignWaitlist,
   onRemoveWaitlist
 }: WaitlistQueueTableProps) {
+  const [currentTime, setCurrentTime] = React.useState<number>(() => Date.now());
+
+  React.useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(Date.now()), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const getWaitTime = (createdAt: string | Date) => {
-    const mins = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
+    const mins = Math.floor((currentTime - new Date(createdAt).getTime()) / 60000);
     if (mins < 1) return 'Just now';
     if (mins >= 60) {
       const hrs = Math.floor(mins / 60);

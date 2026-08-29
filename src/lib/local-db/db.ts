@@ -90,11 +90,11 @@ export interface SyncMutation {
     | 'ADD_WAITLIST' 
     | 'UPDATE_WAITLIST_STATUS' 
     | 'CANCEL_BOOKING';
-  payload: any;
+  payload: Record<string, unknown>;
   createdAt: string;
   attempts: number;
   lastError?: string;
-  status: 'PENDING' | 'SYNCING' | 'SYNCED' | 'FAILED';
+  status: 'PENDING' | 'SYNCING' | 'SYNCED' | 'FAILED' | 'DEAD';
 }
 
 export class UdhyanaLocalDatabase extends Dexie {

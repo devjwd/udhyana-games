@@ -11,29 +11,29 @@ interface AddTimeModalProps {
   onConfirm: (sessionId: string, additionalSeconds: number, paymentMethod: string, amount: number) => Promise<void>;
 }
 
-export default function AddTimeModal({
+function AddTimeModalDialog({
   session,
   baseRate,
   onClose,
   onConfirm
-}: AddTimeModalProps) {
+}: {
+  session: Session;
+  baseRate: number;
+  onClose: () => void;
+  onConfirm: (sessionId: string, additionalSeconds: number, paymentMethod: string, amount: number) => Promise<void>;
+}) {
   const [selectedHours, setSelectedHours] = useState<number>(1);
   const [customMinutes, setCustomMinutes] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'account'>('cash');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    setSelectedHours(1);
-    setCustomMinutes('');
-    setPaymentMethod('cash');
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isSubmitting) onClose();
     };
-    if (session) window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [session, isSubmitting, onClose]);
-
-  if (!session) return null;
+  }, [isSubmitting, onClose]);
 
   const quickOptions = [
     { label: '+30 Mins', hours: 0.5, seconds: 1800, cost: baseRate * 0.5 },
@@ -162,4 +162,9 @@ export default function AddTimeModal({
       </div>
     </div>
   );
+}
+
+export default function AddTimeModal(props: AddTimeModalProps) {
+  if (!props.session) return null;
+  return <AddTimeModalDialog key={props.session.id} {...props} session={props.session} />;
 }

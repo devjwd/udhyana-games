@@ -6,7 +6,7 @@ import { signIn, signOut } from 'next-auth/react';
 import toast from 'react-hot-toast';
 
 interface ReceptionAuthProps {
-  sessionUser?: any;
+  sessionUser?: { name?: string | null; email?: string | null; role?: string | null };
   onLoginSuccess: () => void;
 }
 
@@ -38,8 +38,9 @@ export default function ReceptionAuth({ sessionUser, onLoginSuccess }: Reception
           setLoginError('Invalid credentials. Please verify your email and password.');
         }
       }
-    } catch (err: any) {
-      setLoginError(err?.message || 'Login failed. Please try again.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      setLoginError(message);
     } finally {
       setIsLoggingIn(false);
     }

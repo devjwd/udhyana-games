@@ -7,7 +7,7 @@ export default defineConfig({
   schema: "src/backend/schema.prisma",
   datasource: {
     url: process.env.DATABASE_URL,
-    // @ts-ignore - Prisma 7 config types might be out of date
+    // @ts-expect-error - Prisma 7 config types might be out of date
     directUrl: process.env.DIRECT_URL,
   },
 });

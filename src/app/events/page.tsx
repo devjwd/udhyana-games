@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import Image from 'next/image';
 import styles from './page.module.css';
 
 export default function EventsPage() {
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [leaderboard, setLeaderboard] = useState<{ id: string; username: string | null; fullName: string | null; image: string | null; rank: string; playtimeHours: number; sessionsCount: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,10 +40,10 @@ export default function EventsPage() {
         <section className={styles.hero}>
           <div className={styles.heroGlow} aria-hidden="true" />
           <div className={styles.heroContent}>
-            <span className={styles.kicker}>Compete & Conquer</span>
+            <span className={styles.kicker}>Compete &amp; Conquer</span>
             <h1 className={styles.headline}>
               Tournaments<br />
-              <span className={styles.headlineAccent}>& Rankings</span>
+              <span className={styles.headlineAccent}>&amp; Rankings</span>
             </h1>
             <p className={styles.sub}>
               Prove your skills in upcoming tournaments and climb the global playtime leaderboard.
@@ -120,13 +121,16 @@ export default function EventsPage() {
                         </td>
                         <td className={styles.td}>
                           <div className={styles.playerCell}>
-                            <img
-                              src={user.image || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user.username}`}
-                              alt={user.username}
+                            <Image
+                              src={user.image || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user.username || user.id}`}
+                              alt={user.username || 'Player'}
+                              width={40}
+                              height={40}
                               className={`${styles.playerAvatar} ${index < 3 ? styles.playerAvatarTop : ''}`}
+                              unoptimized
                             />
                             <div>
-                              <div className={styles.playerName}>{user.username}</div>
+                              <div className={styles.playerName}>{user.username || 'Player'}</div>
                               <div className={styles.playerFullName}>{user.fullName}</div>
                             </div>
                           </div>

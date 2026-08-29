@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styles from '../page.module.css';
 import { searchUsers } from '@/backend/actions';
 import { soundManager } from '../utils/sound';
@@ -19,6 +19,10 @@ interface MemberScannerModalProps {
   }) => void;
 }
 
+interface BarcodeDetectorLike {
+  detect: (source: ImageBitmapSource) => Promise<{ rawValue: string }[]>;
+}
+
 export default function MemberScannerModal({
   isOpen,
   onClose,
@@ -26,7 +30,6 @@ export default function MemberScannerModal({
 }: MemberScannerModalProps) {
   const [manualCode, setManualCode] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -35,76 +38,16 @@ export default function MemberScannerModal({
   const manualInputRef = useRef<HTMLInputElement>(null);
 
   // Stop camera helper
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
     }
-    setCameraActive(false);
-  };
+  }, []);
 
-  // Start Camera QR Scanner
-  const startCamera = async () => {
-    setCameraError(null);
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera stream not supported in this browser.');
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setCameraActive(true);
-      }
-
-      // Check if native BarcodeDetector API is supported
-      if ('BarcodeDetector' in window) {
-        const barcodeDetector = new (window as any).BarcodeDetector({
-          formats: ['qr_code', 'code_128', 'ean_13', 'code_39', 'data_matrix']
-        });
-
-        scanIntervalRef.current = setInterval(async () => {
-          if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-            try {
-              const barcodes = await barcodeDetector.detect(videoRef.current);
-              if (barcodes && barcodes.length > 0) {
-                const rawValue = barcodes[0].rawValue;
-                if (rawValue) {
-                  stopCamera();
-                  await handleProcessCode(rawValue);
-                }
-              }
-            } catch {
-              // Ignore detection frame error
-            }
-          }
-        }, 250);
-      }
-    } catch (err: any) {
-      console.error('Camera access failed:', err);
-      setCameraError(err.message || 'Camera permission denied or camera not found.');
-      setCameraActive(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isOpen) {
-      startCamera();
-      if (manualInputRef.current) {
-        manualInputRef.current.focus();
-      }
-    } else {
-      stopCamera();
-    }
-    return () => stopCamera();
-  }, [isOpen]);
-
-  // Handle scanned or typed code
-  const handleProcessCode = async (code: string) => {
+  // Handle scanned or typed code declared first to avoid hoisting/TDZ issues
+  const handleProcessCode = useCallback(async (code: string) => {
     const clean = code.trim();
     if (!clean) return;
 
@@ -126,12 +69,69 @@ export default function MemberScannerModal({
       setIsSearching(false);
       setManualCode('');
     }
-  };
+  }, [onSelectMember, onClose]);
 
-  const handleManualSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (manualCode) handleProcessCode(manualCode);
-  };
+  // Start Camera QR Scanner
+  const initCamera = useCallback(() => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError('Camera stream not supported in this browser.');
+      return;
+    }
+
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+    }).then(async (stream) => {
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      if ('BarcodeDetector' in window) {
+        const BarcodeDetectorConstructor = (window as unknown as { BarcodeDetector: new (options?: { formats: string[] }) => BarcodeDetectorLike }).BarcodeDetector;
+        const barcodeDetector = new BarcodeDetectorConstructor({
+          formats: ['qr_code', 'code_128', 'ean_13', 'code_39', 'data_matrix']
+        });
+
+        scanIntervalRef.current = setInterval(async () => {
+          if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+            try {
+              const barcodes = await barcodeDetector.detect(videoRef.current);
+              if (barcodes && barcodes.length > 0) {
+                const rawValue = barcodes[0].rawValue;
+                if (rawValue) {
+                  stopCamera();
+                  await handleProcessCode(rawValue);
+                }
+              }
+            } catch {
+              // Ignore detection frame error
+            }
+          }
+        }, 250);
+      }
+    }).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Camera permission denied or camera not found.';
+      console.error('Camera access failed:', err);
+      setCameraError(message);
+    });
+  }, [handleProcessCode, stopCamera]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    if (isOpen) {
+      timer = setTimeout(() => initCamera(), 0);
+      if (manualInputRef.current) {
+        manualInputRef.current.focus();
+      }
+    } else {
+      stopCamera();
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+      stopCamera();
+    };
+  }, [isOpen, initCamera, stopCamera]);
 
   if (!isOpen) return null;
 
@@ -188,7 +188,10 @@ export default function MemberScannerModal({
               <p>{cameraError}</p>
               <button
                 type="button"
-                onClick={startCamera}
+                onClick={() => {
+                  setCameraError(null);
+                  initCamera();
+                }}
                 className={styles.actionBtnOutline}
                 style={{ marginTop: '0.5rem', color: '#fff' }}
               >

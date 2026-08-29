@@ -35,13 +35,21 @@ interface WalkInFormProps {
   onClearPrefill?: () => void;
 }
 
+interface CustomerSearchResult {
+  id: string;
+  username?: string | null;
+  fullName?: string | null;
+  phone?: string | null;
+  rank?: string;
+  loyaltyPoints?: number;
+}
+
 export default function WalkInForm({
   consoles,
   durations,
   extraControllerRate,
   checkAvailability,
   onAddToCart,
-  onAddToWaitlist,
   prefilledName,
   onClearPrefill
 }: WalkInFormProps) {
@@ -57,19 +65,21 @@ export default function WalkInForm({
   const [platformFilter, setPlatformFilter] = useState<'ALL' | 'PS5' | 'PC' | 'XBOX'>('ALL');
 
   // Search state
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<CustomerSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync prefill from waitlist if triggered
-  useEffect(() => {
+  // Sync prefill from waitlist if triggered (pure render-time state adjustment)
+  const [prevPrefilled, setPrevPrefilled] = useState(prefilledName);
+  if (prefilledName !== prevPrefilled) {
+    setPrevPrefilled(prefilledName);
     if (prefilledName) {
       setName(prefilledName);
       setSelectedUserId(undefined);
       if (onClearPrefill) onClearPrefill();
     }
-  }, [prefilledName, onClearPrefill]);
+  }
 
   // Click outside to dismiss search results
   useEffect(() => {
@@ -82,9 +92,8 @@ export default function WalkInForm({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Debounced search on name change
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement> | string) => {
+    const val = typeof e === 'string' ? e : e.target.value;
     setName(val);
     setSelectedUserId(undefined);
 
@@ -95,22 +104,22 @@ export default function WalkInForm({
       searchTimeoutRef.current = setTimeout(async () => {
         try {
           const results = await searchUsers(val.trim());
-          setSearchResults(results || []);
+          setSearchResults(results as CustomerSearchResult[]);
         } catch {
           setSearchResults([]);
         } finally {
           setIsSearching(false);
         }
-      }, 300);
+      }, 250);
     } else {
       setSearchResults([]);
       setIsSearching(false);
     }
   };
 
-  const handleSelectUser = (u: any) => {
+  const handleSelectUser = (u: CustomerSearchResult) => {
     setSelectedUserId(u.id);
-    setName(u.fullName || u.username);
+    setName(u.fullName || u.username || '');
     if (u.phone) setPhone(u.phone);
     setSearchResults([]);
   };
