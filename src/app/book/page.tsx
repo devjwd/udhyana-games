@@ -232,7 +232,7 @@ function BookPageContent() {
         setError(res.error);
         return;
       }
-      alert(`Booking Confirmed for ${selectedConsoleObj?.hardwareTitle || 'Station'}! You can pay at the reception desk.`);
+      alert(`Reservation submitted for ${selectedConsoleObj?.hardwareTitle || 'Station'}! Reception will confirm your time slot, and you can track your pass in your profile.`);
       router.push('/profile');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to create booking.';

@@ -35,6 +35,7 @@ import {
   resumeGameSession,
   transferGameSession,
   checkInOnlineBooking,
+  acceptBooking,
   cancelBooking,
   processPosCheckout,
   getDailyShiftSummary
@@ -202,7 +203,8 @@ export default function ReceptionPortal() {
     const overlapping = upcomingBookings.find(b => {
       if (b.consoleId !== consoleId) return false;
       const bStart = new Date(b.startTime);
-      return bStart < requestedEnd;
+      const bEnd = new Date(b.endTime);
+      return now < bEnd && requestedEnd > bStart;
     });
 
     if (overlapping) {
@@ -463,7 +465,22 @@ export default function ReceptionPortal() {
     }
   };
 
-  // Online Bookings Check-In
+  // Online Bookings Check-In & Acceptance
+  const handleAcceptBooking = async (bookingId: string) => {
+    try {
+      const res = await acceptBooking(bookingId);
+      if (res && 'error' in res && res.error) {
+        throw new Error(res.error);
+      }
+      soundManager.playSuccessTone();
+      toast.success('Reservation accepted! Station is reserved for the scheduled time slot.');
+      await fetchLiveDashboardData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to accept reservation.';
+      toast.error(message);
+    }
+  };
+
   const handleConfirmCheckIn = async (bookingId: string, payMethod: string) => {
     try {
       const res = await checkInOnlineBooking(bookingId, payMethod);
@@ -648,6 +665,7 @@ export default function ReceptionPortal() {
               <UpcomingReservationsTable
                 bookings={upcomingBookings}
                 onOpenCheckIn={setCheckInModalBooking}
+                onAcceptBooking={handleAcceptBooking}
                 onCancelBooking={handleCancelReservation}
               />
               <WaitlistQueueTable
@@ -679,6 +697,7 @@ export default function ReceptionPortal() {
         baseRate={baseRate}
         onClose={() => setCheckInModalBooking(null)}
         onConfirm={handleConfirmCheckIn}
+        onAccept={handleAcceptBooking}
       />
 
       <TransferModal

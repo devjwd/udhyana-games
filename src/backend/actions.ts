@@ -701,7 +701,7 @@ export async function createBooking(userId: string, consoleId: string, startTime
     const conflictingBooking = await tx.booking.findFirst({
       where: {
         consoleId,
-        status: 'CONFIRMED',
+        status: { in: ['CONFIRMED', 'PENDING'] },
         OR: [
           { startTime: { lt: endTime }, endTime: { gt: startTime } }
         ]
@@ -732,7 +732,7 @@ export async function createBooking(userId: string, consoleId: string, startTime
         consoleId,
         startTime,
         endTime,
-        status: 'CONFIRMED'
+        status: 'PENDING'
       },
       include: {
         console: true
@@ -762,7 +762,7 @@ export async function getBookedSlots(consoleId: string, date: string) {
   const bookings = await prisma.booking.findMany({
     where: {
       consoleId,
-      status: 'CONFIRMED',
+      status: { in: ['CONFIRMED', 'PENDING'] },
       startTime: { lte: maxEnd },
       endTime: { gte: minStart }
     },
@@ -805,6 +805,32 @@ export async function cancelBooking(bookingId: string) {
   const updated = await prisma.booking.update({
     where: { id: bookingId },
     data: { status: 'CANCELLED' }
+  });
+
+  revalidatePath('/profile');
+  revalidatePath('/reception');
+  revalidatePath('/book');
+  return { success: true, booking: updated };
+}
+
+export async function acceptBooking(bookingId: string) {
+  await requireReceptionAuth();
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { user: true, console: true }
+  });
+
+  if (!booking) {
+    return { error: 'Booking not found.' };
+  }
+
+  if (booking.status !== 'PENDING') {
+    return { error: `Booking is already ${booking.status.toLowerCase()}.` };
+  }
+
+  const updated = await prisma.booking.update({
+    where: { id: bookingId },
+    data: { status: 'CONFIRMED' }
   });
 
   revalidatePath('/profile');
@@ -1454,8 +1480,8 @@ export async function getUpcomingBookings() {
   await requireReceptionAuth();
   return await prisma.booking.findMany({
     where: { 
-      status: 'CONFIRMED',
-      startTime: { gte: new Date() }
+      status: { in: ['CONFIRMED', 'PENDING'] },
+      endTime: { gte: new Date() }
     },
     include: { 
       user: { select: { fullName: true, username: true, phone: true } },
@@ -1898,8 +1924,8 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
     include: { user: true, console: true }
   });
 
-  if (!booking || booking.status !== 'CONFIRMED') {
-    return { error: 'Booking not found or not in confirmed status.' };
+  if (!booking || (booking.status !== 'CONFIRMED' && booking.status !== 'PENDING')) {
+    return { error: 'Booking not found or not in confirmed/pending status.' };
   }
 
   const now = new Date();

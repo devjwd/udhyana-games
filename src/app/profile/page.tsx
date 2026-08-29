@@ -151,7 +151,7 @@ async function BookingList({ userId }: { userId: string }) {
   const bookings = await getUserBookings(userId);
 
   // Filter for future/active bookings
-  const activeBookings = bookings.filter((b) => new Date(b.endTime) > new Date() && b.status === 'CONFIRMED');
+  const activeBookings = bookings.filter((b) => new Date(b.endTime) > new Date() && (b.status === 'CONFIRMED' || b.status === 'PENDING'));
 
   if (activeBookings.length === 0) {
     return (
@@ -177,7 +177,12 @@ async function BookingList({ userId }: { userId: string }) {
                 <div style={{ fontSize: '0.8rem', color: '#7f8388', marginTop: '2px' }}>Udhyana Gaming Lounge</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span className={styles.stationPassBadge}>{b.status}</span>
+                <span
+                  className={styles.stationPassBadge}
+                  style={b.status === 'PENDING' ? { background: 'rgba(234, 179, 8, 0.15)', color: '#facc15', border: '1px solid rgba(234, 179, 8, 0.4)' } : undefined}
+                >
+                  {b.status === 'PENDING' ? 'PENDING APPROVAL' : b.status}
+                </span>
                 <CancelBookingButton bookingId={b.id} stationTitle={b.console.hardwareTitle} />
               </div>
             </div>
