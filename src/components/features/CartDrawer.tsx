@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { createOnlineShopOrder } from '@/backend/actions';
+import CyberButton from '@/components/ui/CyberButton';
 import styles from './CartDrawer.module.css';
 
 interface CartDrawerProps {
@@ -115,14 +116,13 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 <span className={styles.totalLabel}>Total</span>
                 <span className={styles.totalValue}>PKR {subtotal}</span>
               </div>
-              <button
-                className={styles.checkoutBtn}
+              <CyberButton
                 onClick={handleCheckout}
                 disabled={items.length === 0 || isCheckingOut}
-                style={{ opacity: items.length === 0 || isCheckingOut ? 0.5 : 1, cursor: items.length === 0 || isCheckingOut ? 'not-allowed' : 'pointer' }}
+                fullWidth
               >
                 {isCheckingOut ? 'Processing...' : 'Checkout & Earn XP'}
-              </button>
+              </CyberButton>
             </div>
           </>
         )}

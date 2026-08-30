@@ -21,13 +21,24 @@
   white-space: nowrap;
 }
 
-.cyberBtn:hover {
+.cyberBtn:hover:not(:disabled) {
   transform: scale(1.04);
   color: var(--accent, #d6ff01);
 }
 
-.cyberBtn:active {
+.cyberBtn:active:not(:disabled) {
   transform: scale(0.97);
+}
+
+.cyberBtn:disabled,
+.cyberBtn.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.fullWidth {
+  width: 100%;
 }
 
 .cyberBg {
@@ -77,16 +88,16 @@
 }
 
 /* Hover state: inverted full neon yellow contour + dark translucent core + neon text */
-.cyberBtn:hover .cyberBgOuter {
+.cyberBtn:hover:not(:disabled) .cyberBgOuter {
   stroke: var(--accent, #d6ff01);
   stroke-width: 1.6;
 }
 
-.cyberBtn:hover .cyberBgBracket {
+.cyberBtn:hover:not(:disabled) .cyberBgBracket {
   stroke: var(--accent, #d6ff01);
   stroke-width: 1.6;
 }
 
-.cyberBtn:hover .cyberBgInner {
+.cyberBtn:hover:not(:disabled) .cyberBgInner {
   fill: rgba(20, 26, 32, 0.6);
 }

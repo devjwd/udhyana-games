@@ -6,6 +6,8 @@ export interface CyberButtonProps {
   children: React.ReactNode;
   href?: string;
   className?: string;
+  fullWidth?: boolean;
+  style?: React.CSSProperties;
   onClick?: React.MouseEventHandler<HTMLElement>;
   type?: 'button' | 'submit' | 'reset';
   disabled?: boolean;
@@ -18,6 +20,8 @@ export default function CyberButton({
   children,
   href,
   className = '',
+  fullWidth = false,
+  style,
   onClick,
   type = 'button',
   disabled = false,
@@ -96,15 +100,19 @@ export default function CyberButton({
     </>
   );
 
+  const combinedClassName = `${styles.cyberBtn} ${fullWidth ? styles.fullWidth : ''} ${disabled ? styles.disabled : ''} ${className}`.trim();
+
   if (href) {
     return (
       <Link
         href={href}
-        className={`${styles.cyberBtn} ${className}`}
-        onClick={onClick as React.MouseEventHandler<HTMLAnchorElement>}
+        className={combinedClassName}
+        style={style}
+        onClick={disabled ? undefined : (onClick as React.MouseEventHandler<HTMLAnchorElement>)}
         target={target}
         rel={rel}
         aria-label={ariaLabel}
+        aria-disabled={disabled}
         {...(rest as React.AnchorHTMLAttributes<HTMLAnchorElement>)}
       >
         {content}
@@ -116,7 +124,8 @@ export default function CyberButton({
     <button
       type={type}
       disabled={disabled}
-      className={`${styles.cyberBtn} ${className}`}
+      className={combinedClassName}
+      style={style}
       onClick={onClick as React.MouseEventHandler<HTMLButtonElement>}
       aria-label={ariaLabel}
       {...(rest as React.ButtonHTMLAttributes<HTMLButtonElement>)}

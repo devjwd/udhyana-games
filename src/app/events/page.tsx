@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import Image from 'next/image';
+import CyberButton from '@/components/ui/CyberButton';
 import styles from './page.module.css';
 
 interface LeaderboardEntry {
@@ -177,18 +178,16 @@ export default function EventsPage() {
                       </div>
                     </div>
 
-                    <button
-                      className={
-                        t.status === 'Registering'
-                          ? styles.registerBtn
-                          : styles.upcomingBtn
-                      }
-                      disabled={t.status !== 'Registering'}
-                    >
-                      {t.status === 'Registering'
-                        ? 'Register at Desk →'
-                        : 'Registration Closed'}
-                    </button>
+                    <div style={{ marginTop: 'auto', width: '100%' }}>
+                      <CyberButton
+                        disabled={t.status !== 'Registering'}
+                        fullWidth
+                      >
+                        {t.status === 'Registering'
+                          ? 'Register at Desk →'
+                          : 'Registration Closed'}
+                      </CyberButton>
+                    </div>
                   </div>
                 ))}
               </div>

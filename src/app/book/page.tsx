@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useMemo, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import CyberButton from '@/components/ui/CyberButton';
 import styles from './page.module.css';
 import { getConsoles, getBookedSlots, createBooking, getBaseHourlyRate } from '@/backend/actions';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -489,13 +490,15 @@ function BookPageContent() {
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={isSubmitting || !isSelectionValid() || !time}
-                className={styles.submitBtn}
-              >
-                {isSubmitting ? 'Confirming...' : 'Confirm Reservation'}
-              </button>
+              <div style={{ marginTop: '1.5rem', width: '100%' }}>
+                <CyberButton
+                  type="submit"
+                  disabled={isSubmitting || !isSelectionValid() || !time}
+                  fullWidth
+                >
+                  {isSubmitting ? 'Confirming...' : 'Confirm Reservation'}
+                </CyberButton>
+              </div>
 
             </form>
           </div>

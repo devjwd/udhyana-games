@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import CyberButton from '@/components/ui/CyberButton';
 import { useCart } from '@/context/CartContext';
 import { getProductById } from '@/backend/actions';
 import { use } from 'react';
@@ -113,7 +114,11 @@ export default function ProductDetails({ params }: { params: Promise<{ id: strin
               <div className={styles.featureItem}>✓ Loyalty Points Earned</div>
             </div>
 
-            <button className={styles.addBtn} onClick={handleAddToCart}>Add to Cart</button>
+            <div style={{ marginTop: '1.5rem', width: '100%' }}>
+              <CyberButton onClick={handleAddToCart} fullWidth>
+                Add to Cart
+              </CyberButton>
+            </div>
           </div>
         </div>
       </main>

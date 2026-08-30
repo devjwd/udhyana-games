@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { registerOnlineUser } from '@/backend/actions';
+import CyberButton from '@/components/ui/CyberButton';
 import styles from './AuthModal.module.css';
 
 interface AuthModalProps {
@@ -202,17 +203,19 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
             />
           </div>
 
-          <button
-            type="submit"
-            className={styles.submitBtn}
-            disabled={isSubmitting}
-          >
-            {isSubmitting
-              ? 'Processing...'
-              : mode === 'login'
-                ? 'Access Terminal'
-                : 'Register Identity'}
-          </button>
+          <div style={{ marginTop: '1rem', width: '100%' }}>
+            <CyberButton
+              type="submit"
+              disabled={isSubmitting}
+              fullWidth
+            >
+              {isSubmitting
+                ? 'Processing...'
+                : mode === 'login'
+                  ? 'Access Terminal'
+                  : 'Register Identity'}
+            </CyberButton>
+          </div>
         </form>
 
         <div className={styles.toggleText}>

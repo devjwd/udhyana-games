@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import Link from 'next/link';
+import CyberButton from '@/components/ui/CyberButton';
 import styles from './ConsoleCard.module.css';
 
 interface ConsoleCardProps {
@@ -37,9 +37,11 @@ export default function ConsoleCard({ id, title, specs, description, image, stat
           </div>
         </div>
 
-        <Link href={`/book?console=${id}`} className={styles.bookLink}>
-          <button className={styles.bookBtn}>Book Station →</button>
-        </Link>
+        <div style={{ marginTop: 'auto', width: '100%' }}>
+          <CyberButton href={`/book?console=${id}`} fullWidth>
+            Book Station →
+          </CyberButton>
+        </div>
       </div>
     </div>
   );

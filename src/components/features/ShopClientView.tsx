@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
+import CyberButton from '@/components/ui/CyberButton';
 import styles from '@/app/shop/page.module.css';
 
 export interface ProductItem {
@@ -87,19 +88,21 @@ export default function ShopClientView({ initialProducts }: ShopClientViewProps)
                   <p className={styles.productDesc}>
                     {product.description || 'Official gear engineered for maximum performance.'}
                   </p>
-                  <button
-                    className={styles.addBtn}
-                    onClick={() =>
-                      addItem({
-                        id: product.id,
-                        name: product.name,
-                        price: product.price,
-                        image: product.imageUrl || '',
-                      })
-                    }
-                  >
-                    Add to Cart →
-                  </button>
+                  <div style={{ marginTop: 'auto', width: '100%' }}>
+                    <CyberButton
+                      fullWidth
+                      onClick={() =>
+                        addItem({
+                          id: product.id,
+                          name: product.name,
+                          price: product.price,
+                          image: product.imageUrl || '',
+                        })
+                      }
+                    >
+                      Add to Cart →
+                    </CyberButton>
+                  </div>
                 </div>
               </div>
             ))}

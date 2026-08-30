@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import CyberButton from '@/components/ui/CyberButton';
 import styles from './ConsoleCard.module.css';
 
 interface LocationCardProps {
@@ -37,9 +38,11 @@ export default function LocationCard({ title, specs, description, image, status,
           </div>
         </div>
 
-        <button className={styles.bookBtn} onClick={onClick}>
-          View Stations →
-        </button>
+        <div style={{ marginTop: 'auto', width: '100%' }}>
+          <CyberButton onClick={onClick} fullWidth>
+            View Stations →
+          </CyberButton>
+        </div>
       </div>
     </div>
   );
