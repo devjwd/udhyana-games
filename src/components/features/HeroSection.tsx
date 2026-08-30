@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import styles from './HeroSection.module.css';
+import CyberArrowButton from '@/components/ui/CyberArrowButton';
 import {
   getHeroTrending,
   getHeroGallery,
@@ -143,26 +144,18 @@ export default function HeroSection({ initialTrending, initialGallery }: HeroSec
 
             {/* Top-Left Navigation Arrows */}
             <div className={styles.posterNavButtons}>
-              <button
-                className={styles.navBtn}
+              <CyberArrowButton
+                direction="left"
+                size={40}
                 onClick={prevPoster}
                 aria-label="Previous Poster"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="19" y1="12" x2="5" y2="12"></line>
-                  <polyline points="12 19 5 12 12 5"></polyline>
-                </svg>
-              </button>
-              <button
-                className={styles.navBtn}
+              />
+              <CyberArrowButton
+                direction="right"
+                size={40}
                 onClick={nextPoster}
                 aria-label="Next Poster"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                  <polyline points="12 5 19 12 12 19"></polyline>
-                </svg>
-              </button>
+              />
             </div>
 
             {/* Bottom Action Button */}
@@ -200,26 +193,18 @@ export default function HeroSection({ initialTrending, initialGallery }: HeroSec
             <div className={styles.featureBottomBar}>
               {/* Navigation Arrows */}
               <div className={styles.featureNavArrows}>
-                <button
-                  className={styles.featureArrowBtn}
+                <CyberArrowButton
+                  direction="left"
+                  size={36}
                   onClick={prevFeature}
                   aria-label="Previous Feature"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="19" y1="12" x2="5" y2="12"></line>
-                    <polyline points="12 19 5 12 12 5"></polyline>
-                  </svg>
-                </button>
-                <button
-                  className={styles.featureArrowBtn}
+                />
+                <CyberArrowButton
+                  direction="right"
+                  size={36}
                   onClick={nextFeature}
                   aria-label="Next Feature"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                    <polyline points="12 5 19 12 12 19"></polyline>
-                  </svg>
-                </button>
+                />
               </div>
 
               {/* Pagination indicators */}
