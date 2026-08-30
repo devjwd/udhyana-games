@@ -31,7 +31,7 @@
   stroke: rgba(255, 255, 255, 0.18);
   stroke-width: 1;
   fill: none;
-  transition: stroke 0.2s ease;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease;
 }
 
 .cyberBracket {
@@ -40,12 +40,12 @@
   stroke-linecap: square;
   stroke-linejoin: miter;
   fill: none;
-  transition: stroke 0.2s ease, filter 0.2s ease;
+  transition: stroke 0.2s ease;
 }
 
 .cyberInner {
   fill: var(--accent, #d6ff01);
-  transition: fill 0.2s ease, filter 0.2s ease;
+  transition: fill 0.2s ease;
 }
 
 .cyberArrow {
@@ -54,19 +54,24 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   fill: none;
+  transition: stroke 0.2s ease;
 }
 
-/* Hover effects */
-.cyberBtn:hover .cyberInner {
-  fill: #ffffff;
-  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.6));
+/* Hover effect — highlighted neon outer frame, translucent dark core, and neon arrow */
+.cyberBtn:hover .cyberOuterBase {
+  stroke: var(--accent, #d6ff01);
+  stroke-width: 1.6;
 }
 
 .cyberBtn:hover .cyberBracket {
-  stroke: #ffffff;
-  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.5));
+  stroke: var(--accent, #d6ff01);
+  stroke-width: 1.6;
 }
 
-.cyberBtn:hover .cyberOuterBase {
-  stroke: rgba(255, 255, 255, 0.35);
+.cyberBtn:hover .cyberInner {
+  fill: rgba(20, 26, 32, 0.55);
+}
+
+.cyberBtn:hover .cyberArrow {
+  stroke: var(--accent, #d6ff01);
 }
