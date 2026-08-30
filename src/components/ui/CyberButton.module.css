@@ -1,0 +1,92 @@
+.cyberBtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 28px;
+  background: transparent;
+  border: none;
+  text-decoration: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #000000;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
+  user-select: none;
+  outline: none;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.cyberBtn:hover {
+  transform: scale(1.04);
+  color: var(--accent, #d6ff01);
+}
+
+.cyberBtn:active {
+  transform: scale(0.97);
+}
+
+.cyberBg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  display: flex;
+  align-items: stretch;
+}
+
+.cyberLeft,
+.cyberRight {
+  width: 22px;
+  height: 100%;
+  flex-shrink: 0;
+  z-index: 2;
+  display: block;
+}
+
+.cyberMid {
+  flex: 1;
+  height: 100%;
+  margin: 0 -1px;
+  z-index: 1;
+  display: block;
+}
+
+.cyberBgOuter {
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 1;
+  fill: none;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease;
+}
+
+.cyberBgBracket {
+  stroke: var(--accent, #d6ff01);
+  stroke-width: 1.6;
+  stroke-linecap: square;
+  fill: none;
+  transition: stroke 0.2s ease;
+}
+
+.cyberBgInner {
+  fill: var(--accent, #d6ff01);
+  transition: fill 0.2s ease;
+}
+
+/* Hover state: inverted full neon yellow contour + dark translucent core + neon text */
+.cyberBtn:hover .cyberBgOuter {
+  stroke: var(--accent, #d6ff01);
+  stroke-width: 1.6;
+}
+
+.cyberBtn:hover .cyberBgBracket {
+  stroke: var(--accent, #d6ff01);
+  stroke-width: 1.6;
+}
+
+.cyberBtn:hover .cyberBgInner {
+  fill: rgba(20, 26, 32, 0.6);
+}

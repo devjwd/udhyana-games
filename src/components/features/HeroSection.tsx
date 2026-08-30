@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import styles from './HeroSection.module.css';
 import CyberArrowButton from '@/components/ui/CyberArrowButton';
+import CyberButton from '@/components/ui/CyberButton';
 import {
   getHeroTrending,
   getHeroGallery,
@@ -161,9 +162,9 @@ export default function HeroSection({ initialTrending, initialGallery }: HeroSec
             {/* Bottom Action Button */}
             {currentPoster.ctaText && (
               <div className={styles.posterBottomBar}>
-                <Link href={currentPoster.ctaLink || '/shop'} className={styles.actionBtn}>
+                <CyberButton href={currentPoster.ctaLink || '/shop'}>
                   {currentPoster.ctaText}
-                </Link>
+                </CyberButton>
               </div>
             )}
           </div>
