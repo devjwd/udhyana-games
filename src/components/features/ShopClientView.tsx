@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import styles from '@/app/shop/page.module.css';
 
@@ -27,74 +28,85 @@ export default function ShopClientView({ initialProducts }: ShopClientViewProps)
     filter === 'All' ? initialProducts : initialProducts.filter((p) => p.category === filter);
 
   return (
-    <>
-      {/* ─── FILTER BAR ─── */}
-      <div className={styles.filterBar}>
-        <div className={styles.filterBarInner}>
+    <div className={styles.shopSection}>
+      <div className={styles.container}>
+        {/* ─── FILTER TABS ─── */}
+        <div className={styles.filterBar}>
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setFilter(cat)}
-              className={`${styles.filterBtn} ${filter === cat ? styles.filterBtnActive : ''}`}
+              className={`${styles.filterTab} ${filter === cat ? styles.activeTab : ''}`}
             >
               {cat}
             </button>
           ))}
         </div>
-      </div>
 
-      {/* ─── PRODUCT GRID ─── */}
-      <section className={styles.gridSection}>
-        <div className={styles.gridInner}>
-          {filteredProducts.length === 0 ? (
-            <div className={styles.emptyState}>No products found in this category.</div>
-          ) : (
-            <div className={styles.productGrid}>
-              {filteredProducts.map((product) => (
-                <div key={product.id} className={styles.productCard}>
-                  {/* Image */}
-                  <div className={styles.imageWrapper}>
-                    {product.imageUrl ? (
-                      <Image
-                        src={product.imageUrl}
-                        alt={product.name}
-                        fill
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                        className={styles.productImage}
-                      />
-                    ) : (
-                      <div className={styles.imagePlaceholder}>NO IMAGE</div>
-                    )}
-                    <span className={styles.priceBadge}>PKR {product.price}</span>
-                  </div>
-
-                  {/* Info */}
-                  <div className={styles.productInfo}>
-                    <span className={styles.productCategory}>{product.category}</span>
-                    <h3 className={styles.productName}>{product.name}</h3>
-                    <p className={styles.productDesc}>
-                      {product.description || 'Premium gear engineered for maximum performance.'}
-                    </p>
-                    <button
-                      className={styles.addBtn}
-                      onClick={() =>
-                        addItem({
-                          id: product.id,
-                          name: product.name,
-                          price: product.price,
-                          image: product.imageUrl || '',
-                        })
-                      }
-                    >
-                      Add to Cart
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* ─── GRID HEADER ─── */}
+        <div className={styles.gridHeader}>
+          <h2 className={styles.gridTitle}>
+            {filter === 'All' ? 'All Products' : filter}
+          </h2>
+          <span className={styles.gridCount}>
+            {filteredProducts.length} {filteredProducts.length === 1 ? 'item' : 'items'}
+          </span>
         </div>
-      </section>
-    </>
+
+        {/* ─── PRODUCT GRID ─── */}
+        {filteredProducts.length === 0 ? (
+          <div className={styles.emptyState}>No products found in this category.</div>
+        ) : (
+          <div className={styles.productGrid}>
+            {filteredProducts.map((product) => (
+              <div key={product.id} className={styles.productCard}>
+                {/* Image & Price */}
+                <div className={styles.imageWrapper}>
+                  {product.imageUrl ? (
+                    <Image
+                      src={product.imageUrl}
+                      alt={product.name}
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      className={styles.productImage}
+                    />
+                  ) : (
+                    <div className={styles.imagePlaceholder}>NO IMAGE</div>
+                  )}
+                  <span className={styles.priceBadge}>
+                    PKR {product.price.toLocaleString()}
+                  </span>
+                </div>
+
+                {/* Info */}
+                <div className={styles.productInfo}>
+                  <span className={styles.productCategory}>{product.category}</span>
+                  <Link href={`/shop/${product.id}`} className={styles.productTitleLink}>
+                    <h3 className={styles.productName}>{product.name}</h3>
+                  </Link>
+                  <p className={styles.productDesc}>
+                    {product.description || 'Official gear engineered for maximum performance.'}
+                  </p>
+                  <button
+                    className={styles.addBtn}
+                    onClick={() =>
+                      addItem({
+                        id: product.id,
+                        name: product.name,
+                        price: product.price,
+                        image: product.imageUrl || '',
+                      })
+                    }
+                  >
+                    Add to Cart →
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
+

@@ -16,20 +16,20 @@ interface ConsoleCardProps {
 export default function ConsoleCard({ id, title, specs, description, image, status, statusColor, games }: ConsoleCardProps) {
   return (
     <div className={styles.card}>
-      <div className={styles.accentTriangle}></div>
-      <div className={styles.statusBadge} style={{ color: statusColor }}>
-        {status}
-      </div>
       <div className={styles.imageWrapper}>
         <Image src={image} alt={title} fill className={styles.image} />
+        <div className={styles.statusBadge} style={{ color: statusColor }}>
+          <span className={styles.statusDot} style={{ backgroundColor: statusColor }} />
+          {status}
+        </div>
       </div>
       <div className={styles.info}>
-        <h3 className={styles.title}>{title}</h3>
         <span className={styles.specs}>{specs}</span>
+        <h3 className={styles.title}>{title}</h3>
         <p className={styles.description}>{description}</p>
         
         <div className={styles.gamesSection}>
-          <span className={styles.gamesLabel}>Featured Games</span>
+          <span className={styles.gamesLabel}>Available Titles</span>
           <div className={styles.gamesList}>
             {games.map(game => (
               <span key={game} className={styles.gameTag}>{game}</span>
@@ -37,10 +37,11 @@ export default function ConsoleCard({ id, title, specs, description, image, stat
           </div>
         </div>
 
-        <Link href={`/book?console=${id}`} style={{ width: '100%', marginTop: 'auto' }}>
-          <button className={styles.bookBtn}>Book Station</button>
+        <Link href={`/book?console=${id}`} className={styles.bookLink}>
+          <button className={styles.bookBtn}>Book Station →</button>
         </Link>
       </div>
     </div>
   );
 }
+
