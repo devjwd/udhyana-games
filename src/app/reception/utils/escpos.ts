@@ -151,6 +151,7 @@ export function generateThermalReceiptBytes(data: ESCPOSReceiptData): Uint8Array
     .align('center')
     .line(data.footerNote || 'Thank you for playing with us!')
     .line('Please retain slip for station verification.')
+    .line('udhyana.com')
     .cut();
 
   return builder.getBytes();

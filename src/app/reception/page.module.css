@@ -21,14 +21,22 @@
 .logoArea {
   padding: 1.5rem 1.75rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  color: var(--primary-accent, #c1ff1c);
-  font-weight: 900;
-  font-size: 1.2rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.receptionTag {
+  font-size: 0.62rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  background: rgba(214, 255, 1, 0.12);
+  color: var(--accent, #d6ff01);
+  padding: 0.2rem 0.55rem;
+  border-radius: 3px;
+  border: 1px solid rgba(214, 255, 1, 0.35);
 }
 
 .nav {
@@ -1568,9 +1576,29 @@
     margin-top: 4px;
   }
 
+  .printLogo {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 6px;
+  }
+
+  .printLogo img {
+    max-width: 130px;
+    height: auto;
+    filter: grayscale(100%) contrast(150%);
+  }
+
   .printFooter {
     text-align: center;
     font-size: 10px;
     margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  .printWeb {
+    font-weight: bold;
+    font-size: 11px;
+    margin-top: 4px;
+    letter-spacing: 0.5px;
   }
 }

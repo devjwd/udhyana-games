@@ -110,24 +110,66 @@ function renderConsolesSelector() {
   if (!container) return;
   container.innerHTML = '';
 
+  const now = Date.now();
+
   state.consoles.forEach((c) => {
     const session = state.activeSessions[c.id];
-    const isOccupied = !!session;
     const isSelected = state.selectedConsoleId === c.id;
+    let isOccupied = false;
+    let isExpired = false;
+    let statusText = 'Available';
+    let statusClass = 'text-avail';
+    let subInfo = '';
+
+    if (session) {
+      isOccupied = true;
+      let remainingSec = 0;
+      if (session.isPaused) {
+        remainingSec = Math.max(0, Math.floor((session.pausedRemainingMs || 0) / 1000));
+        statusText = `${session.playerName || 'Player'} (PAUSED)`;
+        statusClass = 'text-paused';
+      } else {
+        const remainingMs = session.endTime - now;
+        if (remainingMs <= 0) {
+          isExpired = true;
+          const overtimeSec = Math.max(0, Math.floor((now - session.endTime) / 1000));
+          const overtimeMins = Math.floor(overtimeSec / 60);
+          const overtimeSecsRemainder = overtimeSec % 60;
+          const overtimeFormatted = overtimeMins > 0 
+            ? `+${overtimeMins}m ${overtimeSecsRemainder}s` 
+            : `+${overtimeSec}s`;
+          statusText = `EXPIRED (${overtimeFormatted})`;
+          statusClass = 'text-expired';
+          const expiredAtStr = new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          subInfo = `<span class="chip-expired-time">Ended at ${expiredAtStr} • ${session.playerName || 'Player'}</span>`;
+        } else {
+          const minsLeft = Math.ceil(remainingMs / 60000);
+          statusText = session.playerName || 'Active';
+          statusClass = 'text-busy';
+          subInfo = `<span class="chip-remaining-time">${minsLeft}m left</span>`;
+        }
+      }
+    }
 
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = `station-chip ${isSelected ? 'active' : ''} ${isOccupied ? 'occupied' : ''}`;
+    btn.className = `station-chip ${isSelected ? 'active' : ''} ${isOccupied ? 'occupied' : ''} ${isExpired ? 'station-chip-expired' : ''}`;
     
     btn.innerHTML = `
       <span>${c.name}</span>
-      <span class="chip-status ${isOccupied ? 'text-busy' : 'text-avail'}">
-        ${isOccupied ? (session.playerName || 'Active') : 'Free'}
-      </span>
+      <div class="chip-status-wrap">
+        <span class="chip-status ${statusClass}">${statusText}</span>
+        ${subInfo}
+      </div>
     `;
 
     btn.onclick = () => {
-      if (isOccupied) return;
+      if (isOccupied && !isExpired) return;
+      if (isExpired) {
+        // If expired, selecting it allows staff to quick-view or switch to monitor
+        switchTab('monitor');
+        return;
+      }
       state.selectedConsoleId = c.id;
       renderConsolesSelector();
     };
@@ -252,17 +294,23 @@ function renderStationsMonitor() {
       let badgeText = 'Active';
       let tileStatus = 'status-busy';
       let timerColor = 'timer-c-busy';
+      let timerSubHtml = '';
+
+      const endTimeStr = new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       if (session.isPaused) {
         badgeClass = 'tag-paused';
         badgeText = 'PAUSED';
         tileStatus = 'status-paused';
         timerColor = 'timer-c-paused';
+        timerSubHtml = `<div class="timer-sub-label">Session Paused</div>`;
       } else if (remainingSec === 0) {
+        const overtimeSec = Math.max(0, Math.floor((now - session.endTime) / 1000));
         badgeClass = 'tag-danger';
         badgeText = 'EXPIRED';
         tileStatus = 'status-expired';
         timerColor = 'timer-c-danger';
+        timerSubHtml = `<div class="timer-sub-label timer-sub-expired">⚠️ Overtime: +${formatTime(overtimeSec)} • Expired at ${endTimeStr}</div>`;
         if (!session.expiredAlertFired) {
           session.expiredAlertFired = true;
           playExpireChime();
@@ -272,7 +320,14 @@ function renderStationsMonitor() {
         badgeText = '< 15m Left';
         tileStatus = 'status-warn';
         timerColor = 'timer-c-warn';
+        timerSubHtml = `<div class="timer-sub-label">Ends at ${endTimeStr}</div>`;
+      } else {
+        timerSubHtml = `<div class="timer-sub-label">Ends at ${endTimeStr}</div>`;
       }
+
+      const overtimeSec = remainingSec === 0 && !session.isPaused 
+        ? Math.max(0, Math.floor((now - session.endTime) / 1000)) 
+        : 0;
 
       tile.className = `station-tile ${tileStatus}`;
       tile.innerHTML = `
@@ -281,17 +336,20 @@ function renderStationsMonitor() {
           <span class="badge-tag ${badgeClass}">${badgeText}</span>
         </div>
         <div class="station-timer-screen">
-          <div class="timer-nums ${timerColor}">${formatTime(remainingSec)}</div>
+          <div class="timer-nums ${timerColor}">
+            ${remainingSec === 0 && !session.isPaused ? `+${formatTime(overtimeSec)}` : formatTime(remainingSec)}
+          </div>
+          ${timerSubHtml}
         </div>
         <div class="station-player-meta">
-          <span class="player-meta-lbl">Player</span>
+          <span class="player-meta-lbl">${remainingSec === 0 && !session.isPaused ? 'Expired Player' : 'Player'}</span>
           <span class="player-meta-name">${session.playerName} ${session.controllers > 0 ? `(+${session.controllers} Ctrl)` : ''}</span>
         </div>
         <div class="station-tile-actions">
-          <button class="btn btn-subtle btn-sm" onclick="openExtendModal('${c.id}')">+ Time</button>
+          <button class="btn btn-primary btn-sm" onclick="openExtendModal('${c.id}')">+ Add Time</button>
           <button class="btn btn-subtle btn-sm" onclick="openTransferModal('${c.id}')">Transfer</button>
           <button class="btn btn-subtle btn-sm" onclick="togglePauseSession('${c.id}')">${session.isPaused ? 'Resume' : 'Pause'}</button>
-          <button class="btn btn-subtle btn-sm text-danger" onclick="endSession('${c.id}')">End</button>
+          <button class="btn btn-subtle btn-sm text-danger" onclick="endSession('${c.id}')">${remainingSec === 0 ? 'Check Out' : 'End'}</button>
         </div>
       `;
     }
@@ -1462,6 +1520,9 @@ document.querySelectorAll('.sidebar-nav .nav-item').forEach((btn) => {
 setInterval(() => {
   if (state.activeTab === 'monitor') {
     renderStationsMonitor();
+  } else if (state.activeTab === 'register') {
+    // Keep overtime count and status fresh on the station selector
+    renderConsolesSelector();
   }
 }, 1000);
 

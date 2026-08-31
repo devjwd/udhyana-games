@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import styles from '../page.module.css';
 import { CartItem } from '../types';
 import toast from 'react-hot-toast';
@@ -158,6 +159,16 @@ export default function ReceiptSlipModal({
       {/* Printable Thermal Receipt (Visible Only In @media print) */}
       <div className={styles.printableReceipt}>
         <div className={styles.printHeader}>
+          <div className={styles.printLogo}>
+            <Image
+              src="/images/logo.png"
+              alt="Udhyana Games"
+              width={140}
+              height={42}
+              style={{ objectFit: 'contain' }}
+              priority
+            />
+          </div>
           <div className={styles.printBrand}>UDHYANA GAMES</div>
           <div className={styles.printSub}>Official Receipt & Game Pass</div>
           <div className={styles.printMeta}>
@@ -196,6 +207,7 @@ export default function ReceiptSlipModal({
         <div className={styles.printFooter}>
           <div>Thank you for playing with us!</div>
           <div>Please retain slip for console verification.</div>
+          <div className={styles.printWeb}>🌐 udhyana.com</div>
         </div>
       </div>
 
@@ -203,7 +215,16 @@ export default function ReceiptSlipModal({
       <div className={styles.modalOverlay} onClick={e => { if (e.target === e.currentTarget && !isSubmitting) onClose(); }} role="dialog" aria-modal="true">
         <div className={styles.modalContent}>
           <div className={styles.modalHeader}>
-            <h2 className={styles.modalTitle} style={{ color: 'var(--primary-accent)' }}>Order Slip & Checkout</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <Image
+                src="/images/logo.png"
+                alt="Udhyana Games"
+                width={120}
+                height={36}
+                style={{ objectFit: 'contain' }}
+              />
+              <h2 className={styles.modalTitle} style={{ color: 'var(--primary-accent)', fontSize: '1.1rem' }}>Order Slip</h2>
+            </div>
             <button className={styles.modalCloseBtn} onClick={onClose} disabled={isSubmitting}>✕</button>
           </div>
 
@@ -300,6 +321,10 @@ export default function ReceiptSlipModal({
             >
               Cancel / Return
             </button>
+
+            <div style={{ textAlign: 'center', fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.45)', marginTop: '0.25rem', letterSpacing: '0.05em' }}>
+              🌐 <a href="https://udhyana.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-accent, #c1ff1c)', textDecoration: 'none' }}>udhyana.com</a>
+            </div>
           </div>
         </div>
       </div>

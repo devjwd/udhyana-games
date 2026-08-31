@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import Image from 'next/image';
 import { useSession, signOut } from 'next-auth/react';
 import { Toaster, toast } from 'react-hot-toast';
 import styles from './page.module.css';
@@ -227,16 +228,33 @@ export default function ReceptionPortal() {
 
   // Console Station Availability Checker
   const checkConsoleAvailability = useCallback((consoleId: string, durationSeconds: number) => {
-    // 1. Active walk-in sessions (including paused)
+    // 1. Active walk-in sessions (including paused or expired but not yet checked out)
     const active = dbSessions.find(s => {
       if (s.consoleId !== consoleId) return false;
-      if (s.status === 'PAUSED') return true;
-      const rem = Math.max(0, Math.floor((new Date(s.endTime).getTime() - Date.now()) / 1000));
-      return rem > 0 && s.status !== 'COMPLETED' && s.status !== 'CANCELLED';
+      return s.status !== 'COMPLETED' && s.status !== 'CANCELLED';
     });
 
     if (active) {
-      const rem = Math.max(0, Math.floor((new Date(active.endTime).getTime() - Date.now()) / 1000));
+      if (active.status === 'PAUSED') {
+        return {
+          available: false,
+          reason: 'PAUSED',
+          isOccupied: true,
+          isReserved: false
+        };
+      }
+      const rem = Math.floor((new Date(active.endTime).getTime() - Date.now()) / 1000);
+      if (rem <= 0) {
+        const overtimeSec = Math.abs(rem);
+        const overtimeMins = Math.floor(overtimeSec / 60);
+        const endTimeStr = new Date(active.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return {
+          available: false,
+          reason: `EXPIRED (+${overtimeMins}m, Ended at ${endTimeStr})`,
+          isOccupied: true,
+          isReserved: false
+        };
+      }
       const minsLeft = Math.ceil(rem / 60);
       return {
         available: false,
@@ -621,7 +639,15 @@ export default function ReceptionPortal() {
       {/* Sidebar */}
       <aside className={styles.sidebar}>
         <div className={styles.logoArea}>
-          <span>M80 // Reception</span>
+          <Image
+            src="/images/logo.png"
+            alt="Udhyana Games"
+            width={140}
+            height={42}
+            style={{ objectFit: 'contain' }}
+            priority
+          />
+          <span className={styles.receptionTag}>RECEPTION</span>
         </div>
 
         <nav className={styles.nav}>
