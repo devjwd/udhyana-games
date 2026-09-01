@@ -15,26 +15,26 @@ export default function Footer() {
         <div className={styles.column}>
           <h3 className={styles.title}>Location</h3>
           <p className={styles.text}>
-            123 Cyber Avenue<br />
-            Neon District, Sector 4<br />
-            NY 10001
+            Main Bazaar, Matta, Swat<br />
+            Khyber Pakhtunkhwa<br />
+            Pakistan
           </p>
         </div>
 
         <div className={styles.column}>
           <h3 className={styles.title}>Hours</h3>
           <p className={styles.text}>
-            Mon-Thu: 12:00 PM - 12:00 AM<br />
-            Fri-Sat: 12:00 PM - 2:00 AM<br />
-            Sun: 10:00 AM - 10:00 PM
+            Monday – Sunday<br />
+            10:00 AM – 12:00 AM<br />
+            Open 7 Days a Week
           </p>
         </div>
 
         <div className={styles.column}>
           <h3 className={styles.title}>Connect</h3>
           <p className={styles.text}>
-            Phone: <Link href="tel:+15550198" className={styles.link}>(555) 019-8822</Link><br />
-            Email: <Link href="mailto:hello@udhyanagames.com" className={styles.link}>hello@udhyanagames.com</Link>
+            Phone: <Link href="tel:+923000000000" className={styles.link}>+92 (300) 000-0000</Link><br />
+            Email: <Link href="mailto:info@udhyanagames.com" className={styles.link}>info@udhyanagames.com</Link>
           </p>
           <div className={styles.socials}>
             <Link href="#" className={styles.link}>Instagram</Link>

@@ -11,12 +11,6 @@ export default withAuth(
         return NextResponse.redirect(new URL("/", req.url));
       }
     }
-
-    if (pathname.startsWith("/reception")) {
-      if (role !== "ADMIN" && role !== "RECEPTIONIST") {
-        return NextResponse.redirect(new URL("/", req.url));
-      }
-    }
   },
   {
     callbacks: {
@@ -25,9 +19,7 @@ export default withAuth(
         if (pathname.startsWith("/admin")) {
           return token?.role === "ADMIN";
         }
-        if (pathname.startsWith("/reception")) {
-          return token?.role === "ADMIN" || token?.role === "RECEPTIONIST";
-        }
+        // Allow /reception to render so staff can log in via ReceptionAuth
         return true;
       },
     },

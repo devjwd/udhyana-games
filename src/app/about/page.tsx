@@ -71,16 +71,15 @@ export default function About() {
                 <div className={styles.detailContent}>
                   <p className={styles.detailLabel}>Location</p>
                   <p className={styles.detailValue}>
-                    123 Cyber Avenue<br />
-                    Neon District, Sector 4<br />
-                    NY 10001
+                    Udhyana Gaming Lounge<br />
+                    Main Bazaar, Matta, Swat<br />
+                    Khyber Pakhtunkhwa, Pakistan
                   </p>
 
                   <p className={styles.detailLabel}>Hours</p>
                   <p className={styles.detailValue}>
-                    Mon – Thu: 12:00 PM – 12:00 AM<br />
-                    Fri – Sat: 12:00 PM – 2:00 AM<br />
-                    Sun: 10:00 AM – 10:00 PM
+                    Monday – Sunday<br />
+                    10:00 AM – 12:00 AM (Midnight)
                   </p>
                 </div>
               </div>
@@ -90,8 +89,8 @@ export default function About() {
                 <div className={styles.detailContent}>
                   <p className={styles.detailLabel}>Inquiries</p>
                   <p className={styles.detailValue}>
-                    Email: <Link href="mailto:hello@udhyanagames.com" className={styles.link}>hello@udhyanagames.com</Link><br />
-                    Phone: <Link href="tel:+15550198822" className={styles.link}>(555) 019-8822</Link>
+                    Email: <Link href="mailto:info@udhyanagames.com" className={styles.link}>info@udhyanagames.com</Link><br />
+                    Reception Desk: <Link href="tel:+923000000000" className={styles.link}>+92 (300) 000-0000</Link>
                   </p>
 
                   <p className={styles.detailLabel}>Community</p>

@@ -165,7 +165,7 @@ export async function searchUsers(query: string) {
   return await prisma.user.findMany({
     where: {
       OR: [
-        { id: clean },
+        { id: { contains: clean, mode: 'insensitive' } },
         { username: { contains: clean, mode: 'insensitive' } },
         { fullName: { contains: clean, mode: 'insensitive' } },
         { phone: { contains: clean, mode: 'insensitive' } },
@@ -341,7 +341,7 @@ export async function getAllMasterGames() {
 }
 
 export async function createMasterGame(name: string) {
-  await requireAdminAuth();
+  await requireReceptionAuth();
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Game title cannot be empty.');
 
@@ -360,7 +360,7 @@ export async function createMasterGame(name: string) {
 }
 
 export async function deleteMasterGame(id: string) {
-  await requireAdminAuth();
+  await requireReceptionAuth();
   await prisma.game.delete({ where: { id } });
 
   revalidateTag('consoles', 'default');
@@ -370,7 +370,7 @@ export async function deleteMasterGame(id: string) {
 }
 
 export async function updateMasterGame(id: string, newName: string) {
-  await requireAdminAuth();
+  await requireReceptionAuth();
   const trimmed = newName.trim();
   if (!trimmed) throw new Error('Game title cannot be empty.');
 
@@ -392,7 +392,7 @@ export async function updateMasterGame(id: string, newName: string) {
 }
 
 export async function assignGameToConsole(consoleId: string, gameId: string) {
-  await requireAdminAuth();
+  await requireReceptionAuth();
   const mapping = await prisma.consoleGames.upsert({
     where: { consoleId_gameId: { consoleId, gameId } },
     update: {},
@@ -407,7 +407,7 @@ export async function assignGameToConsole(consoleId: string, gameId: string) {
 }
 
 export async function removeGameFromConsole(consoleId: string, gameId: string) {
-  await requireAdminAuth();
+  await requireReceptionAuth();
   await prisma.consoleGames.deleteMany({
     where: { consoleId, gameId }
   });
@@ -419,7 +419,7 @@ export async function removeGameFromConsole(consoleId: string, gameId: string) {
 }
 
 export async function toggleConsoleGame(consoleId: string, gameName: string) {
-  await requireAdminAuth();
+  await requireReceptionAuth();
   let game = await prisma.game.findUnique({ where: { name: gameName } });
   if (!game) {
     game = await prisma.game.create({ data: { name: gameName } });
@@ -959,7 +959,7 @@ export async function cancelBooking(bookingId: string) {
     throw new Error('Unauthorized: You cannot cancel this booking.');
   }
 
-  if (booking.status !== 'CONFIRMED') {
+  if (booking.status !== 'CONFIRMED' && booking.status !== 'PENDING') {
     return { error: `Booking is already ${booking.status.toLowerCase()}.` };
   }
 
@@ -1107,7 +1107,8 @@ export async function addTimeToSession(
 
     const baseRate = await getBaseHourlyRate();
     const calculatedAmount = amount !== undefined ? amount : Math.round((additionalSeconds / 3600) * baseRate);
-    const newEndTime = new Date(session.endTime.getTime() + additionalSeconds * 1000);
+    const baseEndTime = Math.max(session.endTime.getTime(), Date.now());
+    const newEndTime = new Date(baseEndTime + additionalSeconds * 1000);
     const durationMinutes = Math.round(additionalSeconds / 60);
 
     const result = await prisma.$transaction(async (tx) => {
@@ -1523,7 +1524,7 @@ export async function startSessionFromWaitlist(
       prisma.gameSession.findFirst({
         where: {
           consoleId,
-          status: 'ACTIVE',
+          status: { in: ['ACTIVE', 'PAUSED'] },
           endTime: { gt: now }
         },
         include: { console: true }
@@ -2201,7 +2202,7 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
   const totalAmount = Math.round(durationHours * hourlyRateToUse);
 
   const activeSession = await prisma.gameSession.findFirst({
-    where: { consoleId: booking.consoleId, status: 'ACTIVE', endTime: { gt: now } }
+    where: { consoleId: booking.consoleId, status: { in: ['ACTIVE', 'PAUSED'] }, endTime: { gt: now } }
   });
 
   if (activeSession) {

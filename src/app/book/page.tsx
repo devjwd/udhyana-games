@@ -18,19 +18,19 @@ function getLocalTodayString() {
 }
 
 const DEFAULT_GAMES_BY_TYPE: Record<string, string[]> = {
-  ps5: ['EA FC 24', 'Tekken 8', 'Spider-Man 2', 'Call of Duty: Warzone', 'GTA V', 'Mortal Kombat 1', 'God of War Ragnarök'],
-  pc: ['Valorant', 'Counter-Strike 2', 'Call of Duty: Warzone', 'Dota 2', 'Apex Legends', 'Fortnite', 'Cyberpunk 2077'],
-  xbox: ['Forza Horizon 5', 'Halo Infinite', 'EA FC 24', 'Starfield', 'Call of Duty: Warzone', 'Gears 5']
+  ps5: ['EA Sports FC 25', 'Tekken 8', 'Marvel’s Spider-Man 2', 'Call of Duty: Warzone', 'GTA V', 'Mortal Kombat 1', 'God of War Ragnarök'],
+  pc: ['Valorant', 'Counter-Strike 2', 'EA Sports FC 25', 'Call of Duty: Warzone', 'Dota 2', 'Apex Legends', 'Fortnite', 'Cyberpunk 2077'],
+  xbox: ['Forza Horizon 5', 'EA Sports FC 25', 'Call of Duty: Warzone', 'Mortal Kombat 1', 'GTA V', 'Rocket League']
 };
 
 const HOT_TITLES = new Set([
-  'EA FC 24',
+  'EA Sports FC 25',
   'Tekken 8',
   'Valorant',
   'Call of Duty: Warzone',
   'GTA V',
   'Counter-Strike 2',
-  'Spider-Man 2',
+  'Marvel’s Spider-Man 2',
   'Forza Horizon 5'
 ]);
 

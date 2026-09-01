@@ -15,6 +15,8 @@ async function run() {
     console.log('SUCCESS! Found users:', res.rows[0].count);
     const consoles = await pool.query('SELECT id, "hardwareTitle" FROM "Console"');
     console.log('SUCCESS! Consoles in DB:', consoles.rows);
+    const products = await pool.query('SELECT * FROM "Product"');
+    console.log('SUCCESS! Products in DB:', products.rows);
   } catch (err) {
     console.error('ERROR:', err);
   } finally {

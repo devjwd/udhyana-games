@@ -61,23 +61,16 @@ import TransferModal from './modals/TransferModal';
 import AddTimeModal from './modals/AddTimeModal';
 import AssignWaitlistModal from './modals/AssignWaitlistModal';
 
-const DEFAULT_SNACKS: SnackItem[] = [
-  { id: '1', name: 'Energy Drink', price: 500 },
-  { id: '2', name: 'Soda Can', price: 150 },
-  { id: '3', name: 'Chips / Lays', price: 200 },
-  { id: '4', name: 'Chocolate', price: 300 },
-];
-
 export default function ReceptionPortal() {
   const { data: session, status: authStatus } = useSession();
   const [activeTab, setActiveTab] = useState<'register' | 'data'>('register');
   const [isMuted, setIsMuted] = useState<boolean>(() => typeof window !== 'undefined' ? soundManager.getMuted() : false);
 
   // Business Rates & Catalog
-  const [baseRate, setBaseRate] = useState<number>(1000);
-  const [extraControllerRate, setExtraControllerRate] = useState<number>(200);
+  const [baseRate, setBaseRate] = useState<number>(300);
+  const [extraControllerRate, setExtraControllerRate] = useState<number>(100);
   const [consoles, setConsoles] = useState<ConsoleStation[]>([]);
-  const [snacks, setSnacks] = useState<SnackItem[]>(DEFAULT_SNACKS);
+  const [snacks, setSnacks] = useState<SnackItem[]>([]);
 
   // Live Operational Data
   const [dbSessions, setDbSessions] = useState<Session[]>([]);

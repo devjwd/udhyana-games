@@ -17,7 +17,7 @@ interface CartDrawerProps {
 export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const { data: session } = useSession();
   const router = useRouter();
-  const { items, subtotal, removeItem, clearCart } = useCart();
+  const { items, subtotal, updateQuantity, removeItem, clearCart } = useCart();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -60,68 +60,111 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
       <div className={`${styles.overlay} ${isOpen ? styles.overlayOpen : ''}`} onClick={onClose}></div>
       <div className={`${styles.drawer} ${isOpen ? styles.drawerOpen : ''}`}>
         <div className={styles.header}>
-          <h2 className={styles.title}>Your Cart</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <span style={{ color: 'var(--accent)', fontSize: '1.1rem' }}>🛒</span>
+            <h2 className={styles.title}>Your Gear Loadout</h2>
+          </div>
           <button className={styles.closeBtn} onClick={onClose} aria-label="Close cart">
-            <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
         {successMessage ? (
           <div style={{ padding: '3rem 2rem', textAlign: 'center', color: '#d6ff01' }}>
-            <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🎉</div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: '0.5rem' }}>{successMessage}</h3>
+            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🎉</div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 900, marginBottom: '0.5rem', letterSpacing: '-0.02em' }}>
+              {successMessage}
+            </h3>
             <p style={{ color: '#7f8388', fontSize: '0.85rem' }}>Redirecting to your Profile...</p>
           </div>
         ) : (
           <>
             <div className={styles.items}>
               {items.length === 0 && (
-                <p className={styles.emptyState}>Your cart is empty.</p>
+                <div className={styles.emptyContainer}>
+                  <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem', opacity: 0.5 }}>🎒</div>
+                  <p className={styles.emptyState}>Your cart loadout is currently empty.</p>
+                  <button
+                    onClick={onClose}
+                    className={styles.shopNowBtn}
+                  >
+                    Browse Equipment →
+                  </button>
+                </div>
               )}
-              {items.map(item => (
+              {items.map((item) => (
                 <div key={item.id} className={styles.cartItem}>
-                  {item.image ? (
-                    <Image src={item.image} alt={item.name} width={60} height={60} className={styles.itemImage} />
-                  ) : (
-                    <div style={{ width: 60, height: 60, background: '#141a20', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', color: '#7f8388' }}>ITEM</div>
-                  )}
+                  <div className={styles.itemImageWrap}>
+                    <Image
+                      src={item.image || '/images/products/headphones.png'}
+                      alt={item.name}
+                      fill
+                      sizes="64px"
+                      className={styles.itemImage}
+                    />
+                  </div>
+
                   <div className={styles.itemInfo}>
                     <span className={styles.itemName}>{item.name}</span>
                     <span className={styles.itemPrice}>
-                      PKR {item.price * item.quantity}
-                      {item.quantity > 1 && <span style={{ opacity: 0.6 }}> ×{item.quantity}</span>}
+                      PKR {(item.price * item.quantity).toLocaleString()}
                     </span>
+
+                    {/* Quantity controls */}
+                    <div className={styles.qtyRow}>
+                      <div className={styles.qtyControls}>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.id, -1)}
+                          className={styles.qtyButton}
+                          aria-label="Decrease quantity"
+                        >
+                          −
+                        </button>
+                        <span className={styles.qtyNumber}>{item.quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.id, 1)}
+                          className={styles.qtyButton}
+                          aria-label="Increase quantity"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <button
+                        className={styles.removeLink}
+                        onClick={() => removeItem(item.id)}
+                        aria-label={`Remove ${item.name}`}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    className={styles.closeBtn}
-                    onClick={() => removeItem(item.id)}
-                    aria-label={`Remove ${item.name}`}
-                    style={{ marginLeft: 'auto', flexShrink: 0 }}
-                  >
-                    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
                 </div>
               ))}
             </div>
 
             {items.length > 0 && (
-              <div style={{ padding: '0.75rem 1.5rem', background: 'rgba(214, 255, 1, 0.08)', borderTop: '1px solid #22272c', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
-                <span style={{ color: '#7f8388' }}>⭐ Loyalty Reward:</span>
-                <span style={{ color: '#d6ff01', fontWeight: 800 }}>+{pointsToEarn} Reward Points</span>
+              <div className={styles.loyaltyBar}>
+                <span style={{ color: '#7f8388' }}>⭐ Loyalty XP Earned:</span>
+                <span style={{ color: '#d6ff01', fontWeight: 800 }}>+{pointsToEarn} XP</span>
               </div>
             )}
 
             <div className={styles.footer}>
               <div className={styles.totalRow}>
-                <span className={styles.totalLabel}>Total</span>
-                <span className={styles.totalValue}>PKR {subtotal}</span>
+                <span className={styles.totalLabel}>Total Amount</span>
+                <span className={styles.totalValue}>PKR {subtotal.toLocaleString()}</span>
               </div>
               <CyberButton
                 onClick={handleCheckout}
                 disabled={items.length === 0 || isCheckingOut}
                 fullWidth
               >
-                {isCheckingOut ? 'Processing...' : 'Checkout & Earn XP'}
+                {isCheckingOut ? 'Processing Order...' : 'Checkout & Claim XP'}
               </CyberButton>
             </div>
           </>

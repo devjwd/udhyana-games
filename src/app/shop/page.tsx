@@ -3,75 +3,84 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import ShopClientView from '@/components/features/ShopClientView';
 import { getProducts } from '@/backend/actions';
+import { getMergedShopProducts } from '@/data/shopCatalog';
 import styles from './page.module.css';
 
 export const metadata: Metadata = {
-  title: 'Shop & Official Merch | Udhyana Games',
+  title: 'Official Pro Shop & Merch | Udhyana Games',
   description:
-    'Explore official Udhyana Games merchandise, tournament-ready peripherals, and apparel.',
+    'Equip tournament-grade peripherals, official Udhyana teamwear, and gaming session refreshments. Instant lounge pickup & loyalty XP rewards.',
 };
 
 export const revalidate = 60; // ISR cache revalidation every 60 seconds
 
 export default async function ShopPage() {
-  const products = await getProducts().catch(() => []);
+  const dbProducts = await getProducts().catch(() => []);
+  const initialProducts = getMergedShopProducts(dbProducts as any);
 
   return (
     <>
       <Header />
       <main className={styles.main}>
-        {/* ─── HERO ─── */}
+        {/* ─── HERO BANNER ─── */}
         <section className={styles.hero}>
           <div className={styles.container}>
-            <span className={styles.kicker}>Official Merch &amp; Gear</span>
-            <h1 className={styles.title}>
-              Gear Up.<br />
-              <span className={styles.titleAccent}>Built to perform.</span>
-            </h1>
-            <p className={styles.lead}>
-              Official Udhyana apparel, tournament-ready peripherals, and refreshments
-              to power your gaming sessions. Reserve online or pick up directly at the reception desk.
-            </p>
-          </div>
-        </section>
-
-        {/* ─── SHOP VITALS (PILLARS) ─── */}
-        <section className={styles.pillarsSection}>
-          <div className={styles.container}>
-            <div className={styles.pillarsGrid}>
-              <div className={styles.pillar}>
-                <span className={styles.pillarNumber}>01</span>
-                <h2 className={styles.pillarTitle}>Official Merch</h2>
-                <p className={styles.pillarText}>
-                  High-grade esports jerseys, heavyweight hoodies, and custom desk accessories designed for gamers.
-                </p>
+            <div className={styles.heroContent}>
+              <div className={styles.heroKickerWrap}>
+                <span className={styles.pulseDot} />
+                <span className={styles.kicker}>Official Udhyana Pro Store</span>
               </div>
+              <h1 className={styles.title}>
+                Tournament Gear.<br />
+                <span className={styles.titleAccent}>Engineered To Win.</span>
+              </h1>
+              <p className={styles.lead}>
+                Official team apparel, pro-tier wireless peripherals, and arena refreshments. 
+                Order online for immediate reception pickup or doorstep delivery with guaranteed loyalty XP on every item.
+              </p>
+            </div>
 
-              <div className={styles.pillar}>
-                <span className={styles.pillarNumber}>02</span>
-                <h2 className={styles.pillarTitle}>Pro Peripherals</h2>
-                <p className={styles.pillarText}>
-                  Tournament-tested mechanical switches, low-latency controllers, and precision gaming mice.
-                </p>
+            {/* ─── TRUST STATS / GUARANTEES BAR ─── */}
+            <div className={styles.trustBar}>
+              <div className={styles.trustItem}>
+                <div className={styles.trustIcon}>⚡</div>
+                <div className={styles.trustText}>
+                  <strong>Instant Lounge Pickup</strong>
+                  <span>Collect in 2 mins at reception</span>
+                </div>
               </div>
-
-              <div className={styles.pillar}>
-                <span className={styles.pillarNumber}>03</span>
-                <h2 className={styles.pillarTitle}>Instant Pickup</h2>
-                <p className={styles.pillarText}>
-                  Browse inventory in real time and collect your order directly at the reception desk during your visit.
-                </p>
+              <div className={styles.trustItem}>
+                <div className={styles.trustIcon}>🛡️</div>
+                <div className={styles.trustText}>
+                  <strong>100% Authentic Gear</strong>
+                  <span>Official factory-backed warranty</span>
+                </div>
+              </div>
+              <div className={styles.trustItem}>
+                <div className={styles.trustIcon}>💎</div>
+                <div className={styles.trustText}>
+                  <strong>Earn 10% Loyalty XP</strong>
+                  <span>Redeemable for free game time</span>
+                </div>
+              </div>
+              <div className={styles.trustItem}>
+                <div className={styles.trustIcon}>🎮</div>
+                <div className={styles.trustText}>
+                  <strong>Pro Arena Tested</strong>
+                  <span>Approved by esports athletes</span>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* ─── INTERACTIVE CLIENT GRID & FILTERS ─── */}
-        <ShopClientView initialProducts={products} />
+        {/* ─── INTERACTIVE CLIENT CATALOG WITH SEARCH, FILTERS & GRID ─── */}
+        <ShopClientView initialProducts={initialProducts} />
       </main>
       <Footer />
     </>
   );
 }
+
 
 

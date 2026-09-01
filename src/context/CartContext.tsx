@@ -13,6 +13,7 @@ export interface CartItem {
 type CartAction =
   | { type: 'ADD_ITEM'; payload: Omit<CartItem, 'quantity'> }
   | { type: 'REMOVE_ITEM'; payload: { id: string } }
+  | { type: 'UPDATE_QUANTITY'; payload: { id: string; delta: number } }
   | { type: 'CLEAR_CART' };
 
 interface CartState {
@@ -38,6 +39,20 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         items: [...state.items, { ...action.payload, quantity: 1 }],
       };
     }
+    case 'UPDATE_QUANTITY': {
+      return {
+        ...state,
+        items: state.items
+          .map(item => {
+            if (item.id === action.payload.id) {
+              const newQty = item.quantity + action.payload.delta;
+              return newQty > 0 ? { ...item, quantity: newQty } : null;
+            }
+            return item;
+          })
+          .filter(Boolean) as CartItem[],
+      };
+    }
     case 'REMOVE_ITEM':
       return {
         ...state,
@@ -55,6 +70,7 @@ interface CartContextValue {
   itemCount: number;
   subtotal: number;
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
+  updateQuantity: (id: string, delta: number) => void;
   removeItem: (id: string) => void;
   clearCart: () => void;
 }
@@ -73,6 +89,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addItem = (item: Omit<CartItem, 'quantity'>) =>
     dispatch({ type: 'ADD_ITEM', payload: item });
 
+  const updateQuantity = (id: string, delta: number) =>
+    dispatch({ type: 'UPDATE_QUANTITY', payload: { id, delta } });
+
   const removeItem = (id: string) =>
     dispatch({ type: 'REMOVE_ITEM', payload: { id } });
 
@@ -80,7 +99,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   return (
     <CartContext.Provider
-      value={{ items: state.items, itemCount, subtotal, addItem, removeItem, clearCart }}
+      value={{ items: state.items, itemCount, subtotal, addItem, updateQuantity, removeItem, clearCart }}
     >
       {children}
     </CartContext.Provider>
