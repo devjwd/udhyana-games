@@ -1,0 +1,54 @@
+{
+  "lastSyncedAt": "2026-09-01T15:29:36.619Z",
+  "cloudConnected": true,
+  "consoles": [
+    {
+      "id": "PS5",
+      "hardwareTitle": "station 1 ( ps5 )"
+    },
+    {
+      "id": "steerin wheel + ps4",
+      "hardwareTitle": "station 4 ( steering wheel )"
+    },
+    {
+      "id": "Xbox series X",
+      "hardwareTitle": "station 2 ( xbox series X )"
+    },
+    {
+      "id": "Xbox series X(2)",
+      "hardwareTitle": "Station 3 ( xbox series X )"
+    }
+  ],
+  "snacks": [
+    {
+      "id": "390ee300-6297-49a0-87d1-9bc493d1fc94",
+      "name": "Coca-Cola / Sprite (345ml)",
+      "price": 150
+    },
+    {
+      "id": "f23d1282-6861-4e2e-b957-bfda70dfb29c",
+      "name": "Dairy Milk / KitKat Bar",
+      "price": 300
+    },
+    {
+      "id": "c470b8de-ba0d-4a02-beed-ae4163557fa5",
+      "name": "Lays / Kurkure Chips",
+      "price": 200
+    },
+    {
+      "id": "9f7be5a4-daf6-4e24-9ee8-4e3407b7a663",
+      "name": "Mineral Water (500ml)",
+      "price": 100
+    },
+    {
+      "id": "3c1d7ace-49b3-4ea3-9e8a-e7259a37eb98",
+      "name": "Red Bull Energy Drink",
+      "price": 500
+    },
+    {
+      "id": "efb3d623-f18d-4aae-acb1-4fa0cba65547",
+      "name": "Sting / Monster Energy",
+      "price": 250
+    }
+  ]
+}

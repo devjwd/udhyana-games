@@ -14,4 +14,7 @@ contextBridge.exposeInMainWorld('terminalAPI', {
   checkoutOrder: (orderPayload) => ipcRenderer.invoke('terminal:checkout', orderPayload),
   sessionAction: (action, payload) => ipcRenderer.invoke('terminal:session-action', { action, payload }),
   getConfig: () => ipcRenderer.invoke('terminal:get-config'),
+  getLocalDbPath: () => ipcRenderer.invoke('terminal:get-local-db-path'),
+  loadLocalState: () => ipcRenderer.invoke('terminal:load-local-state'),
+  saveLocalState: (data) => ipcRenderer.invoke('terminal:save-local-state', data),
 });

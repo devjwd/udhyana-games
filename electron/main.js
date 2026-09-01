@@ -250,10 +250,123 @@ function getDirectDbPool() {
   }
 }
 
+// =========================================================
+// LOCAL DATABASE & OFFLINE-FIRST ENGINE
+// =========================================================
+const LOCAL_DB_DIR = path.join(__dirname, '..', 'local_database');
+const LOCAL_TERMINAL_PATH = path.join(LOCAL_DB_DIR, 'terminal_state.json');
+const LOCAL_QUEUE_PATH = path.join(LOCAL_DB_DIR, 'offline_sync_queue.json');
+
+function ensureLocalDbFiles() {
+  if (!fs.existsSync(LOCAL_DB_DIR)) fs.mkdirSync(LOCAL_DB_DIR, { recursive: true });
+  if (!fs.existsSync(LOCAL_QUEUE_PATH)) fs.writeFileSync(LOCAL_QUEUE_PATH, '[]', 'utf8');
+}
+
+function readLocalTerminalState() {
+  ensureLocalDbFiles();
+  try {
+    if (fs.existsSync(LOCAL_TERMINAL_PATH)) {
+      return JSON.parse(fs.readFileSync(LOCAL_TERMINAL_PATH, 'utf8'));
+    }
+  } catch (err) {
+    console.warn('[Local DB] Error reading terminal_state.json:', err.message);
+  }
+  return null;
+}
+
+function writeLocalTerminalState(data) {
+  ensureLocalDbFiles();
+  try {
+    fs.writeFileSync(LOCAL_TERMINAL_PATH, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (err) {
+    console.warn('[Local DB] Error saving terminal_state.json:', err.message);
+    return false;
+  }
+}
+
+function appendToOfflineQueue(action) {
+  ensureLocalDbFiles();
+  try {
+    let queue = [];
+    if (fs.existsSync(LOCAL_QUEUE_PATH)) {
+      queue = JSON.parse(fs.readFileSync(LOCAL_QUEUE_PATH, 'utf8') || '[]');
+    }
+    queue.push({
+      id: 'off_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      ...action,
+      timestamp: new Date().toISOString()
+    });
+    fs.writeFileSync(LOCAL_QUEUE_PATH, JSON.stringify(queue, null, 2), 'utf8');
+    console.log(`[Local DB] Enqueued offline action: ${action.type}`);
+  } catch (err) {
+    console.warn('[Local DB] Error appending to offline queue:', err.message);
+  }
+}
+
+async function flushOfflineQueueIfOnline() {
+  try {
+    const pool = getDirectDbPool();
+    if (!pool) return;
+    if (!fs.existsSync(LOCAL_QUEUE_PATH)) return;
+    const raw = fs.readFileSync(LOCAL_QUEUE_PATH, 'utf8');
+    const queue = JSON.parse(raw || '[]');
+    if (queue.length === 0) return;
+
+    console.log(`[Auto-Sync] Flushing ${queue.length} offline actions to Supabase cloud...`);
+    const remaining = [];
+    for (const item of queue) {
+      try {
+        if (item.type === 'CHECKOUT' || item.type === 'session_start') {
+          const { cartItems, totalAmount, paymentMethod = 'cash', sessionData = [], walkInName, userId } = item.payload;
+          const orderId = 'ord_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+          await pool.query(
+            'INSERT INTO "Order" (id, "userId", "totalAmount", "paymentMethod", status, "createdAt") VALUES ($1, $2, $3, $4, $5, NOW())',
+            [orderId, userId || null, totalAmount, paymentMethod, 'COMPLETED']
+          );
+          for (const it of (cartItems || [])) {
+            const itemId = 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+            await pool.query(
+              'INSERT INTO "OrderItem" (id, "orderId", name, price, type, quantity) VALUES ($1, $2, $3, $4, $5, $6)',
+              [itemId, orderId, it.name, it.price, it.type || 'session', it.quantity || 1]
+            );
+          }
+          for (const s of sessionData) {
+            const sessId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+            const durSec = Number(s.durationSeconds) || (Number(s.durationHours) * 3600) || 3600;
+            await pool.query(
+              'INSERT INTO "GameSession" (id, "consoleId", "guestName", "startTime", "endTime", status, "pausedRemainingSeconds", "userId") VALUES ($1, $2, $3, NOW(), NOW() + make_interval(secs => $4), $5, 0, $6)',
+              [sessId, s.consoleId, s.playerName || walkInName || 'Guest', durSec, 'ACTIVE', userId || null]
+            );
+          }
+        }
+      } catch (flushErr) {
+        console.warn(`[Auto-Sync] Error flushing item ${item.id}:`, flushErr.message);
+        remaining.push(item);
+      }
+    }
+    fs.writeFileSync(LOCAL_QUEUE_PATH, JSON.stringify(remaining, null, 2), 'utf8');
+  } catch (err) {
+    // offline
+  }
+}
+
+// IPC Handlers for Local Database
+ipcMain.handle('terminal:get-local-db-path', () => LOCAL_DB_DIR);
+
+ipcMain.handle('terminal:load-local-state', () => {
+  return readLocalTerminalState();
+});
+
+ipcMain.handle('terminal:save-local-state', (event, data) => {
+  return writeLocalTerminalState(data);
+});
+
 ipcMain.handle('terminal:get-config', async () => {
   const config = loadConfig();
   return {
     apiBaseUrl: config.apiBaseUrl || 'http://localhost:3000',
+    localDbDir: LOCAL_DB_DIR
   };
 });
 
@@ -262,7 +375,6 @@ ipcMain.handle('terminal:search-members', async (event, query) => {
   try {
     return await callTerminalApi(`/api/terminal?action=members&q=${encodeURIComponent(query || '')}`);
   } catch (apiErr) {
-    console.log('[API Unavailable] Falling back to direct Supabase PostgreSQL query for members...');
     // 2. Direct Supabase DB Fallback
     try {
       const pool = getDirectDbPool();
@@ -284,11 +396,17 @@ ipcMain.handle('terminal:search-members', async (event, query) => {
 });
 
 ipcMain.handle('terminal:fetch-live', async () => {
+  // Check if we should flush offline queue first
+  await flushOfflineQueueIfOnline();
+
   // 1. Try API first
   try {
-    return await callTerminalApi('/api/terminal?action=catalog-and-live');
+    const liveData = await callTerminalApi('/api/terminal?action=catalog-and-live');
+    if (liveData && liveData.success) {
+      writeLocalTerminalState(liveData);
+      return liveData;
+    }
   } catch (apiErr) {
-    console.log('[API Unavailable] Falling back to direct Supabase PostgreSQL query for live catalog...');
     // 2. Direct Supabase DB Fallback
     try {
       const pool = getDirectDbPool();
@@ -312,10 +430,10 @@ ipcMain.handle('terminal:fetch-live', async () => {
         pool.query(`SELECT value FROM "Settings" WHERE key = 'extraControllerRate' LIMIT 1`),
       ]);
 
-      return {
+      const liveResult = {
         success: true,
-        baseRate: baseRateR.rows[0]?.value ? parseInt(baseRateR.rows[0].value, 10) : 1000,
-        extraControllerRate: extraRateR.rows[0]?.value ? parseInt(extraRateR.rows[0].value, 10) : 200,
+        baseRate: baseRateR.rows[0]?.value ? parseInt(baseRateR.rows[0].value, 10) : 300,
+        extraControllerRate: extraRateR.rows[0]?.value ? parseInt(extraRateR.rows[0].value, 10) : 100,
         consoles: consoles.rows,
         snacks: snacks.rows,
         activeSessions: activeSessions.rows.map(s => ({
@@ -339,8 +457,16 @@ ipcMain.handle('terminal:fetch-live', async () => {
           endTime: b.endTime?.toISOString ? b.endTime.toISOString() : b.endTime,
         })),
       };
+
+      writeLocalTerminalState(liveResult);
+      return liveResult;
     } catch (dbErr) {
-      console.warn('[DB Error]', dbErr.message);
+      console.warn('[DB Error] Operating in 100% Offline Mode. Reading from local_database/ directory...');
+      // 3. Fallback to local_database/ folder
+      const cached = readLocalTerminalState();
+      if (cached) {
+        return { ...cached, isOffline: true, fromLocalDb: true };
+      }
       return { success: false, isOffline: true, error: dbErr.message };
     }
   }
@@ -354,7 +480,6 @@ ipcMain.handle('terminal:checkout', async (event, orderPayload) => {
       body: JSON.stringify({ action: 'CHECKOUT', ...orderPayload }),
     });
   } catch (apiErr) {
-    console.log('[API Unavailable] Falling back to direct Supabase PostgreSQL checkout...');
     // 2. Direct Supabase DB Fallback
     try {
       const pool = getDirectDbPool();
@@ -371,7 +496,7 @@ ipcMain.handle('terminal:checkout', async (event, orderPayload) => {
 
         const orderId = 'ord_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
         await client.query(
-          'INSERT INTO "Order" (id, "userId", "totalAmount", "paymentMethod", status, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, NOW(), NOW())',
+          'INSERT INTO "Order" (id, "userId", "totalAmount", "paymentMethod", status, "createdAt") VALUES ($1, $2, $3, $4, $5, NOW())',
           [orderId, userId || null, totalAmount, paymentMethod, 'COMPLETED']
         );
 
@@ -387,7 +512,7 @@ ipcMain.handle('terminal:checkout', async (event, orderPayload) => {
           const sessId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
           const durSec = Number(s.durationSeconds) || (Number(s.durationHours) * 3600) || 3600;
           await client.query(
-            'INSERT INTO "GameSession" (id, "consoleId", "guestName", "startTime", "endTime", status, "pausedRemainingSeconds", "userId", "createdAt", "updatedAt") VALUES ($1, $2, $3, NOW(), NOW() + make_interval(secs => $4), $5, 0, $6, NOW(), NOW())',
+            'INSERT INTO "GameSession" (id, "consoleId", "guestName", "startTime", "endTime", status, "pausedRemainingSeconds", "userId") VALUES ($1, $2, $3, NOW(), NOW() + make_interval(secs => $4), $5, 0, $6)',
             [sessId, s.consoleId, s.playerName || walkInName || 'Guest', durSec, 'ACTIVE', userId || null]
           );
         }
@@ -411,8 +536,14 @@ ipcMain.handle('terminal:checkout', async (event, orderPayload) => {
         client.release();
       }
     } catch (err) {
-      console.warn('[DB Checkout Error]', err.message);
-      return { success: false, isOffline: true, error: err.message };
+      console.warn('[DB Checkout Offline] Appending to local_database/offline_sync_queue.json...');
+      // 3. Save to local_database/ offline queue
+      const orderId = 'off_ord_' + Date.now();
+      appendToOfflineQueue({
+        type: 'CHECKOUT',
+        payload: orderPayload
+      });
+      return { success: true, isOffline: true, queuedInLocalDb: true, orderId, totalAmount: orderPayload.totalAmount };
     }
   }
 });
@@ -425,7 +556,6 @@ ipcMain.handle('terminal:session-action', async (event, { action, payload }) => 
       body: JSON.stringify({ action, ...payload }),
     });
   } catch (apiErr) {
-    console.log('[API Unavailable] Falling back to direct Supabase PostgreSQL session action...');
     try {
       const pool = getDirectDbPool();
       if (!pool) throw apiErr;
@@ -447,7 +577,12 @@ ipcMain.handle('terminal:session-action', async (event, { action, payload }) => 
       }
       return { success: true };
     } catch (err) {
-      return { success: false, isOffline: true, error: err.message };
+      console.warn('[Session Action Offline] Queued locally in local_database/');
+      appendToOfflineQueue({
+        type: action === 'END' ? 'session_end' : 'session_action',
+        payload
+      });
+      return { success: true, isOffline: true, queuedInLocalDb: true };
     }
   }
 });
@@ -456,6 +591,9 @@ ipcMain.handle('terminal:session-action', async (event, { action, payload }) => 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   createWindow();
+
+  // Periodically check and flush offline queue every 30 seconds
+  setInterval(flushOfflineQueueIfOnline, 30000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -467,3 +605,4 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+

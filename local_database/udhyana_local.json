@@ -1,0 +1,86 @@
+{
+  "updatedAt": "2026-09-01T20:25:00.000Z",
+  "cloudConnected": true,
+  "consoles": [
+    {
+      "id": "PS5",
+      "hardwareTitle": "station 1 ( ps5 )",
+      "hourlyRate": 300,
+      "games": [
+        "EA Sports FC 25",
+        "Tekken 8",
+        "Mortal Kombat 1",
+        "Marvel’s Spider-Man 2",
+        "God of War Ragnarök",
+        "Call of Duty: Warzone",
+        "GTA V",
+        "Fortnite",
+        "Rocket League",
+        "Gran Turismo 7"
+      ]
+    },
+    {
+      "id": "Xbox series X",
+      "hardwareTitle": "station 2 ( xbox series X )",
+      "hourlyRate": 300,
+      "games": [
+        "EA Sports FC 25",
+        "Tekken 8",
+        "Mortal Kombat 1",
+        "Forza Horizon 5",
+        "Call of Duty: Warzone",
+        "GTA V",
+        "Halo Infinite",
+        "Fortnite",
+        "Rocket League",
+        "Need for Speed Unbound"
+      ]
+    },
+    {
+      "id": "Xbox series X(2)",
+      "hardwareTitle": "Station 3 ( xbox series X )",
+      "hourlyRate": 300,
+      "games": [
+        "EA Sports FC 25",
+        "Tekken 8",
+        "Mortal Kombat 1",
+        "Forza Horizon 5",
+        "Call of Duty: Warzone",
+        "GTA V",
+        "Halo Infinite",
+        "Fortnite",
+        "Rocket League",
+        "Need for Speed Unbound"
+      ]
+    },
+    {
+      "id": "steerin wheel + ps4",
+      "hardwareTitle": "station 4 ( steering wheel )",
+      "hourlyRate": 300,
+      "games": [
+        "Forza Horizon 5",
+        "Gran Turismo 7",
+        "Need for Speed Unbound",
+        "Assetto Corsa",
+        "F1 24",
+        "Dirt Rally 2.0",
+        "GTA V"
+      ]
+    }
+  ],
+  "snacks": [
+    { "id": "snk-1", "name": "Red Bull Energy Drink", "price": 500, "icon": "⚡" },
+    { "id": "snk-2", "name": "Sting / Monster Energy", "price": 250, "icon": "🥤" },
+    { "id": "snk-3", "name": "Coca-Cola / Sprite (345ml)", "price": 150, "icon": "🥤" },
+    { "id": "snk-4", "name": "Lays / Kurkure Chips", "price": 200, "icon": "🍿" },
+    { "id": "snk-5", "name": "Dairy Milk / KitKat Bar", "price": 300, "icon": "🍫" },
+    { "id": "snk-6", "name": "Mineral Water (500ml)", "price": 100, "icon": "💧" }
+  ],
+  "pricing": {
+    "baseHourlyRate": 300,
+    "extraControllerRate": 100
+  },
+  "users": [],
+  "sessions": [],
+  "orders": []
+}

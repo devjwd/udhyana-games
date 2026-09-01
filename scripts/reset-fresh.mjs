@@ -15,7 +15,7 @@ async function resetAndSeedFresh() {
   console.log('🗑️  Clearing transactional records...');
   await prisma.orderItem.deleteMany();
   console.log('   ✓ OrderItems cleared');
-  
+
   await prisma.order.deleteMany();
   console.log('   ✓ Orders cleared');
 

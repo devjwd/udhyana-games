@@ -221,7 +221,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, mutationId, booking: cancelled });
       }
 
-      default:
+    default:
+        if (action === 'SYNC_LOCAL_QUEUE') {
+          const { syncLocalWithCloud } = await import('@/backend/localDb');
+          const syncResult = await syncLocalWithCloud();
+          return NextResponse.json({ ...syncResult });
+        }
         return NextResponse.json({ success: false, error: `Unknown action: ${action}` }, { status: 400 });
     }
   } catch (error: unknown) {
@@ -230,3 +235,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
+
