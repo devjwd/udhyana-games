@@ -37,6 +37,7 @@ let state = {
   discountPercent: 0,
   paymentMethod: 'cash',
   selectedConsoleId: null,
+  gameSearchQuery: '',
   selectedDurationHours: 1,
   selectedControllersCount: 0,
   baseRate: 300,
@@ -130,6 +131,15 @@ function renderConsolesSelector() {
   container.innerHTML = '';
 
   const now = Date.now();
+  const query = (state.gameSearchQuery || '').trim().toLowerCase();
+  const clearBtn = document.getElementById('clear-game-search-btn');
+  const filterBadge = document.getElementById('station-filter-badge');
+
+  if (clearBtn) clearBtn.style.display = query ? 'inline-block' : 'none';
+  if (filterBadge) {
+    filterBadge.style.display = query ? 'inline-block' : 'none';
+    filterBadge.textContent = query ? `Game: "${state.gameSearchQuery}"` : '';
+  }
 
   state.consoles.forEach((c) => {
     const session = state.activeSessions[c.id];
@@ -139,6 +149,9 @@ function renderConsolesSelector() {
     let statusText = 'Available';
     let statusClass = 'text-avail';
     let subInfo = '';
+
+    const consoleGames = Array.isArray(c.games) ? c.games : [];
+    const matchesGame = query !== '' ? consoleGames.some(g => g.toLowerCase().includes(query)) : true;
 
     if (session) {
       isOccupied = true;
@@ -170,12 +183,29 @@ function renderConsolesSelector() {
       }
     }
 
+    let gameMatchTag = '';
+    if (query) {
+      if (matchesGame) {
+        const matchedName = consoleGames.find(g => g.toLowerCase().includes(query)) || query;
+        gameMatchTag = `<span class="chip-game-match-tag">🎮 Installed: ${matchedName}</span>`;
+      } else {
+        gameMatchTag = `<span class="chip-game-match-tag" style="color: #64748b;">❌ Not Installed</span>`;
+      }
+    }
+
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = `station-chip ${isSelected ? 'active' : ''} ${isOccupied ? 'occupied' : ''} ${isExpired ? 'station-chip-expired' : ''}`;
+    let extraClass = '';
+    if (query) {
+      extraClass = matchesGame ? 'matching-game' : 'not-matching-game';
+    }
+    btn.className = `station-chip ${isSelected ? 'active' : ''} ${isOccupied ? 'occupied' : ''} ${isExpired ? 'station-chip-expired' : ''} ${extraClass}`;
     
     btn.innerHTML = `
-      <span>${c.name}</span>
+      <div>
+        <span>${c.name}</span>
+        ${gameMatchTag}
+      </div>
       <div class="chip-status-wrap">
         <span class="chip-status ${statusClass}">${statusText}</span>
         ${subInfo}
@@ -693,6 +723,190 @@ if (playerInput && suggestionsBox) {
 }
 
 // =========================================================
+// GAME SEARCH & GAMES DIRECTORY LIBRARY
+// =========================================================
+
+const gameSearchInput = document.getElementById('game-search-input');
+const gameSuggestionsBox = document.getElementById('game-suggestions-dropdown');
+const clearGameSearchBtn = document.getElementById('clear-game-search-btn');
+const openGamesDirBtn = document.getElementById('open-games-directory-btn');
+const gamesModal = document.getElementById('games-library-modal');
+const closeGamesModalBtn = document.getElementById('close-games-modal-btn');
+const gamesModalFilterInput = document.getElementById('games-modal-filter-input');
+const gamesLibraryGrid = document.getElementById('games-library-grid');
+
+function getAllUniqueGames() {
+  const gamesMap = new Map();
+  state.consoles.forEach(c => {
+    (c.games || []).forEach(g => {
+      const key = g.toLowerCase();
+      if (!gamesMap.has(key)) {
+        gamesMap.set(key, { name: g, stations: [] });
+      }
+      gamesMap.get(key).stations.push(c);
+    });
+  });
+  return Array.from(gamesMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function renderGameSuggestions(query) {
+  if (!gameSuggestionsBox) return;
+  if (!query) {
+    gameSuggestionsBox.style.display = 'none';
+    return;
+  }
+
+  const allGames = getAllUniqueGames();
+  const matches = allGames.filter(g => g.name.toLowerCase().includes(query));
+
+  if (matches.length === 0) {
+    gameSuggestionsBox.innerHTML = `
+      <div class="game-suggestion-item" style="color: #94a3b8; font-size: 0.8rem; cursor: default;">
+        <span>No stations currently have "${query}" installed</span>
+      </div>
+    `;
+    gameSuggestionsBox.style.display = 'block';
+    return;
+  }
+
+  gameSuggestionsBox.innerHTML = '';
+  matches.slice(0, 6).forEach(g => {
+    const div = document.createElement('div');
+    div.className = 'game-suggestion-item';
+
+    const tagsHtml = g.stations.map(st => {
+      const isOccupied = !!state.activeSessions[st.id];
+      return `<span class="sugg-station-tag ${isOccupied ? 'busy' : 'avail'}">${st.name} (${isOccupied ? 'In-Use' : 'Free'})</span>`;
+    }).join('');
+
+    div.innerHTML = `
+      <div>
+        <div class="sugg-title">🎮 ${g.name}</div>
+      </div>
+      <div class="sugg-stations">
+        ${tagsHtml}
+      </div>
+    `;
+
+    div.onclick = () => {
+      if (gameSearchInput) gameSearchInput.value = g.name;
+      state.gameSearchQuery = g.name;
+      gameSuggestionsBox.style.display = 'none';
+      
+      // Auto-select first available station with this game
+      const firstAvailable = g.stations.find(st => !state.activeSessions[st.id]);
+      if (firstAvailable) {
+        state.selectedConsoleId = firstAvailable.id;
+      }
+      renderConsolesSelector();
+    };
+
+    gameSuggestionsBox.appendChild(div);
+  });
+
+  gameSuggestionsBox.style.display = 'block';
+}
+
+if (gameSearchInput) {
+  gameSearchInput.oninput = () => {
+    const val = gameSearchInput.value.trim();
+    state.gameSearchQuery = val;
+    renderGameSuggestions(val.toLowerCase());
+    renderConsolesSelector();
+  };
+
+  document.addEventListener('click', (e) => {
+    if (gameSuggestionsBox && !gameSearchInput.contains(e.target) && !gameSuggestionsBox.contains(e.target)) {
+      gameSuggestionsBox.style.display = 'none';
+    }
+  });
+}
+
+if (clearGameSearchBtn) {
+  clearGameSearchBtn.onclick = () => {
+    if (gameSearchInput) gameSearchInput.value = '';
+    state.gameSearchQuery = '';
+    if (gameSuggestionsBox) gameSuggestionsBox.style.display = 'none';
+    renderConsolesSelector();
+  };
+}
+
+function renderGamesLibraryGrid(filterQuery = '') {
+  if (!gamesLibraryGrid) return;
+  gamesLibraryGrid.innerHTML = '';
+
+  const allGames = getAllUniqueGames();
+  const filtered = filterQuery
+    ? allGames.filter(g => g.name.toLowerCase().includes(filterQuery.toLowerCase()))
+    : allGames;
+
+  if (filtered.length === 0) {
+    gamesLibraryGrid.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; color: #94a3b8; padding: 2rem;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎮</div>
+        <p>No games found matching "${filterQuery}"</p>
+      </div>
+    `;
+    return;
+  }
+
+  filtered.forEach(g => {
+    const card = document.createElement('div');
+    card.className = 'game-lib-card';
+
+    const stationsHtml = g.stations.map(st => {
+      const isOccupied = !!state.activeSessions[st.id];
+      return `
+        <div class="game-lib-station-row">
+          <span>${st.name} <strong style="color: ${isOccupied ? '#f43f5e' : '#10b981'};">(${isOccupied ? 'Busy' : 'Free'})</strong></span>
+          ${!isOccupied ? `<button type="button" class="game-lib-assign-btn" onclick="selectStationFromGameLib('${st.id}', '${g.name.replace(/'/g, "\\'")}')">Assign</button>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    card.innerHTML = `
+      <div class="game-lib-name">🎮 ${g.name}</div>
+      <div class="game-lib-stations">
+        ${stationsHtml}
+      </div>
+    `;
+
+    gamesLibraryGrid.appendChild(card);
+  });
+}
+
+window.selectStationFromGameLib = function(stationId, gameName) {
+  state.selectedConsoleId = stationId;
+  if (gameSearchInput) gameSearchInput.value = gameName;
+  state.gameSearchQuery = gameName;
+  if (gamesModal) gamesModal.classList.remove('active');
+  switchTab('register');
+  renderConsolesSelector();
+  document.getElementById('player-name')?.focus();
+};
+
+if (openGamesDirBtn && gamesModal) {
+  openGamesDirBtn.onclick = () => {
+    if (gamesModalFilterInput) gamesModalFilterInput.value = '';
+    renderGamesLibraryGrid('');
+    gamesModal.classList.add('active');
+    setTimeout(() => gamesModalFilterInput?.focus(), 100);
+  };
+}
+
+if (closeGamesModalBtn && gamesModal) {
+  closeGamesModalBtn.onclick = () => {
+    gamesModal.classList.remove('active');
+  };
+}
+
+if (gamesModalFilterInput) {
+  gamesModalFilterInput.oninput = (e) => {
+    renderGamesLibraryGrid(e.target.value.trim());
+  };
+}
+
+// =========================================================
 // SHIFT CLOSING (Z-REPORT)
 // =========================================================
 
@@ -1112,6 +1326,8 @@ document.getElementById('session-form').onsubmit = (e) => {
 
   document.getElementById('player-name').value = '';
   document.getElementById('player-phone').value = '';
+  if (gameSearchInput) gameSearchInput.value = '';
+  state.gameSearchQuery = '';
   setSelectedMember(null);
   state.selectedConsoleId = null;
   renderConsolesSelector();

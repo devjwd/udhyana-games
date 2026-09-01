@@ -117,8 +117,26 @@
                 </div>
               </div>
 
+              <!-- Game Search / Filter Station by Game -->
+              <div class="form-field position-relative">
+                <div class="field-header-row">
+                  <label for="game-search-input">Search Games / Find Station</label>
+                  <div class="header-tools">
+                    <button type="button" class="btn-tool-link" id="clear-game-search-btn" style="display: none;">Clear</button>
+                    <button type="button" class="btn-tool-link" id="open-games-directory-btn">🎮 Browse Games Library</button>
+                  </div>
+                </div>
+                <div class="game-search-input-wrap">
+                  <input type="text" id="game-search-input" placeholder="Search game (e.g. Tekken 8, FC 25, Forza, GTA V, Warzone)..." autocomplete="off">
+                </div>
+                <div class="game-suggestions-dropdown" id="game-suggestions-dropdown" style="display: none;"></div>
+              </div>
+
               <div class="form-field">
-                <label>Select Station</label>
+                <div class="field-header-row">
+                  <label>Select Station</label>
+                  <span id="station-filter-badge" class="station-filter-badge" style="display: none;">Filtered</span>
+                </div>
                 <div class="stations-selector-grid" id="console-selector">
                   <!-- Dynamically populated -->
                 </div>
@@ -663,6 +681,27 @@
       <div class="modal-buttons">
         <button class="btn btn-primary" id="confirm-extend-btn">Confirm Extension</button>
         <button class="btn btn-subtle" id="cancel-extend-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Games Library & Directory Modal -->
+  <div class="modal-overlay" id="games-library-modal">
+    <div class="modal-window games-library-window">
+      <div class="modal-header-row">
+        <div>
+          <h2>🎮 Lounge Games Library</h2>
+          <p class="modal-subtitle">Browse all installed games and assign compatible stations immediately</p>
+        </div>
+        <button type="button" class="modal-close-icon" id="close-games-modal-btn">✕</button>
+      </div>
+
+      <div class="games-modal-search-wrap">
+        <input type="text" id="games-modal-filter-input" placeholder="Quick filter games (e.g. Tekken, FC 25, Forza, GTA, Warzone)...">
+      </div>
+
+      <div class="games-library-grid" id="games-library-grid">
+        <!-- Populated dynamically -->
       </div>
     </div>
   </div>

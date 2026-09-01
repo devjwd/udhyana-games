@@ -294,7 +294,13 @@ ipcMain.handle('terminal:fetch-live', async () => {
       const pool = getDirectDbPool();
       if (!pool) throw apiErr;
       const [consoles, snacks, activeSessions, bookings, baseRateR, extraRateR] = await Promise.all([
-        pool.query('SELECT id, "hardwareTitle" AS name, "hardwareSlug" AS type, "hourlyRate" AS rate FROM "Console" ORDER BY id ASC'),
+        pool.query(`SELECT c.id, c."hardwareTitle" AS name, c."hardwareSlug" AS type, c."hourlyRate" AS rate,
+                           COALESCE(array_agg(g.name) FILTER (WHERE g.name IS NOT NULL), '{}') AS games
+                    FROM "Console" c
+                    LEFT JOIN "ConsoleGames" cg ON c.id = cg."consoleId"
+                    LEFT JOIN "Game" g ON cg."gameId" = g.id
+                    GROUP BY c.id
+                    ORDER BY c.id ASC`),
         pool.query('SELECT id, name, price FROM "Snack" ORDER BY name ASC'),
         pool.query(`SELECT s.id, s."consoleId", s."guestName", s."startTime", s."endTime", s.status, s."pausedRemainingSeconds", s."userId", u.username, u."fullName", u.phone
                     FROM "GameSession" s LEFT JOIN "User" u ON s."userId" = u.id
