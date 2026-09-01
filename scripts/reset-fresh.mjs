@@ -83,18 +83,16 @@ async function resetAndSeedFresh() {
   await prisma.console.deleteMany();
 
   const stationsData = [
-    { id: 'ps5-1', hardwareTitle: 'PS5 Pro - Station 1', hardwareSlug: 'ps5-pro-station-1', hourlyRate: 300, specs: 'PlayStation 5 Pro | 4K 120Hz Sony Bravia OLED | DualSense Wireless' },
-    { id: 'ps5-2', hardwareTitle: 'PS5 Pro - Station 2', hardwareSlug: 'ps5-pro-station-2', hourlyRate: 300, specs: 'PlayStation 5 Pro | 4K 120Hz Sony Bravia OLED | DualSense Wireless' },
-    { id: 'ps5-3', hardwareTitle: 'PS5 Pro - Station 3', hardwareSlug: 'ps5-pro-station-3', hourlyRate: 300, specs: 'PlayStation 5 Pro | 4K 120Hz Sony Bravia OLED | DualSense Wireless' },
-    { id: 'pc-1', hardwareTitle: 'Esports PC - Station 4', hardwareSlug: 'esports-pc-station-4', hourlyRate: 300, specs: 'RTX 4080 Super | Ryzen 7 7800X3D | 240Hz 1ms IPS Monitor | Mech Keyboard' },
-    { id: 'pc-2', hardwareTitle: 'Esports PC - Station 5', hardwareSlug: 'esports-pc-station-5', hourlyRate: 300, specs: 'RTX 4080 Super | Ryzen 7 7800X3D | 240Hz 1ms IPS Monitor | Mech Keyboard' },
-    { id: 'xbox-1', hardwareTitle: 'Xbox Series X - Station 6', hardwareSlug: 'xbox-series-x-station-6', hourlyRate: 300, specs: 'Xbox Series X 1TB | 4K HDR QLED Display | Xbox Elite Wireless' },
+    { id: 'PS5', hardwareTitle: 'station 1 ( ps5 )', hardwareSlug: 'station-1-ps5', hourlyRate: 300, specs: 'PlayStation 5 | DualSense Wireless | 4K HDR Gaming TV' },
+    { id: 'Xbox series X', hardwareTitle: 'station 2 ( xbox series X )', hardwareSlug: 'station-2-xbox-series-x', hourlyRate: 300, specs: 'Xbox Series X 1TB | Xbox Wireless Controller | 4K HDR Gaming TV' },
+    { id: 'Xbox series X(2)', hardwareTitle: 'Station 3 ( xbox series X )', hardwareSlug: 'station-3-xbox-series-x', hourlyRate: 300, specs: 'Xbox Series X 1TB | Xbox Wireless Controller | 4K HDR Gaming TV' },
+    { id: 'steerin wheel + ps4', hardwareTitle: 'station 4 ( steering wheel )', hardwareSlug: 'station-4-steering-wheel', hourlyRate: 300, specs: 'Racing Cockpit | Force Feedback Steering Wheel & Pedals | PS4 Pro' },
   ];
 
   for (const s of stationsData) {
     await prisma.console.create({ data: s });
   }
-  console.log(`   ✓ Created ${stationsData.length} fresh stations (PS5 Pro 1-3, Esports PC 4-5, Xbox Series X 6)`);
+  console.log(`   ✓ Created ${stationsData.length} fresh stations (${stationsData.map(s => s.hardwareTitle).join(', ')})`);
 
   // 4. Reset & Seed Master Games Library
   console.log('🕹️  Resetting Master Games Library & Station Mappings...');
@@ -103,47 +101,75 @@ async function resetAndSeedFresh() {
   const masterGamesList = [
     {
       name: 'EA Sports FC 25',
-      consoles: ['ps5-1', 'ps5-2', 'ps5-3', 'pc-1', 'pc-2', 'xbox-1']
+      consoles: ['PS5', 'Xbox series X', 'Xbox series X(2)']
     },
     {
       name: 'Tekken 8',
-      consoles: ['ps5-1', 'ps5-2', 'ps5-3', 'pc-1', 'pc-2']
+      consoles: ['PS5', 'Xbox series X', 'Xbox series X(2)']
     },
     {
       name: 'Call of Duty: Warzone',
-      consoles: ['ps5-1', 'ps5-2', 'ps5-3', 'pc-1', 'pc-2', 'xbox-1']
-    },
-    {
-      name: 'Valorant',
-      consoles: ['pc-1', 'pc-2']
-    },
-    {
-      name: 'Counter-Strike 2',
-      consoles: ['pc-1', 'pc-2']
-    },
-    {
-      name: 'Grand Theft Auto V',
-      consoles: ['ps5-1', 'ps5-2', 'ps5-3', 'pc-1', 'pc-2', 'xbox-1']
+      consoles: ['PS5', 'Xbox series X', 'Xbox series X(2)']
     },
     {
       name: 'Mortal Kombat 1',
-      consoles: ['ps5-1', 'ps5-2', 'ps5-3', 'xbox-1']
+      consoles: ['PS5', 'Xbox series X', 'Xbox series X(2)']
+    },
+    {
+      name: 'Grand Theft Auto V',
+      consoles: ['PS5', 'Xbox series X', 'Xbox series X(2)', 'steerin wheel + ps4']
     },
     {
       name: 'Marvel’s Spider-Man 2',
-      consoles: ['ps5-1', 'ps5-2', 'ps5-3']
+      consoles: ['PS5']
     },
     {
       name: 'God of War Ragnarök',
-      consoles: ['ps5-1', 'ps5-2', 'ps5-3']
+      consoles: ['PS5']
+    },
+    {
+      name: 'Gran Turismo 7',
+      consoles: ['PS5', 'steerin wheel + ps4']
     },
     {
       name: 'Forza Horizon 5',
-      consoles: ['pc-1', 'pc-2', 'xbox-1']
+      consoles: ['Xbox series X', 'Xbox series X(2)', 'steerin wheel + ps4']
+    },
+    {
+      name: 'Halo Infinite',
+      consoles: ['Xbox series X', 'Xbox series X(2)']
+    },
+    {
+      name: 'Need for Speed Unbound',
+      consoles: ['PS5', 'Xbox series X', 'Xbox series X(2)', 'steerin wheel + ps4']
+    },
+    {
+      name: 'Assetto Corsa',
+      consoles: ['steerin wheel + ps4']
+    },
+    {
+      name: 'F1 24',
+      consoles: ['steerin wheel + ps4']
+    },
+    {
+      name: 'Dirt Rally 2.0',
+      consoles: ['steerin wheel + ps4']
     },
     {
       name: 'Rocket League',
-      consoles: ['ps5-1', 'ps5-2', 'ps5-3', 'pc-1', 'pc-2', 'xbox-1']
+      consoles: ['PS5', 'Xbox series X', 'Xbox series X(2)']
+    },
+    {
+      name: 'Fortnite',
+      consoles: ['PS5', 'Xbox series X', 'Xbox series X(2)']
+    },
+    {
+      name: 'PUBG: Battlegrounds',
+      consoles: ['PS5', 'Xbox series X', 'Xbox series X(2)']
+    },
+    {
+      name: 'Apex Legends',
+      consoles: ['PS5', 'Xbox series X', 'Xbox series X(2)']
     }
   ];
 

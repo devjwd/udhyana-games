@@ -2417,3 +2417,185 @@ export async function getDailyShiftSummary() {
     activeSessionsCount
   };
 }
+
+// =========================================================
+// RETROACTIVE DATA & MISSED SESSION LOGGING (ADMIN POWER)
+// =========================================================
+
+export async function addRetroactiveSession(data: {
+  userId?: string | null;
+  guestName?: string | null;
+  consoleId: string;
+  startTime: string | Date;
+  durationHours: number;
+  totalPaid: number;
+  paymentMethod?: string;
+  loyaltyPointsAwarded?: number;
+  notes?: string;
+}) {
+  await requireAdminAuth();
+
+  const startDate = new Date(data.startTime);
+  if (isNaN(startDate.getTime())) {
+    throw new Error('Invalid start date and time provided.');
+  }
+
+  const durationHours = Math.max(0.1, Number(data.durationHours) || 1);
+  const totalPaid = Math.max(0, Number(data.totalPaid) || 0);
+  const endDate = new Date(startDate.getTime() + durationHours * 3600 * 1000);
+  const paymentMethod = data.paymentMethod || 'cash';
+
+  const consoleObj = await prisma.console.findUnique({ where: { id: data.consoleId } });
+  const consoleName = consoleObj?.hardwareTitle || data.consoleId;
+
+  const result = await prisma.$transaction(async (tx) => {
+    // 1. Create completed session in past history
+    const session = await tx.gameSession.create({
+      data: {
+        consoleId: data.consoleId,
+        userId: data.userId || null,
+        guestName: data.guestName || null,
+        startTime: startDate,
+        endTime: endDate,
+        status: 'COMPLETED',
+        checkedOutAt: endDate,
+      }
+    });
+
+    // 2. Create corresponding financial order & invoice
+    const itemSummary = `[Past Session] ${data.guestName || 'Player'} - ${durationHours} Hr (${consoleName})${data.notes ? ` [${data.notes}]` : ''}`;
+    const order = await tx.order.create({
+      data: {
+        userId: data.userId || null,
+        totalAmount: totalPaid,
+        paymentMethod,
+        createdAt: startDate,
+        items: {
+          create: [{
+            name: itemSummary,
+            price: totalPaid,
+            type: 'session',
+            quantity: 1
+          }]
+        }
+      }
+    });
+
+    // 3. If tied to a registered user, credit their playtime, session count, and loyalty XP
+    if (data.userId) {
+      const user = await tx.user.findUnique({ where: { id: data.userId } });
+      if (user) {
+        const pointsToAdd = data.loyaltyPointsAwarded !== undefined
+          ? Math.max(0, data.loyaltyPointsAwarded)
+          : Math.floor(totalPaid / 10) + Math.floor(durationHours * 50);
+
+        const newPoints = (user.loyaltyPoints || 0) + pointsToAdd;
+        const newPlaytime = Math.round(((user.playtimeHours || 0) + durationHours) * 10) / 10;
+        const newSessionsCount = (user.sessionsCount || 0) + 1;
+
+        // Auto-calculate rank based on new total points
+        let newRank = user.rank || 'Beginner';
+        if (newPoints >= 2000) newRank = 'Elite';
+        else if (newPoints >= 1000) newRank = 'Pro';
+        else if (newPoints >= 500) newRank = 'Regular';
+        else if (newPoints >= 200) newRank = 'Rookie';
+
+        await tx.user.update({
+          where: { id: data.userId },
+          data: {
+            loyaltyPoints: newPoints,
+            playtimeHours: newPlaytime,
+            sessionsCount: newSessionsCount,
+            rank: newRank,
+          }
+        });
+      }
+    }
+
+    return { session, order };
+  });
+
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  revalidatePath('/profile');
+  return { success: true, ...result };
+}
+
+export async function adjustUserStats(userId: string, stats: {
+  playtimeHours?: number;
+  sessionsCount?: number;
+  loyaltyPoints?: number;
+  rank?: string;
+}) {
+  await requireAdminAuth();
+
+  const updateData: {
+    playtimeHours?: number;
+    sessionsCount?: number;
+    loyaltyPoints?: number;
+    rank?: string;
+  } = {};
+
+  if (stats.playtimeHours !== undefined) updateData.playtimeHours = Math.max(0, Number(stats.playtimeHours));
+  if (stats.sessionsCount !== undefined) updateData.sessionsCount = Math.max(0, Number(stats.sessionsCount));
+  if (stats.loyaltyPoints !== undefined) updateData.loyaltyPoints = Math.max(0, Number(stats.loyaltyPoints));
+  if (stats.rank) updateData.rank = stats.rank;
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: updateData
+  });
+
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  revalidatePath('/profile');
+  return updatedUser;
+}
+
+export async function addRetroactiveOrder(data: {
+  userId?: string | null;
+  customerName?: string | null;
+  items: Array<{ name: string; price: number; quantity: number; type?: string }>;
+  totalAmount: number;
+  paymentMethod?: string;
+  createdAt: string | Date;
+}) {
+  await requireAdminAuth();
+
+  const orderDate = new Date(data.createdAt);
+  if (isNaN(orderDate.getTime())) {
+    throw new Error('Invalid order date provided.');
+  }
+
+  const order = await prisma.order.create({
+    data: {
+      userId: data.userId || null,
+      totalAmount: data.totalAmount,
+      paymentMethod: data.paymentMethod || 'cash',
+      createdAt: orderDate,
+      items: {
+        create: data.items.map(it => ({
+          name: it.name,
+          price: it.price,
+          quantity: it.quantity || 1,
+          type: it.type || 'snack'
+        }))
+      }
+    }
+  });
+
+  if (data.userId && data.totalAmount > 0) {
+    const pointsEarned = Math.floor(data.totalAmount / 10);
+    if (pointsEarned > 0) {
+      await prisma.user.update({
+        where: { id: data.userId },
+        data: { loyaltyPoints: { increment: pointsEarned } }
+      });
+    }
+  }
+
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  return { success: true, order };
+}
+

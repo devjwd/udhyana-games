@@ -18,6 +18,7 @@ import {
   searchUsers, promoteUserToStaff, getAllUsersWithRoles, updateUserRole, approveUser, rejectUser,
   adminResetUserPassword, adminCreateUser, deleteUserAccount,
   getAllCustomersWithStats, getCustomerFullDossier, updateCustomerProfile,
+  addRetroactiveSession, adjustUserStats, addRetroactiveOrder,
   getHeroTrending, setHeroTrending, getHeroGallery, setHeroGallery, updateHeroGalleryImage,
   type HeroTrendingSlide, type HeroGalleryImage
 } from '@/backend/actions';
@@ -156,6 +157,33 @@ export default function BackendAdmin() {
   const [quickEditForm, setQuickEditForm] = useState({ fullName: '', username: '', phone: '', email: '', status: 'APPROVED', rank: 'Beginner' });
   const [userPointsModal, setUserPointsModal] = useState<any | null>(null);
   const [pointsDeltaInput, setPointsDeltaInput] = useState('');
+
+  // Retroactive Past Session & Stats Override State
+  const [isAddPastSessionModalOpen, setIsAddPastSessionModalOpen] = useState(false);
+  const [pastSessionForm, setPastSessionForm] = useState({
+    userId: '',
+    guestName: '',
+    consoleId: '',
+    startTime: '',
+    durationHours: '1',
+    totalPaid: '300',
+    paymentMethod: 'cash',
+    loyaltyPointsAwarded: '50',
+    notes: ''
+  });
+  const [isSubmittingPastSession, setIsSubmittingPastSession] = useState(false);
+
+  const [isAdjustStatsModalOpen, setIsAdjustStatsModalOpen] = useState(false);
+  const [adjustStatsForm, setAdjustStatsForm] = useState({
+    userId: '',
+    username: '',
+    fullName: '',
+    playtimeHours: '',
+    sessionsCount: '',
+    loyaltyPoints: '',
+    rank: 'Beginner'
+  });
+  const [isSubmittingAdjustStats, setIsSubmittingAdjustStats] = useState(false);
 
   // Analytics State
   const [analytics, setAnalytics] = useState<any>(null);
@@ -770,6 +798,124 @@ export default function BackendAdmin() {
       alert('Failed to load analytics for selected timeframe.');
     } finally {
       setIsAnalyticsLoading(false);
+    }
+  };
+
+  // ── Retroactive / Missed Session & Stats Handlers ──
+  const handleOpenLogPastSession = (targetUser?: any) => {
+    const defaultConsoleId = consoles.length > 0 ? consoles[0].id : '';
+    const now = new Date();
+    const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+    setPastSessionForm({
+      userId: targetUser?.id || '',
+      guestName: targetUser?.fullName || targetUser?.name || targetUser?.username || '',
+      consoleId: defaultConsoleId,
+      startTime: localIso,
+      durationHours: '1',
+      totalPaid: baseHourlyRate.toString(),
+      paymentMethod: 'cash',
+      loyaltyPointsAwarded: '50',
+      notes: ''
+    });
+    setIsAddPastSessionModalOpen(true);
+  };
+
+  const handleSubmitPastSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pastSessionForm.consoleId) {
+      alert('Please select a console station.');
+      return;
+    }
+    setIsSubmittingPastSession(true);
+    try {
+      await addRetroactiveSession({
+        userId: pastSessionForm.userId || undefined,
+        guestName: pastSessionForm.guestName || undefined,
+        consoleId: pastSessionForm.consoleId,
+        startTime: pastSessionForm.startTime,
+        durationHours: parseFloat(pastSessionForm.durationHours) || 1,
+        totalPaid: parseFloat(pastSessionForm.totalPaid) || 0,
+        paymentMethod: pastSessionForm.paymentMethod,
+        loyaltyPointsAwarded: pastSessionForm.loyaltyPointsAwarded ? parseInt(pastSessionForm.loyaltyPointsAwarded) : undefined,
+        notes: pastSessionForm.notes || undefined
+      });
+
+      // Refresh customers list & dossier
+      const updatedCustomers = await getAllCustomersWithStats();
+      setCustomers(updatedCustomers as any);
+
+      if (selectedCustomerDossier && selectedCustomerDossier.id === pastSessionForm.userId) {
+        const freshDossier = await getCustomerFullDossier(selectedCustomerDossier.id);
+        setSelectedCustomerDossier(freshDossier);
+      }
+
+      setIsAddPastSessionModalOpen(false);
+      alert('Retroactive past session and revenue recorded successfully!');
+    } catch (err: any) {
+      alert(err.message || 'Failed to log past session.');
+    } finally {
+      setIsSubmittingPastSession(false);
+    }
+  };
+
+  const handleOpenAdjustStats = (targetUser: any) => {
+    setAdjustStatsForm({
+      userId: targetUser.id,
+      username: targetUser.username || '',
+      fullName: targetUser.fullName || targetUser.name || '',
+      playtimeHours: (targetUser.playtimeHours || 0).toString(),
+      sessionsCount: (targetUser.sessionsCount || 0).toString(),
+      loyaltyPoints: (targetUser.loyaltyPoints || 0).toString(),
+      rank: targetUser.rank || 'Beginner'
+    });
+    setIsAdjustStatsModalOpen(true);
+  };
+
+  const handleSubmitAdjustStats = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustStatsForm.userId) return;
+    setIsSubmittingAdjustStats(true);
+    try {
+      const updated = await adjustUserStats(adjustStatsForm.userId, {
+        playtimeHours: parseFloat(adjustStatsForm.playtimeHours) || 0,
+        sessionsCount: parseInt(adjustStatsForm.sessionsCount) || 0,
+        loyaltyPoints: parseInt(adjustStatsForm.loyaltyPoints) || 0,
+        rank: adjustStatsForm.rank
+      });
+
+      setCustomers(prev => prev.map(c => c.id === adjustStatsForm.userId ? {
+        ...c,
+        playtimeHours: updated.playtimeHours,
+        sessionsCount: updated.sessionsCount,
+        loyaltyPoints: updated.loyaltyPoints,
+        rank: updated.rank
+      } : c));
+
+      setAllUsers(prev => prev.map(u => u.id === adjustStatsForm.userId ? {
+        ...u,
+        playtimeHours: updated.playtimeHours,
+        sessionsCount: updated.sessionsCount,
+        loyaltyPoints: updated.loyaltyPoints,
+        rank: updated.rank
+      } : u));
+
+      if (selectedCustomerDossier?.id === adjustStatsForm.userId) {
+        setSelectedCustomerDossier((prev: any) => prev ? {
+          ...prev,
+          playtimeHours: updated.playtimeHours,
+          sessionsCount: updated.sessionsCount,
+          loyaltyPoints: updated.loyaltyPoints,
+          rank: updated.rank
+        } : null);
+      }
+
+      setIsAdjustStatsModalOpen(false);
+      alert(`User stats for @${adjustStatsForm.username} successfully updated!`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to adjust user stats.');
+    } finally {
+      setIsSubmittingAdjustStats(false);
     }
   };
 
@@ -2635,6 +2781,244 @@ export default function BackendAdmin() {
           </div>
         )}
 
+        {/* Retroactive / Missed Session Modal */}
+        {isAddPastSessionModalOpen && (
+          <div className={styles.modalOverlay}>
+            <div className={styles.modalContent} style={{ maxWidth: '650px' }}>
+              <div className={styles.modalHeader}>
+                <div>
+                  <h2 className={styles.modalTitle}>🎮 Log Previous / Missed Session Record</h2>
+                  <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginTop: '4px' }}>
+                    Record past or offline gaming history. Credits playtime hours, session count, loyalty XP, and lounge revenue.
+                  </p>
+                </div>
+                <button type="button" className={styles.modalClose} onClick={() => setIsAddPastSessionModalOpen(false)}>✕</button>
+              </div>
+
+              <form onSubmit={handleSubmitPastSession} className={styles.formGrid}>
+                <div className={styles.field}>
+                  <label className={styles.label}>Select Registered Gamer (Optional)</label>
+                  <select
+                    className={styles.select}
+                    value={pastSessionForm.userId}
+                    onChange={e => {
+                      const selectedId = e.target.value;
+                      const userObj = customers.find(c => c.id === selectedId);
+                      setPastSessionForm({
+                        ...pastSessionForm,
+                        userId: selectedId,
+                        guestName: userObj ? (userObj.fullName || userObj.name || userObj.username) : pastSessionForm.guestName
+                      });
+                    }}
+                  >
+                    <option value="">-- Guest / Unregistered Walk-in --</option>
+                    {customers.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.fullName || c.name || c.username} (@{c.username})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label}>Player / Guest Name</label>
+                  <input
+                    type="text"
+                    className={styles.input}
+                    value={pastSessionForm.guestName}
+                    onChange={e => setPastSessionForm({ ...pastSessionForm, guestName: e.target.value })}
+                    placeholder="e.g. Hamza / Guest Player"
+                    required
+                  />
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label}>Station Hardware</label>
+                  <select
+                    className={styles.select}
+                    value={pastSessionForm.consoleId}
+                    onChange={e => setPastSessionForm({ ...pastSessionForm, consoleId: e.target.value })}
+                    required
+                  >
+                    {consoles.map(c => (
+                      <option key={c.id} value={c.id}>{c.hardwareTitle}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label}>Session Date &amp; Start Time</label>
+                  <input
+                    type="datetime-local"
+                    className={styles.input}
+                    value={pastSessionForm.startTime}
+                    onChange={e => setPastSessionForm({ ...pastSessionForm, startTime: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label}>Duration (Hours)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0.1"
+                    className={styles.input}
+                    value={pastSessionForm.durationHours}
+                    onChange={e => {
+                      const dur = parseFloat(e.target.value) || 1;
+                      const calcPaid = Math.round(dur * baseHourlyRate);
+                      const calcXp = Math.floor(dur * 50) + Math.floor(calcPaid / 10);
+                      setPastSessionForm({
+                        ...pastSessionForm,
+                        durationHours: e.target.value,
+                        totalPaid: calcPaid.toString(),
+                        loyaltyPointsAwarded: calcXp.toString()
+                      });
+                    }}
+                    required
+                  />
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label}>Total Amount Paid (PKR)</label>
+                  <input
+                    type="number"
+                    className={styles.input}
+                    value={pastSessionForm.totalPaid}
+                    onChange={e => setPastSessionForm({ ...pastSessionForm, totalPaid: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label}>Payment Method</label>
+                  <select
+                    className={styles.select}
+                    value={pastSessionForm.paymentMethod}
+                    onChange={e => setPastSessionForm({ ...pastSessionForm, paymentMethod: e.target.value })}
+                  >
+                    <option value="cash">💵 Cash</option>
+                    <option value="card">💳 Card / POS</option>
+                    <option value="account">📱 Account / Transfer</option>
+                  </select>
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label}>Loyalty XP Points to Credit</label>
+                  <input
+                    type="number"
+                    className={styles.input}
+                    value={pastSessionForm.loyaltyPointsAwarded}
+                    onChange={e => setPastSessionForm({ ...pastSessionForm, loyaltyPointsAwarded: e.target.value })}
+                    placeholder="Auto-calculated from playtime & spend"
+                  />
+                </div>
+
+                <div className={`${styles.field} ${styles.fieldFull}`}>
+                  <label className={styles.label}>Game Played / Notes (Optional)</label>
+                  <input
+                    type="text"
+                    className={styles.input}
+                    value={pastSessionForm.notes}
+                    onChange={e => setPastSessionForm({ ...pastSessionForm, notes: e.target.value })}
+                    placeholder="e.g. Tekken 8 match, EA FC 25 tournament, missed offline session"
+                  />
+                </div>
+
+                <div className={`${styles.field} ${styles.fieldFull}`} style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem' }}>
+                  <button type="submit" className={styles.btn} disabled={isSubmittingPastSession} style={{ background: '#10b981', color: '#000', fontWeight: 800 }}>
+                    {isSubmittingPastSession ? 'Recording...' : '💾 Record Past Session & Revenue'}
+                  </button>
+                  <button type="button" onClick={() => setIsAddPastSessionModalOpen(false)} className={styles.actionBtn} style={{ background: '#22272c', color: '#fff' }}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Direct Stats Override Modal */}
+        {isAdjustStatsModalOpen && (
+          <div className={styles.modalOverlay}>
+            <div className={styles.modalContent} style={{ maxWidth: '550px' }}>
+              <div className={styles.modalHeader}>
+                <div>
+                  <h2 className={styles.modalTitle}>⚡ Direct Stats Override</h2>
+                  <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginTop: '4px' }}>
+                    Manually adjust playtime hours, total session visits, loyalty XP, and rank for @{adjustStatsForm.username}.
+                  </p>
+                </div>
+                <button type="button" className={styles.modalClose} onClick={() => setIsAdjustStatsModalOpen(false)}>✕</button>
+              </div>
+
+              <form onSubmit={handleSubmitAdjustStats} className={styles.formGrid}>
+                <div className={styles.field}>
+                  <label className={styles.label}>Total Playtime (Hours)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    className={styles.input}
+                    value={adjustStatsForm.playtimeHours}
+                    onChange={e => setAdjustStatsForm({ ...adjustStatsForm, playtimeHours: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label}>Sessions Logged (Count)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className={styles.input}
+                    value={adjustStatsForm.sessionsCount}
+                    onChange={e => setAdjustStatsForm({ ...adjustStatsForm, sessionsCount: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label}>Loyalty Points (XP)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className={styles.input}
+                    value={adjustStatsForm.loyaltyPoints}
+                    onChange={e => setAdjustStatsForm({ ...adjustStatsForm, loyaltyPoints: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label}>Rank Tier</label>
+                  <select
+                    className={styles.select}
+                    value={adjustStatsForm.rank}
+                    onChange={e => setAdjustStatsForm({ ...adjustStatsForm, rank: e.target.value })}
+                  >
+                    <option value="Beginner">Beginner (0+ XP)</option>
+                    <option value="Rookie">Rookie (200+ XP)</option>
+                    <option value="Regular">Regular (500+ XP)</option>
+                    <option value="Pro">Pro (1000+ XP)</option>
+                    <option value="Elite">Elite (2000+ XP)</option>
+                  </select>
+                </div>
+
+                <div className={`${styles.field} ${styles.fieldFull}`} style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem' }}>
+                  <button type="submit" className={styles.btn} disabled={isSubmittingAdjustStats} style={{ background: '#00d2ff', color: '#000', fontWeight: 800 }}>
+                    {isSubmittingAdjustStats ? 'Saving...' : '💾 Save Adjusted Gamer Stats'}
+                  </button>
+                  <button type="button" onClick={() => setIsAdjustStatsModalOpen(false)} className={styles.actionBtn} style={{ background: '#22272c', color: '#fff' }}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* Customer Dossier / Full Profile Modal */}
         {selectedCustomerDossier && (
           <div className={styles.modalOverlay}>
@@ -2753,31 +3137,65 @@ export default function BackendAdmin() {
                         </div>
                       </div>
                     </div>
+
+                    <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenLogPastSession(selectedCustomerDossier)}
+                        className={styles.btn}
+                        style={{ background: '#10b981', color: '#000', fontWeight: 800, fontSize: '0.78rem' }}
+                      >
+                        ➕ Log Past / Missed Session for this Gamer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAdjustStats(selectedCustomerDossier)}
+                        className={styles.btn}
+                        style={{ background: '#00d2ff', color: '#000', fontWeight: 800, fontSize: '0.78rem' }}
+                      >
+                        ⚡ Direct Stats Override (Hours, XP, Visits)
+                      </button>
+                    </div>
                   </div>
                 )}
 
                 {dossierActiveTab === 'SESSIONS' && (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className={styles.table}>
-                      <thead>
-                        <tr>
-                          <th className={styles.th}>Station</th>
-                          <th className={styles.th}>Start</th>
-                          <th className={styles.th}>End</th>
-                          <th className={styles.th}>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedCustomerDossier.gameSessions?.map((s: any) => (
-                          <tr key={s.id} className={styles.tr}>
-                            <td className={styles.td}><strong>{s.console?.hardwareTitle || s.consoleId}</strong></td>
-                            <td className={styles.td} style={{ fontSize: '0.8rem' }}>{new Date(s.startTime).toLocaleString()}</td>
-                            <td className={styles.td} style={{ fontSize: '0.8rem' }}>{new Date(s.endTime).toLocaleString()}</td>
-                            <td className={styles.td}><span style={{ color: s.status === 'ACTIVE' ? 'var(--primary-accent)' : '#fff', fontWeight: 800, fontSize: '0.75rem' }}>{s.status}</span></td>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+                        Total Recorded Sessions: <strong>{selectedCustomerDossier.gameSessions?.length || 0}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenLogPastSession(selectedCustomerDossier)}
+                        className={styles.btn}
+                        style={{ background: '#10b981', color: '#000', fontSize: '0.72rem', padding: '0.35rem 0.75rem', fontWeight: 800 }}
+                      >
+                        + Add Past Session Record
+                      </button>
+                    </div>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className={styles.table}>
+                        <thead>
+                          <tr>
+                            <th className={styles.th}>Station</th>
+                            <th className={styles.th}>Start</th>
+                            <th className={styles.th}>End</th>
+                            <th className={styles.th}>Status</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {selectedCustomerDossier.gameSessions?.map((s: any) => (
+                            <tr key={s.id} className={styles.tr}>
+                              <td className={styles.td}><strong>{s.console?.hardwareTitle || s.consoleId}</strong></td>
+                              <td className={styles.td} style={{ fontSize: '0.8rem' }}>{new Date(s.startTime).toLocaleString()}</td>
+                              <td className={styles.td} style={{ fontSize: '0.8rem' }}>{new Date(s.endTime).toLocaleString()}</td>
+                              <td className={styles.td}><span style={{ color: s.status === 'ACTIVE' ? 'var(--primary-accent)' : '#fff', fontWeight: 800, fontSize: '0.75rem' }}>{s.status}</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
 
@@ -3005,6 +3423,15 @@ export default function BackendAdmin() {
 
               <button
                 type="button"
+                onClick={() => handleOpenLogPastSession()}
+                className={styles.btn}
+                style={{ padding: '0.45rem 0.8rem', fontSize: '0.75rem', background: '#10b981', color: '#000', fontWeight: 800 }}
+              >
+                ➕ Log Past Session
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setIsAddCustomerModalOpen(true)}
                 className={styles.btn}
                 style={{ padding: '0.45rem 0.8rem', fontSize: '0.75rem' }}
@@ -3107,11 +3534,31 @@ export default function BackendAdmin() {
                         <div style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center' }}>
                           <button
                             type="button"
+                            className={styles.actionBtn}
+                            onClick={() => handleOpenLogPastSession(c)}
+                            style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}
+                            title="Log Past / Missed Session for this Gamer"
+                          >
+                            🎮 Session
+                          </button>
+
+                          <button
+                            type="button"
+                            className={styles.actionBtn}
+                            onClick={() => handleOpenAdjustStats(c)}
+                            style={{ background: 'rgba(0, 210, 255, 0.15)', color: '#00d2ff', border: '1px solid rgba(0, 210, 255, 0.3)' }}
+                            title="Directly Edit Hours, XP & Session Stats"
+                          >
+                            ⚡ Stats
+                          </button>
+
+                          <button
+                            type="button"
                             className={`${styles.actionBtn} ${styles.actionBtnEdit}`}
                             onClick={() => handleOpenQuickEditCustomer(c)}
                             title="Quick Edit Profile"
                           >
-                            ✏️ Edit
+                            ✏️
                           </button>
 
                           <button
