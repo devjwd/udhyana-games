@@ -206,6 +206,18 @@ export async function deleteProduct(id: string) {
   revalidatePath('/shop');
 }
 
+export async function updateProduct(id: string, data: { name?: string; price?: number; category?: string; imageUrl?: string; description?: string }) {
+  await requireAdminAuth();
+  const updated = await prisma.product.update({
+    where: { id },
+    data
+  });
+  revalidateTag('products', 'default');
+  revalidatePath('/admin');
+  revalidatePath('/shop');
+  return updated;
+}
+
 export const getProductById = unstable_cache(
   async (id: string) => {
     return await prisma.product.findUnique({ where: { id } });
@@ -243,6 +255,18 @@ export async function deleteSnack(id: string) {
   revalidatePath('/reception');
 }
 
+export async function updateSnack(id: string, data: { name?: string; price?: number; icon?: string }) {
+  await requireAdminAuth();
+  const updated = await prisma.snack.update({
+    where: { id },
+    data
+  });
+  revalidateTag('snacks', 'default');
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  return updated;
+}
+
 // ========================
 // CONSOLES & GAMES
 // ========================
@@ -278,6 +302,27 @@ export async function deleteConsole(id: string) {
   revalidateTag('consoles', 'default');
   revalidatePath('/admin');
   revalidatePath('/reception');
+}
+
+export async function updateConsole(id: string, data: { hardwareTitle?: string; hourlyRate?: number; imagePath?: string; specs?: string }) {
+  await requireAdminAuth();
+  const updated = await prisma.console.update({
+    where: { id },
+    data,
+    include: {
+      games: {
+        include: {
+          game: true
+        }
+      }
+    }
+  });
+  revalidateTag('consoles', 'default');
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  revalidatePath('/consoles');
+  revalidatePath('/book');
+  return updated;
 }
 
 export async function getAllMasterGames() {
@@ -322,6 +367,28 @@ export async function deleteMasterGame(id: string) {
   revalidatePath('/admin');
   revalidatePath('/reception');
   revalidatePath('/consoles');
+}
+
+export async function updateMasterGame(id: string, newName: string) {
+  await requireAdminAuth();
+  const trimmed = newName.trim();
+  if (!trimmed) throw new Error('Game title cannot be empty.');
+
+  const existing = await prisma.game.findFirst({
+    where: { name: trimmed, NOT: { id } }
+  });
+  if (existing) throw new Error('Another game with this title already exists.');
+
+  const updated = await prisma.game.update({
+    where: { id },
+    data: { name: trimmed }
+  });
+
+  revalidateTag('consoles', 'default');
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  revalidatePath('/consoles');
+  return updated;
 }
 
 export async function assignGameToConsole(consoleId: string, gameId: string) {
@@ -672,8 +739,18 @@ export async function getCustomerFullDossier(userId: string) {
   };
 }
 
-export async function updateCustomerProfile(userId: string, data: { fullName?: string; phone?: string; email?: string; status?: string; rank?: string }) {
+export async function updateCustomerProfile(userId: string, data: { fullName?: string; username?: string; phone?: string; email?: string; status?: string; rank?: string }) {
   await requireAdminAuth();
+  if (data.username) {
+    const cleanUsername = data.username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+    const existing = await prisma.user.findFirst({
+      where: { username: cleanUsername, NOT: { id: userId } }
+    });
+    if (existing) {
+      throw new Error(`Username @${cleanUsername} is already taken.`);
+    }
+    data.username = cleanUsername;
+  }
   const updated = await prisma.user.update({
     where: { id: userId },
     data
@@ -681,6 +758,90 @@ export async function updateCustomerProfile(userId: string, data: { fullName?: s
   revalidatePath('/admin');
   revalidatePath('/reception');
   return updated;
+}
+
+export async function adminResetUserPassword(userId: string, newPassword?: string) {
+  await requireAdminAuth();
+  if (!newPassword || newPassword.trim().length < 4) {
+    throw new Error('Password must be at least 4 characters long.');
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword.trim(), 12);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password: hashedPassword }
+  });
+
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  return { success: true };
+}
+
+export async function adminCreateUser(data: {
+  username: string;
+  fullName: string;
+  phone?: string;
+  email?: string;
+  password?: string;
+  role?: string;
+  rank?: string;
+  status?: string;
+}) {
+  await requireAdminAuth();
+  const cleanUsername = data.username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+  if (!cleanUsername || cleanUsername.length < 3) {
+    throw new Error('Username must be at least 3 alphanumeric characters.');
+  }
+
+  const existing = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { username: cleanUsername },
+        ...(data.email && data.email.trim() ? [{ email: data.email.trim() }] : [])
+      ]
+    }
+  });
+  if (existing) {
+    throw new Error('A user with this username or email already exists.');
+  }
+
+  const hashedPassword = data.password && data.password.trim() ? await bcrypt.hash(data.password.trim(), 12) : null;
+
+  const newUser = await prisma.user.create({
+    data: {
+      username: cleanUsername,
+      fullName: data.fullName.trim(),
+      phone: data.phone?.trim() || null,
+      email: data.email?.trim() || null,
+      password: hashedPassword,
+      role: data.role || 'USER',
+      rank: data.rank || 'Beginner',
+      status: data.status || 'APPROVED'
+    }
+  });
+
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  return newUser;
+}
+
+export async function deleteUserAccount(userId: string) {
+  await requireAdminAuth();
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error('User account not found.');
+
+  if (user.role === 'ADMIN') {
+    const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
+    if (adminCount <= 1) {
+      throw new Error('Cannot delete the only remaining Administrator account.');
+    }
+  }
+
+  await prisma.user.delete({ where: { id: userId } });
+
+  revalidatePath('/admin');
+  revalidatePath('/reception');
+  return { success: true };
 }
 
 // ========================
@@ -1767,6 +1928,14 @@ export async function setHeroGallery(data: HeroGalleryImage[]) {
   revalidateTag('hero', 'default');
   revalidatePath('/');
   revalidatePath('/admin');
+}
+
+export async function updateHeroGalleryImage(id: string, data: { label?: string; imageUrl?: string }) {
+  await requireAdminAuth();
+  const current = await getHeroGallery();
+  const updated = current.map(item => item.id === id ? { ...item, ...data } : item);
+  await setHeroGallery(updated);
+  return updated;
 }
 
 // ========================
