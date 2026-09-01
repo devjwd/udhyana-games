@@ -1,18 +1,18 @@
 // Udhyana Games - Ultimate Reception & Admin Engine
 
 const DEFAULT_CONSOLES = [
-  { id: 'ps5-1', name: 'PS5 Pro — Station 1', type: 'PS5 Pro', rate: null },
-  { id: 'ps5-2', name: 'PS5 Pro — Station 2', type: 'PS5 Pro', rate: null },
-  { id: 'ps5-3', name: 'PS5 Pro — Station 3', type: 'PS5 Pro', rate: null },
-  { id: 'pc-1', name: 'Esports PC — Station 4', type: 'Esports PC', rate: null },
-  { id: 'pc-2', name: 'Esports PC — Station 5', type: 'Esports PC', rate: null },
-  { id: 'xbox-1', name: 'Xbox Series X — Station 6', type: 'Xbox Series X', rate: null },
+  { id: 'ps5-1', name: 'PS5 Pro - Station 1', type: 'PS5 Pro', rate: null },
+  { id: 'ps5-2', name: 'PS5 Pro - Station 2', type: 'PS5 Pro', rate: null },
+  { id: 'ps5-3', name: 'PS5 Pro - Station 3', type: 'PS5 Pro', rate: null },
+  { id: 'pc-1', name: 'Esports PC - Station 4', type: 'Esports PC', rate: null },
+  { id: 'pc-2', name: 'Esports PC - Station 5', type: 'Esports PC', rate: null },
+  { id: 'xbox-1', name: 'Xbox Series X - Station 6', type: 'Xbox Series X', rate: null },
 ];
 
 const DEFAULT_SNACKS = [
   { id: 'snack-1', name: 'Red Bull Energy Drink', price: 500 },
   { id: 'snack-2', name: 'Sting / Monster Energy', price: 250 },
-  { id: 'snack-3', name: 'Coca-Cola / Sprite Can', price: 150 },
+  { id: 'snack-3', name: 'Coca-Cola / Sprite (345ml)', price: 150 },
   { id: 'snack-4', name: 'Lays / Kurkure Chips', price: 200 },
   { id: 'snack-5', name: 'Dairy Milk / KitKat', price: 300 },
   { id: 'snack-6', name: 'Mineral Water (500ml)', price: 100 },
@@ -39,8 +39,8 @@ let state = {
   selectedConsoleId: null,
   selectedDurationHours: 1,
   selectedControllersCount: 0,
-  baseRate: 1000,
-  ctrlRate: 200,
+  baseRate: 300,
+  ctrlRate: 100,
   adminPin: '8899', // Default Master PIN
   isAdminUnlocked: false,
   shiftStartTime: Date.now(),
@@ -68,7 +68,12 @@ function playExpireChime() {
 
 // Local Storage Persistence
 function loadState() {
-  const saved = localStorage.getItem('udhyana_terminal_v4');
+  // Clear legacy v4 key if present
+  try {
+    localStorage.removeItem('udhyana_terminal_v4');
+  } catch {}
+
+  const saved = localStorage.getItem('udhyana_terminal_v5');
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
@@ -77,10 +82,24 @@ function loadState() {
       console.error('Error loading state:', e);
     }
   }
+
+  // Purge any legacy stations or placeholders
+  if (state.consoles && Array.isArray(state.consoles)) {
+    state.consoles = state.consoles.filter(c => {
+      const name = (c.name || '').toLowerCase();
+      return !name.includes('( ps5 )') &&
+             !name.includes('( steering wheel )') &&
+             !name.includes('( xbox series x )') &&
+             !name.includes('steering');
+    });
+    if (state.consoles.length === 0) {
+      state.consoles = [...DEFAULT_CONSOLES];
+    }
+  }
 }
 
 function saveState() {
-  localStorage.setItem('udhyana_terminal_v4', JSON.stringify({
+  localStorage.setItem('udhyana_terminal_v5', JSON.stringify({
     consoles: state.consoles,
     snacks: state.snacks,
     activeSessions: state.activeSessions,
@@ -1585,23 +1604,46 @@ async function syncWithCloudDatabase() {
     if (data && data.success) {
       setCloudStatus(true);
 
-      // Consoles from cloud
+      // Consoles from cloud: live DB is the source of truth
       if (data.consoles && data.consoles.length > 0) {
-        data.consoles.forEach(dc => {
-          const existing = state.consoles.find(c => c.id === dc.id);
-          if (!existing) {
-            state.consoles.push({ id: dc.id, name: dc.name, type: dc.type, rate: dc.rate });
-          } else {
-            existing.name = dc.name;
-            existing.type = dc.type;
-          }
-        });
+        state.consoles = data.consoles.map(dc => ({
+          id: dc.id,
+          name: dc.name,
+          type: dc.type,
+          rate: dc.rate,
+          games: dc.games || []
+        }));
+        saveState();
       }
 
-      // Snacks from cloud
+      // Snacks from cloud: live DB is the source of truth
       if (data.snacks && data.snacks.length > 0) {
         state.snacks = data.snacks.map(s => ({ id: s.id, name: s.name, price: s.price }));
+        saveState();
         renderSnacks();
+        if (state.activeTab === 'admin' && state.activeAdminTab === 'menu') {
+          renderAdminSnacks();
+        }
+      }
+
+      // Active sessions from cloud: sync station occupancy and pause states
+      if (data.activeSessions) {
+        const syncedSessions = {};
+        data.activeSessions.forEach(s => {
+          syncedSessions[s.consoleId] = {
+            id: s.id,
+            playerName: s.playerName,
+            phone: s.phone,
+            userId: s.userId,
+            startTime: new Date(s.startTime).getTime(),
+            endTime: new Date(s.endTime).getTime(),
+            status: s.status,
+            isPaused: s.status === 'PAUSED',
+            pausedRemainingMs: (s.pausedRemainingSeconds || 0) * 1000,
+          };
+        });
+        state.activeSessions = syncedSessions;
+        saveState();
       }
 
       // Rates from cloud
