@@ -1267,11 +1267,11 @@ select:focus {
 }
 
 .receipt-brand p {
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.82rem;
+  font-weight: 800;
   color: #000;
-  margin: 0;
-  letter-spacing: 0.5px;
+  margin: 2px 0 0 0;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
   opacity: 1 !important;
 }
