@@ -1045,6 +1045,9 @@ window.quickAssign = function quickAssign(consoleId) {
   state.selectedConsoleId = consoleId;
   switchTab('register');
   renderConsolesSelector();
+  setTimeout(() => {
+    document.getElementById('player-name')?.focus();
+  }, 50);
 };
 
 // Form Submission
@@ -1279,6 +1282,11 @@ function showReceiptModal(receipt) {
 
 document.getElementById('close-receipt-btn').onclick = () => {
   document.getElementById('receipt-modal').classList.remove('active');
+  setTimeout(() => {
+    if (state.activeTab === 'register') {
+      document.getElementById('player-name')?.focus();
+    }
+  }, 50);
 };
 
 document.getElementById('print-receipt-btn').onclick = () => {
@@ -1399,6 +1407,11 @@ window.endSession = function(consoleId) {
     saveState();
     renderConsolesSelector();
     renderStationsMonitor();
+    setTimeout(() => {
+      if (state.activeTab === 'register') {
+        document.getElementById('player-name')?.focus();
+      }
+    }, 50);
   }
 };
 
@@ -1603,8 +1616,14 @@ async function syncWithCloudDatabase() {
       // Flush offline queue if pending
       flushOfflineQueue();
 
-      renderConsolesSelector();
-      renderStationsMonitor();
+      const activeEl = document.activeElement;
+      const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT');
+      if (!isTyping) {
+        renderConsolesSelector();
+      }
+      if (state.activeTab === 'monitor') {
+        renderStationsMonitor();
+      }
     } else {
       setCloudStatus(false);
     }
@@ -1628,6 +1647,29 @@ function setCloudStatus(isOnline) {
     }
   }
 }
+
+// Modal Dismissal Helpers: Escape Key & Backdrop Click
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+      modal.classList.remove('active');
+    });
+    if (state.activeTab === 'register') {
+      document.getElementById('player-name')?.focus();
+    }
+  }
+});
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.classList.remove('active');
+      if (state.activeTab === 'register') {
+        document.getElementById('player-name')?.focus();
+      }
+    }
+  });
+});
 
 // Init
 loadState();
