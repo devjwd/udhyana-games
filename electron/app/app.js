@@ -1253,14 +1253,14 @@ function showReceiptModal(receipt) {
     itemsEl.innerHTML += `
       <div class="receipt-item-row">
         <span>${item.name}</span>
-        <span>PKR ${item.price}</span>
+        <span style="font-weight: 700;">PKR ${item.price}</span>
       </div>
     `;
   });
 
   if (receipt.discount > 0) {
     itemsEl.innerHTML += `
-      <div class="receipt-item-row" style="color: #10b981;">
+      <div class="receipt-item-row receipt-discount-row">
         <span>Discount (${receipt.discount}%):</span>
         <span>- PKR ${receipt.discountAmount}</span>
       </div>
@@ -1268,7 +1268,7 @@ function showReceiptModal(receipt) {
   }
 
   totalEl.innerHTML = `
-    <div class="receipt-item-row" style="font-size: 1.05rem; font-weight: 900;">
+    <div class="receipt-item-row receipt-total-row">
       <span>TOTAL PAID:</span>
       <span>PKR ${receipt.total}</span>
     </div>
@@ -1521,8 +1521,12 @@ setInterval(() => {
   if (state.activeTab === 'monitor') {
     renderStationsMonitor();
   } else if (state.activeTab === 'register') {
-    // Keep overtime count and status fresh on the station selector
-    renderConsolesSelector();
+    // Only update station chips if active element is not an input to ensure butter-smooth typing
+    const activeEl = document.activeElement;
+    const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+    if (!isTyping) {
+      renderConsolesSelector();
+    }
   }
 }, 1000);
 
