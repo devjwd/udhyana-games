@@ -73,7 +73,7 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
         <main className={styles.main}>
           <div className={styles.loadingState}>
             <div className={styles.spinner} />
-            <p>Loading tournament specifications...</p>
+            <p>Loading product details...</p>
           </div>
         </main>
         <Footer />
@@ -156,7 +156,7 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
                   <span className={styles.ratingStars}>★★★★★</span>
                   <span className={styles.ratingScore}>{product.rating.toFixed(1)}</span>
                   <span className={styles.reviewsCount}>
-                    ({product.reviewsCount || 24} athlete reviews)
+                    ({product.reviewsCount || 24} customer reviews)
                   </span>
                 </div>
               )}
@@ -179,7 +179,7 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
 
               <p className={styles.description}>
                 {product.description ||
-                  'Precision-engineered tournament hardware configured for ultra-responsive low-latency gaming.'}
+                  'High-performance gaming equipment configured for ultra-responsive gameplay.'}
               </p>
 
               {/* Quantity Selector & Add CTA */}
