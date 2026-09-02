@@ -15,7 +15,7 @@ import {
   getLoyaltyRates, setLoyaltyRates, adjustUserLoyaltyPoints,
   getProducts, addProduct, updateProduct, deleteProduct,
   getAnalyticsData,
-  searchUsers, promoteUserToStaff, getAllUsersWithRoles, updateUserRole, approveUser, rejectUser,
+  searchUsers, promoteUserToStaff, getAllUsersWithRoles, updateUserRole,
   adminResetUserPassword, adminCreateUser, deleteUserAccount,
   getAllCustomersWithStats, getCustomerFullDossier, updateCustomerProfile,
   addRetroactiveSession, adjustUserStats, addRetroactiveOrder,
@@ -148,13 +148,12 @@ export default function BackendAdmin() {
   const [isDossierLoading, setIsDossierLoading] = useState(false);
   const [customerSearchText, setCustomerSearchText] = useState('');
   const [customerRankFilter, setCustomerRankFilter] = useState('ALL');
-  const [customerStatusFilter, setCustomerStatusFilter] = useState('ALL');
   const [dossierActiveTab, setDossierActiveTab] = useState<'OVERVIEW' | 'SESSIONS' | 'ORDERS' | 'BOOKINGS' | 'EDIT'>('OVERVIEW');
-  const [editCustomerForm, setEditCustomerForm] = useState({ fullName: '', username: '', phone: '', email: '', status: 'APPROVED', rank: 'Beginner' });
+  const [editCustomerForm, setEditCustomerForm] = useState({ fullName: '', username: '', phone: '', email: '', rank: 'Beginner' });
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
   const [addCustomerForm, setAddCustomerForm] = useState({ username: '', fullName: '', phone: '', email: '', password: '', rank: 'Beginner' });
   const [quickEditCustomer, setQuickEditCustomer] = useState<any | null>(null);
-  const [quickEditForm, setQuickEditForm] = useState({ fullName: '', username: '', phone: '', email: '', status: 'APPROVED', rank: 'Beginner' });
+  const [quickEditForm, setQuickEditForm] = useState({ fullName: '', username: '', phone: '', email: '', rank: 'Beginner' });
   const [userPointsModal, setUserPointsModal] = useState<any | null>(null);
   const [pointsDeltaInput, setPointsDeltaInput] = useState('');
 
@@ -654,28 +653,7 @@ export default function BackendAdmin() {
     }
   };
 
-  const handleApproveUserAction = async (userId: string) => {
-    try {
-      await approveUser(userId);
-      setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, status: 'APPROVED' } : u));
-      setCustomers(prev => prev.map(c => c.id === userId ? { ...c, status: 'APPROVED' } : c));
-      alert('User membership approved & verified!');
-    } catch {
-      alert('Failed to approve user.');
-    }
-  };
 
-  const handleRejectUserAction = async (userId: string) => {
-    if (!confirm('Reject / decline this account application?')) return;
-    try {
-      await rejectUser(userId);
-      setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, status: 'REJECTED' } : u));
-      setCustomers(prev => prev.map(c => c.id === userId ? { ...c, status: 'REJECTED' } : c));
-      alert('User account application rejected.');
-    } catch {
-      alert('Failed to reject user.');
-    }
-  };
 
   const handleDeleteUserAction = async (userId: string, userName: string) => {
     if (!confirm(`Permanently delete account for "${userName}"? This cannot be undone.`)) return;
@@ -716,7 +694,6 @@ export default function BackendAdmin() {
       username: customer.username || '',
       phone: customer.phone || '',
       email: customer.email || '',
-      status: customer.status || 'APPROVED',
       rank: customer.rank || 'Beginner'
     });
   };
@@ -749,7 +726,6 @@ export default function BackendAdmin() {
           username: dossier.username || '',
           phone: dossier.phone || '',
           email: dossier.email || '',
-          status: dossier.status || 'APPROVED',
           rank: dossier.rank || 'Beginner'
         });
         setDossierActiveTab('OVERVIEW');
@@ -2598,7 +2574,6 @@ export default function BackendAdmin() {
 
     const filteredCustomers = customers.filter(c => {
       if (customerRankFilter !== 'ALL' && c.rank !== customerRankFilter) return false;
-      if (customerStatusFilter !== 'ALL' && c.status !== customerStatusFilter) return false;
 
       if (customerSearchText.trim()) {
         const q = customerSearchText.toLowerCase();
@@ -2760,18 +2735,7 @@ export default function BackendAdmin() {
                     <option value="Elite">Elite</option>
                   </select>
                 </div>
-                <div className={styles.field}>
-                  <label className={styles.label}>Verification Status</label>
-                  <select
-                    className={styles.select}
-                    value={quickEditForm.status}
-                    onChange={e => setQuickEditForm({ ...quickEditForm, status: e.target.value })}
-                  >
-                    <option value="APPROVED">APPROVED (Verified Gamer)</option>
-                    <option value="PENDING">PENDING (Awaiting Review)</option>
-                    <option value="REJECTED">REJECTED (Suspended)</option>
-                  </select>
-                </div>
+
                 <div className={`${styles.field} ${styles.fieldFull}`} style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
                   <button type="submit" className={styles.btn}>Save Customer Changes</button>
                   <button type="button" onClick={() => setQuickEditCustomer(null)} className={styles.actionBtn} style={{ background: '#22272c', color: '#fff' }}>Cancel</button>
@@ -3112,13 +3076,12 @@ export default function BackendAdmin() {
                 {dossierActiveTab === 'OVERVIEW' && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
                     <div style={{ background: '#0e1217', padding: '1rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                      <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--primary-accent)', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Contact & Verification</h3>
+                      <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--primary-accent)', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Contact Info</h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.82rem' }}>
                         <div><strong style={{ color: 'rgba(255,255,255,0.5)' }}>Full Name:</strong> {selectedCustomerDossier.fullName || 'Not set'}</div>
                         <div><strong style={{ color: 'rgba(255,255,255,0.5)' }}>Username:</strong> @{selectedCustomerDossier.username}</div>
                         <div><strong style={{ color: 'rgba(255,255,255,0.5)' }}>Phone:</strong> {selectedCustomerDossier.phone || 'No phone'}</div>
                         <div><strong style={{ color: 'rgba(255,255,255,0.5)' }}>Email:</strong> {selectedCustomerDossier.email || 'No email'}</div>
-                        <div><strong style={{ color: 'rgba(255,255,255,0.5)' }}>Status:</strong> <span style={{ color: selectedCustomerDossier.status === 'APPROVED' ? '#34d399' : '#ffb400', fontWeight: 800 }}>{selectedCustomerDossier.status}</span></div>
                       </div>
                     </div>
 
@@ -3296,18 +3259,7 @@ export default function BackendAdmin() {
                         <option value="Elite">Elite</option>
                       </select>
                     </div>
-                    <div className={styles.field}>
-                      <label className={styles.label}>Status</label>
-                      <select
-                        className={styles.select}
-                        value={editCustomerForm.status}
-                        onChange={e => setEditCustomerForm({ ...editCustomerForm, status: e.target.value })}
-                      >
-                        <option value="APPROVED">APPROVED</option>
-                        <option value="PENDING">PENDING</option>
-                        <option value="REJECTED">REJECTED</option>
-                      </select>
-                    </div>
+
                     <div className={`${styles.field} ${styles.fieldFull}`} style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
                       <button type="submit" className={styles.btn}>Save Customer Profile</button>
                     </div>
@@ -3347,49 +3299,7 @@ export default function BackendAdmin() {
           </div>
         </div>
 
-        {/* Pending Approvals Queue */}
-        {allUsers.filter(u => u.status === 'PENDING').length > 0 && (
-          <div style={{
-            background: 'linear-gradient(135deg, rgba(255, 180, 0, 0.15), rgba(255, 140, 0, 0.06))',
-            border: '1px solid rgba(255, 180, 0, 0.4)',
-            borderRadius: '8px',
-            padding: '1.25rem 1.5rem',
-            marginBottom: '1.5rem'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <strong style={{ color: '#ffb400', fontSize: '1.05rem', textTransform: 'uppercase' }}>
-                🚨 Pending Account Approvals ({allUsers.filter(u => u.status === 'PENDING').length})
-              </strong>
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table className={styles.table} style={{ background: '#0b0e13', borderRadius: '6px' }}>
-                <thead>
-                  <tr>
-                    <th className={styles.th}>Applicant</th>
-                    <th className={styles.th}>Gamer Tag</th>
-                    <th className={styles.th}>Contact</th>
-                    <th className={styles.th} style={{ textAlign: 'right' }}>Admin Decision</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allUsers.filter(u => u.status === 'PENDING').map(u => (
-                    <tr key={u.id} className={styles.tr}>
-                      <td className={styles.td}><strong style={{ color: '#fff' }}>{u.fullName || u.name}</strong></td>
-                      <td className={styles.td} style={{ color: '#00d2ff' }}>@{u.username}</td>
-                      <td className={styles.td}>{u.phone || u.email || 'No contact'}</td>
-                      <td className={styles.td} style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
-                          <button type="button" onClick={() => handleApproveUserAction(u.id)} className={`${styles.actionBtn} ${styles.actionBtnSuccess}`}>✓ Approve</button>
-                          <button type="button" onClick={() => handleRejectUserAction(u.id)} className={`${styles.actionBtn} ${styles.actionBtnDelete}`}>✕ Decline</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+
 
         {/* Main Customer CRM Table */}
         <div className={styles.panel}>
@@ -3408,17 +3318,6 @@ export default function BackendAdmin() {
                 <option value="Regular">★ Regular</option>
                 <option value="Rookie">★ Rookie</option>
                 <option value="Beginner">★ Beginner</option>
-              </select>
-
-              <select
-                value={customerStatusFilter}
-                onChange={e => setCustomerStatusFilter(e.target.value)}
-                className={styles.select}
-                style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
-              >
-                <option value="ALL">All Statuses</option>
-                <option value="APPROVED">Verified Only</option>
-                <option value="PENDING">Pending Only</option>
               </select>
 
               <button
@@ -3617,7 +3516,7 @@ export default function BackendAdmin() {
     return <div style={{ color: 'white', padding: '3rem', textAlign: 'center', background: '#060608', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading Udhyana Games Admin Database...</div>;
   }
 
-  const pendingApprovalsCount = allUsers.filter(u => u.status === 'PENDING').length;
+
 
   return (
     <div className={styles.container}>
@@ -3668,11 +3567,7 @@ export default function BackendAdmin() {
             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
           >
             <span>👤 Customer CRM</span>
-            {pendingApprovalsCount > 0 && (
-              <span style={{ background: '#ffb400', color: '#000', padding: '1px 6px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 900 }}>
-                {pendingApprovalsCount}
-              </span>
-            )}
+
           </div>
           <div
             className={`${styles.navItem} ${activeTab === 'analytics' ? styles.navItemActive : ''}`}
@@ -3738,7 +3633,7 @@ export default function BackendAdmin() {
             <button
               type="button"
               className={styles.headerBtn}
-              onClick={() => signOut({ callbackUrl: '/profile' })}
+              onClick={() => signOut({ callbackUrl: '/' })}
               style={{ background: 'rgba(255, 77, 77, 0.1)', borderColor: 'rgba(255, 77, 77, 0.3)', color: '#ff6b6b', cursor: 'pointer' }}
             >
               🚪 Sign Out

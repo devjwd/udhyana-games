@@ -1,7 +1,6 @@
 'use client';
 
 import { Suspense, useState, useEffect, useMemo, useRef } from 'react';
-import { useSession } from 'next-auth/react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import CyberButton from '@/components/ui/CyberButton';
@@ -18,7 +17,7 @@ function getLocalTodayString() {
 }
 
 const DEFAULT_GAMES_BY_TYPE: Record<string, string[]> = {
-  ps5: ['EA Sports FC 25', 'Tekken 8', 'Marvel’s Spider-Man 2', 'Call of Duty: Warzone', 'GTA V', 'Mortal Kombat 1', 'God of War Ragnarök'],
+  ps5: ['EA Sports FC 25', 'Tekken 8', 'Marvel\u2019s Spider-Man 2', 'Call of Duty: Warzone', 'GTA V', 'Mortal Kombat 1', 'God of War Ragnar\u00f6k'],
   pc: ['Valorant', 'Counter-Strike 2', 'EA Sports FC 25', 'Call of Duty: Warzone', 'Dota 2', 'Apex Legends', 'Fortnite', 'Cyberpunk 2077'],
   xbox: ['Forza Horizon 5', 'EA Sports FC 25', 'Call of Duty: Warzone', 'Mortal Kombat 1', 'GTA V', 'Rocket League']
 };
@@ -30,7 +29,7 @@ const HOT_TITLES = new Set([
   'Call of Duty: Warzone',
   'GTA V',
   'Counter-Strike 2',
-  'Marvel’s Spider-Man 2',
+  'Marvel\u2019s Spider-Man 2',
   'Forza Horizon 5'
 ]);
 
@@ -45,7 +44,6 @@ function getConsoleGamesList(consoleObj: { hardwareTitle?: string; games?: { gam
 }
 
 function BookPageContent() {
-  const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const consoleParam = searchParams.get('console') || '';
@@ -53,7 +51,7 @@ function BookPageContent() {
   const [consoles, setConsoles] = useState<{ id: string; hardwareTitle: string; hourlyRate?: number | null; games?: { game?: { name: string } }[] }[]>([]);
   const [baseRate, setBaseRate] = useState<number>(1000);
   const [selectedConsole, setSelectedConsole] = useState(consoleParam);
-  
+
   // Game Selection & Dropdown State
   const [gameSearch, setGameSearch] = useState('');
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
@@ -66,7 +64,11 @@ function BookPageContent() {
   const [duration, setDuration] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [bookedSlots, setBookedSlots] = useState<{startTime: Date, endTime: Date}[]>([]);
+  const [bookedSlots, setBookedSlots] = useState<{ startTime: Date; endTime: Date }[]>([]);
+
+  // Guest details — no login required
+  const [guestName, setGuestName] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
 
   // 10 AM to 10 PM (22:00)
   const OPERATING_HOURS = Array.from({ length: 13 }, (_, i) => i + 10);
@@ -126,14 +128,8 @@ function BookPageContent() {
         gameMap.set(g, (gameMap.get(g) || 0) + 1);
       });
     });
-    
-    // Sort with hot games first, then alphabetically
     return Array.from(gameMap.entries())
-      .map(([name, count]) => ({
-        name,
-        count,
-        isHot: HOT_TITLES.has(name)
-      }))
+      .map(([name, count]) => ({ name, count, isHot: HOT_TITLES.has(name) }))
       .sort((a, b) => {
         if (a.isHot && !b.isHot) return -1;
         if (!a.isHot && b.isHot) return 1;
@@ -160,9 +156,7 @@ function BookPageContent() {
   const effectiveSelectedConsole = useMemo(() => {
     if (stationsForSelectedGame.length > 0) {
       const isCurrentInList = stationsForSelectedGame.some(c => c.id === selectedConsole);
-      if (!isCurrentInList) {
-        return stationsForSelectedGame[0].id;
-      }
+      if (!isCurrentInList) return stationsForSelectedGame[0].id;
     }
     return selectedConsole;
   }, [stationsForSelectedGame, selectedConsole]);
@@ -176,16 +170,12 @@ function BookPageContent() {
 
   const isHourBooked = (hour: number) => {
     if (!date) return false;
-    
     if (date === today) {
       const now = new Date();
-      const currentHour = now.getHours();
-      if (hour <= currentHour) return true;
+      if (hour <= now.getHours()) return true;
     }
-
     const slotStart = new Date(`${date}T${hour.toString().padStart(2, '0')}:00:00`);
     const slotEnd = new Date(`${date}T${(hour + 1).toString().padStart(2, '0')}:00:00`);
-
     return bookedSlots.some(b => {
       const bStart = new Date(b.startTime);
       const bEnd = new Date(b.endTime);
@@ -203,18 +193,12 @@ function BookPageContent() {
     return true;
   };
 
-  const isSelectionValid = () => {
-    return Boolean(time && isDurationValid(duration));
-  };
+  const isSelectionValid = () => Boolean(time && isDurationValid(duration));
 
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (status === 'unauthenticated') {
-      alert('Please log in or create a player profile to book a gaming station.');
-      return;
-    }
     if (!selectedConsole || !date || !time || !duration) {
       setError('Please fill in all booking fields.');
       return;
@@ -223,18 +207,30 @@ function BookPageContent() {
       setError('Your selected duration overlaps with an existing booking or closing time.');
       return;
     }
+    if (!guestName.trim()) {
+      setError('Please enter your name.');
+      return;
+    }
+    if (!guestPhone.trim()) {
+      setError('Please enter your phone number.');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       const startTime = new Date(`${date}T${time}:00`);
-      // @ts-expect-error - session user id type mismatch
-      const res = await createBooking(session?.user?.id, selectedConsole, startTime, duration);
+      const res = await createBooking(
+        effectiveSelectedConsole,
+        startTime,
+        duration,
+        { name: guestName, phone: guestPhone }
+      );
       if (res && 'error' in res && res.error) {
         setError(res.error);
         return;
       }
-      alert(`Reservation submitted for ${selectedConsoleObj?.hardwareTitle || 'Station'}! Reception will confirm your time slot, and you can track your pass in your profile.`);
-      router.push('/profile');
+      alert(`Reservation submitted for ${selectedConsoleObj?.hardwareTitle || 'Station'}! Reception will confirm your time slot.`);
+      router.push('/');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to create booking.';
       setError(message);
@@ -264,7 +260,7 @@ function BookPageContent() {
           </p>
         </section>
 
-        {/* ─── UNIFIED MINIMAL CARD ─── */}
+        {/* ─── BOOKING CARD ─── */}
         <div className={styles.container}>
           <div className={styles.card}>
 
@@ -276,7 +272,7 @@ function BookPageContent() {
 
             <form onSubmit={handleBooking} className={styles.form}>
 
-              {/* 1. MINIMAL GAME SEARCH & STATION SELECTION */}
+              {/* 1. GAME SEARCH & STATION SELECTION */}
               <div className={styles.section} ref={searchContainerRef}>
                 <div className={styles.sectionTitleRow}>
                   <span className={styles.stepNum}>1</span>
@@ -284,10 +280,7 @@ function BookPageContent() {
                   {selectedGame && (
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedGame(null);
-                        setGameSearch('');
-                      }}
+                      onClick={() => { setSelectedGame(null); setGameSearch(''); }}
                       className={styles.resetGameBtn}
                     >
                       Clear
@@ -295,39 +288,30 @@ function BookPageContent() {
                   )}
                 </div>
 
-                {/* Minimal Search Bar */}
                 <div className={styles.searchWrapper}>
                   <span className={styles.searchIcon}>🔍</span>
                   <input
                     type="text"
                     placeholder={
-                      selectedGame && selectedGame !== 'ALL' 
-                        ? `Selected: ${selectedGame}` 
-                        : "Search game title (e.g. Tekken 8, Valorant, FC 24)..."
+                      selectedGame && selectedGame !== 'ALL'
+                        ? `Selected: ${selectedGame}`
+                        : 'Search game title (e.g. Tekken 8, Valorant, FC 24)...'
                     }
                     value={gameSearch}
                     onFocus={() => setIsDropdownOpen(true)}
-                    onChange={(e) => {
-                      setGameSearch(e.target.value);
-                      setIsDropdownOpen(true);
-                    }}
+                    onChange={(e) => { setGameSearch(e.target.value); setIsDropdownOpen(true); }}
                     className={`${styles.searchInput} ${selectedGame ? styles.searchInputSelected : ''}`}
                   />
                   {(gameSearch || selectedGame) && (
                     <button
                       type="button"
-                      onClick={() => {
-                        setGameSearch('');
-                        setSelectedGame(null);
-                        setIsDropdownOpen(false);
-                      }}
+                      onClick={() => { setGameSearch(''); setSelectedGame(null); setIsDropdownOpen(false); }}
                       className={styles.clearSearchBtn}
                     >
                       ✕
                     </button>
                   )}
 
-                  {/* Clean Unified Dropdown */}
                   {isDropdownOpen && (
                     <div className={styles.dropdownMenu}>
                       <button
@@ -365,20 +349,16 @@ function BookPageContent() {
                   )}
                 </div>
 
-                {/* AVAILABLE STATIONS FOR SELECTED GAME */}
                 {selectedGame && (
                   <div className={styles.stationResultsContainer}>
                     <div className={styles.stationResultsHeader}>
                       <span>
-                        {selectedGame === 'ALL' 
-                          ? 'Choose Station:' 
-                          : `Available Stations for "${selectedGame}":`}
+                        {selectedGame === 'ALL' ? 'Choose Station:' : `Available Stations for "${selectedGame}":`}
                       </span>
                       <span className={styles.stationCountBadge}>
                         {stationsForSelectedGame.length} {stationsForSelectedGame.length > 1 ? 'Stations' : 'Station'}
                       </span>
                     </div>
-
                     <div className={styles.stationTabs}>
                       {stationsForSelectedGame.map(c => {
                         const isSelected = selectedConsole === c.id;
@@ -475,7 +455,7 @@ function BookPageContent() {
                 </div>
               )}
 
-              {/* 5. SUMMARY & SUBMIT */}
+              {/* PRICE SUMMARY BAR */}
               {selectedConsole && time && (
                 <div className={styles.summaryBar}>
                   <div>
@@ -484,11 +464,44 @@ function BookPageContent() {
                     </div>
                     <div className={styles.summaryNote}>Pay upon check-in at reception desk</div>
                   </div>
-                  <div className={styles.summaryPrice}>
-                    PKR {totalPrice}
-                  </div>
+                  <div className={styles.summaryPrice}>PKR {totalPrice}</div>
                 </div>
               )}
+
+              {/* 5. YOUR DETAILS — no login required */}
+              <div className={styles.section}>
+                <div className={styles.sectionTitleRow}>
+                  <span className={styles.stepNum}>5</span>
+                  <label className={styles.sectionLabel}>Your Details</label>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '0.4rem', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Full Name *</label>
+                    <input
+                      type="text"
+                      className={styles.input}
+                      value={guestName}
+                      onChange={e => setGuestName(e.target.value)}
+                      placeholder="e.g. Ali Hassan"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '0.4rem', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Phone Number *</label>
+                    <input
+                      type="tel"
+                      className={styles.input}
+                      value={guestPhone}
+                      onChange={e => setGuestPhone(e.target.value)}
+                      placeholder="e.g. 0300 1234567"
+                      required
+                    />
+                  </div>
+                </div>
+                <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', marginTop: '0.5rem' }}>
+                  Reception will contact you to confirm your slot. No account required.
+                </p>
+              </div>
 
               <div style={{ marginTop: '1.5rem', width: '100%' }}>
                 <CyberButton

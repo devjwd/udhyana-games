@@ -95,12 +95,12 @@ export default function CheckInModal({
         <div className={styles.detailCard}>
           <div className={styles.detailRow}>
             <span className={styles.detailLabel}>Player:</span>
-            <span className={styles.detailValue}>{booking.user.fullName || booking.user.username}</span>
+            <span className={styles.detailValue}>{booking.guestName || booking.user?.fullName || booking.user?.username || 'Guest Player'}</span>
           </div>
-          {booking.user.phone && (
+          {(booking.guestPhone || booking.user?.phone) && (
             <div className={styles.detailRow}>
               <span className={styles.detailLabel}>Contact:</span>
-              <span className={styles.detailValue}>{booking.user.phone}</span>
+              <span className={styles.detailValue}>{booking.guestPhone || booking.user?.phone}</span>
             </div>
           )}
           <div className={styles.detailRow}>

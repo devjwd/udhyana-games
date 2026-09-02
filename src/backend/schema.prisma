@@ -139,14 +139,16 @@ model GameSession {
 
 model Booking {
   id          String   @id @default(cuid())
-  userId      String
+  userId      String?
   consoleId   String
   startTime   DateTime
   endTime     DateTime
   status      String   @default("CONFIRMED") // CONFIRMED, CANCELLED, COMPLETED
+  guestName   String?
+  guestPhone  String?
   createdAt   DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id])
+  user        User?    @relation(fields: [userId], references: [id])
   console     Console  @relation(fields: [consoleId], references: [id])
 
   @@index([userId])

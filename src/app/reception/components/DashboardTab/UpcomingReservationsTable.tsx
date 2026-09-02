@@ -62,7 +62,8 @@ export default function UpcomingReservationsTable({
               const start = new Date(b.startTime);
               const end = new Date(b.endTime);
               const hours = Math.round(((end.getTime() - start.getTime()) / (1000 * 60 * 60)) * 10) / 10;
-              const playerName = b.user.fullName || b.user.username || 'Player';
+              const playerName = b.guestName || b.user?.fullName || b.user?.username || 'Guest Player';
+              const contactInfo = b.guestPhone || b.user?.phone || (b.user?.username ? `@${b.user.username}` : 'No phone');
               const isPending = b.status === 'PENDING';
               const isAccepting = acceptingId === b.id;
 
@@ -75,7 +76,7 @@ export default function UpcomingReservationsTable({
                 <tr key={b.id} className={styles.tr}>
                   <td className={styles.td}>
                     <div style={{ fontWeight: 'bold' }}>{playerName}</div>
-                    <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{b.user.phone || `@${b.user.username}`}</div>
+                    <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{contactInfo}</div>
                   </td>
                   <td className={styles.td}>
                     <span style={{ color: 'var(--primary-accent)', fontWeight: 700 }}>

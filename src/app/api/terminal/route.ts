@@ -132,12 +132,12 @@ export async function GET(req: NextRequest) {
           status: s.status,
           pausedRemainingSeconds: s.pausedRemainingSeconds || 0,
         })),
-        upcomingBookings: bookings.map((b) => ({
+        upcomingBookings: bookings.map((b: any) => ({
           id: b.id,
           consoleId: b.consoleId,
           consoleName: b.console.hardwareTitle,
-          playerName: b.user.fullName || b.user.username || 'Reserved Player',
-          phone: b.user.phone || null,
+          playerName: b.guestName || b.user?.fullName || b.user?.username || 'Reserved Player',
+          phone: b.guestPhone || b.user?.phone || null,
           startTime: b.startTime.toISOString(),
           endTime: b.endTime.toISOString(),
         })),

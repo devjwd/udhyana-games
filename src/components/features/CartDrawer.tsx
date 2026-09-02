@@ -45,7 +45,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
       setTimeout(() => {
         setSuccessMessage('');
         onClose();
-        router.push('/profile');
+        router.push('/');
       }, 2000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Checkout failed.';

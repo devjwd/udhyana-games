@@ -36,12 +36,7 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // Check approval status BEFORE verifying password to avoid timing attacks
-        // that could leak whether a PENDING user's password is correct.
-        if (user.status === 'PENDING') {
-          // Encode the error type as a query param recognised by the modal
-          throw new Error('PENDING');
-        }
+
 
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) {

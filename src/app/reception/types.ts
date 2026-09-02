@@ -97,13 +97,15 @@ export interface UpcomingBooking {
     id?: string;
     hardwareTitle: string;
   };
-  user: {
+  guestName?: string | null;
+  guestPhone?: string | null;
+  user?: {
     id?: string;
     fullName?: string | null;
     username?: string | null;
     phone?: string | null;
     email?: string | null;
-  };
+  } | null;
 }
 
 export interface DurationOption {

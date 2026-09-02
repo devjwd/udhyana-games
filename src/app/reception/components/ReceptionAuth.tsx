@@ -33,11 +33,7 @@ export default function ReceptionAuth({ sessionUser, onLoginSuccess }: Reception
         toast.success('Logged in to Reception Desk!');
         onLoginSuccess();
       } else {
-        if (result?.error === 'PENDING') {
-          setLoginError('This account is pending verification and cannot access reception.');
-        } else {
-          setLoginError('Invalid credentials. Please verify your email and password.');
-        }
+        setLoginError('Invalid credentials. Please verify your email and password.');
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.';

@@ -124,7 +124,6 @@ export async function setLoyaltyRates(pointsPerHour: number, spendPerPoint: numb
   revalidateTag('settings', 'default');
   revalidateTag('loyalty', 'default');
   revalidatePath('/admin');
-  revalidatePath('/profile');
 }
 
 export async function adjustUserLoyaltyPoints(userId: string, pointsDelta: number) {
@@ -149,7 +148,6 @@ export async function adjustUserLoyaltyPoints(userId: string, pointsDelta: numbe
   });
 
   revalidatePath('/admin');
-  revalidatePath('/profile');
   return updatedUser;
 }
 
@@ -559,37 +557,7 @@ export async function registerOnlineUser(data: {
   }
 }
 
-export async function getPendingUsers(limit: number = 50) {
-  await requireAdminAuth();
-  return await prisma.user.findMany({
-    where: { status: 'PENDING' },
-    select: { id: true, username: true, fullName: true, email: true, phone: true },
-    orderBy: { id: 'desc' },
-    take: limit
-  });
-}
 
-export async function approveUser(userId: string) {
-  await requireAdminAuth();
-  const updated = await prisma.user.update({
-    where: { id: userId },
-    data: { status: 'APPROVED' }
-  });
-  revalidatePath('/admin');
-  revalidatePath('/reception');
-  return updated;
-}
-
-export async function rejectUser(userId: string) {
-  await requireAdminAuth();
-  const updated = await prisma.user.update({
-    where: { id: userId },
-    data: { status: 'REJECTED' }
-  });
-  revalidatePath('/admin');
-  revalidatePath('/reception');
-  return updated;
-}
 
 export async function getAllUsersWithRoles() {
   await requireAdminAuth();
@@ -848,10 +816,17 @@ export async function deleteUserAccount(userId: string) {
 // BOOKINGS
 // ========================
 
-export async function createBooking(userId: string, consoleId: string, startTime: Date, durationHours: number) {
-  await requireUserOrStaff(userId);
+export async function createBooking(
+  consoleId: string,
+  startTime: Date,
+  durationHours: number,
+  guest: { name: string; phone: string; userId?: string }
+) {
   const endTime = new Date(startTime.getTime() + durationHours * 60 * 60 * 1000);
   const now = new Date();
+
+  if (!guest.name?.trim()) return { error: 'Your name is required to make a booking.' };
+  if (!guest.phone?.trim()) return { error: 'A phone number is required to make a booking.' };
 
   if (startTime < now) {
     return { error: 'Cannot book a time slot in the past.' };
@@ -889,23 +864,25 @@ export async function createBooking(userId: string, consoleId: string, startTime
 
     const booking = await tx.booking.create({
       data: {
-        userId,
+        userId: guest.userId || undefined,
         consoleId,
         startTime,
         endTime,
-        status: 'PENDING'
+        status: 'PENDING',
+        guestName: guest.name.trim(),
+        guestPhone: guest.phone.trim(),
       },
       include: {
         console: true
       }
     });
 
-    revalidatePath('/profile');
     revalidatePath('/reception');
     revalidatePath('/book');
     return { success: true, booking };
   });
 }
+
 
 export async function getBookedSlots(consoleId: string, date: string) {
   // Date formatted as YYYY-MM-DD
@@ -968,7 +945,6 @@ export async function cancelBooking(bookingId: string) {
     data: { status: 'CANCELLED' }
   });
 
-  revalidatePath('/profile');
   revalidatePath('/reception');
   revalidatePath('/book');
   return { success: true, booking: updated };
@@ -994,7 +970,6 @@ export async function acceptBooking(bookingId: string) {
     data: { status: 'CONFIRMED' }
   });
 
-  revalidatePath('/profile');
   revalidatePath('/reception');
   revalidatePath('/book');
   return { success: true, booking: updated };
@@ -1184,7 +1159,6 @@ export async function endGameSession(sessionId: string) {
   const updatedSession = await internalCompleteSessionRecord(session);
 
   revalidatePath('/reception');
-  revalidatePath('/profile');
   return updatedSession;
 }
 
@@ -1203,77 +1177,9 @@ export async function endAllExpiredSessions() {
   }
 
   revalidatePath('/reception');
-  revalidatePath('/profile');
   return { success: true, count: expiredSessions.length };
 }
 
-// ========================
-// USER DATA QUERIES (Protected)
-// ========================
-
-export async function getUserBookings(userId: string) {
-  await requireUserOrStaff(userId);
-  return await prisma.booking.findMany({
-    where: { userId },
-    include: { console: true },
-    orderBy: { startTime: 'asc' }
-  });
-}
-
-export async function getUserOrders(userId: string) {
-  await requireUserOrStaff(userId);
-  return await prisma.order.findMany({
-    where: { userId },
-    include: { items: true },
-    orderBy: { createdAt: 'desc' }
-  });
-}
-
-export async function getUserSessions(userId: string) {
-  await requireUserOrStaff(userId);
-  return await prisma.gameSession.findMany({
-    where: { userId, status: 'COMPLETED' },
-    include: { console: { select: { hardwareTitle: true } } },
-    orderBy: { startTime: 'desc' }
-  });
-}
-
-export async function getUserActivityStats(userId: string) {
-  await requireUserOrStaff(userId);
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-  const recentSessions = await prisma.gameSession.findMany({
-    where: { 
-      userId, 
-      status: 'COMPLETED',
-      startTime: { gte: sevenDaysAgo }
-    },
-    select: { startTime: true, endTime: true }
-  });
-
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const today = new Date().getDay();
-  const sortedDays: string[] = [];
-  for (let i = 6; i >= 0; i--) {
-    sortedDays.unshift(days[(today - i + 7) % 7]);
-  }
-  const sortedPlaytime = Array(7).fill(0);
-
-  recentSessions.forEach(session => {
-    if (!session.startTime || !session.endTime) return;
-    const diffHours = (session.endTime.getTime() - session.startTime.getTime()) / (1000 * 60 * 60);
-    const sessionDay = session.startTime.getDay();
-    
-    const dayName = days[sessionDay];
-    const idx = sortedDays.indexOf(dayName);
-    if (idx !== -1) {
-      sortedPlaytime[idx] += diffHours;
-    }
-  });
-
-  return { labels: sortedDays, data: sortedPlaytime };
-}
 
 // ========================
 // WAITLIST
@@ -1713,7 +1619,6 @@ export async function createOnlineShopOrder(
       };
     });
 
-    revalidatePath('/profile');
     revalidatePath('/admin');
     return result;
   } catch (error: unknown) {
@@ -1747,56 +1652,6 @@ export async function getUpcomingBookings() {
   });
 }
 
-// ========================
-// PROFILE EDITING
-// ========================
-
-export async function updateUserProfile(userId: string, data: { fullName: string; phone: string; image: string }) {
-  await requireUserOrStaff(userId);
-  const updatedUser = await prisma.user.update({
-    where: { id: userId },
-    data: {
-      fullName: data.fullName,
-      phone: data.phone,
-      image: data.image
-    }
-  });
-  
-  revalidatePath('/profile');
-  revalidatePath('/profile/edit');
-  return { success: true, user: updatedUser };
-}
-
-export async function updateUserPassword(userId: string, currentPassword?: string, newPassword?: string) {
-  const session = await getAuthenticatedSession();
-  if (session.user.id !== userId) {
-    throw new Error('Unauthorized: You can only change your own password.');
-  }
-
-  if (!currentPassword || !newPassword) {
-    return { error: 'Both current and new password are required.' };
-  }
-
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  
-  if (!user || !user.password) {
-    return { error: 'Account not found or has no password set.' };
-  }
-
-  const isValid = await bcrypt.compare(currentPassword, user.password);
-  if (!isValid) {
-    return { error: 'Incorrect current password.' };
-  }
-
-  const hashedPassword = await bcrypt.hash(newPassword, 12);
-  
-  await prisma.user.update({
-    where: { id: userId },
-    data: { password: hashedPassword }
-  });
-
-  return { success: true };
-}
 
 // ========================
 // LEADERBOARD (Public)
@@ -1804,7 +1659,6 @@ export async function updateUserPassword(userId: string, currentPassword?: strin
 
 export async function getLeaderboard() {
   return await prisma.user.findMany({
-    where: { status: 'APPROVED' },
     orderBy: [
       { playtimeHours: 'desc' },
       { sessionsCount: 'desc' }
@@ -2223,6 +2077,8 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
       }
     });
 
+    const customerName = booking.guestName || booking.user?.fullName || booking.user?.username || 'Guest';
+
     const order = await tx.order.create({
       data: {
         userId: booking.userId,
@@ -2230,7 +2086,7 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
         paymentMethod,
         items: {
           create: [{
-            name: `${booking.user.fullName || booking.user.username} - ${durationHours} Hr Booking`,
+            name: `${customerName} - ${durationHours} Hr Booking`,
             price: totalAmount,
             type: 'session',
             quantity: 1
@@ -2243,7 +2099,7 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
     const session = await tx.gameSession.create({
       data: {
         userId: booking.userId,
-        guestName: booking.user.fullName || booking.user.username,
+        guestName: customerName,
         consoleId: booking.consoleId,
         startTime: now,
         endTime: sessionEndTime,
@@ -2256,11 +2112,13 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
       data: { status: 'COMPLETED' }
     });
 
-    const pointsEarned = Math.floor(totalAmount / 10);
-    await tx.user.update({
-      where: { id: booking.userId },
-      data: { loyaltyPoints: { increment: pointsEarned } }
-    });
+    if (booking.userId) {
+      const pointsEarned = Math.floor(totalAmount / 10);
+      await tx.user.update({
+        where: { id: booking.userId },
+        data: { loyaltyPoints: { increment: pointsEarned } }
+      });
+    }
 
     return { success: true, sessionId: session.id, orderId: order.id };
   });
@@ -2517,7 +2375,6 @@ export async function addRetroactiveSession(data: {
 
   revalidatePath('/admin');
   revalidatePath('/reception');
-  revalidatePath('/profile');
   return { success: true, ...result };
 }
 
@@ -2548,7 +2405,6 @@ export async function adjustUserStats(userId: string, stats: {
 
   revalidatePath('/admin');
   revalidatePath('/reception');
-  revalidatePath('/profile');
   return updatedUser;
 }
 

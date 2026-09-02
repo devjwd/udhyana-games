@@ -54,16 +54,13 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     if (result?.ok) {
       onClose();
       resetForm();
-      router.push('/profile');
+      router.push('/');
       router.refresh();
     } else {
-      if (result?.error === 'PENDING') {
-        setError('Your account is pending verification. Please visit the reception desk with a valid ID to activate it.');
-      } else {
-        setError('Invalid credentials. Please try again.');
-      }
+      setError('Invalid credentials. Please try again.');
     }
   };
+
 
   const handleSignup = async () => {
     // Client-side pre-validation
@@ -119,10 +116,9 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           {mode === 'login' ? 'Login to Udhyana' : 'Create Account'}
         </h2>
 
-        {/* Success message after sign up */}
         {isSuccess && (
           <div style={{ background: 'rgba(193,255,28,0.08)', border: '1px solid rgba(193,255,28,0.4)', borderRadius: '6px', padding: '0.85rem 1rem', marginBottom: '1rem', color: '#c1ff1c', fontSize: '0.88rem', lineHeight: '1.5' }}>
-            ✅ Account created! Visit the reception desk with a valid ID to activate it. Then you can log in here.
+            ✅ Account created! You can now log in with your credentials.
           </div>
         )}
 
