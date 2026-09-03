@@ -96,7 +96,7 @@ export default function CyberButton({
           />
         </svg>
       </span>
-      {children}
+      <span className={styles.cyberText}>{children}</span>
     </>
   );
 
