@@ -1,6 +1,6 @@
 .cyberBtn {
   position: relative;
-  z-index: 0;
+  isolation: isolate; /* Forces a new stacking context */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -46,14 +46,9 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: -1; /* Goes behind the button text, but trapped by isolation: isolate */
   display: flex;
   align-items: stretch;
-}
-
-.cyberText {
-  position: relative;
-  z-index: 1;
 }
 
 .cyberLeft,
