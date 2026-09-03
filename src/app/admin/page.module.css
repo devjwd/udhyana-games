@@ -126,7 +126,8 @@
   letter-spacing: 0.05em;
 }
 
-.input, .select {
+.input,
+.select {
   background-color: #0B0C10;
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #fff;
@@ -136,7 +137,8 @@
   outline: none;
 }
 
-.input:focus, .select:focus {
+.input:focus,
+.select:focus {
   border-color: var(--primary-accent);
 }
 
@@ -366,4 +368,3 @@
   color: var(--primary-accent);
   border-color: rgba(193, 255, 28, 0.35);
 }
-

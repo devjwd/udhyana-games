@@ -73,51 +73,6 @@ export default function EventsPage() {
     <>
       <Header />
       <main className={styles.main}>
-        {/* ─── HERO ─── */}
-        <section className={styles.hero}>
-          <div className={styles.container}>
-            <span className={styles.kicker}>Tournaments &amp; Rankings</span>
-            <h1 className={styles.title}>
-              Compete &amp; Conquer.<br />
-              <span className={styles.titleAccent}>Claim your rank.</span>
-            </h1>
-            <p className={styles.lead}>
-              Enter competitive LAN brackets, win verified prize pools, and climb
-              the global lounge playtime leaderboard.
-            </p>
-          </div>
-        </section>
-
-        {/* ─── EVENT VITALS (PILLARS) ─── */}
-        <section className={styles.pillarsSection}>
-          <div className={styles.container}>
-            <div className={styles.pillarsGrid}>
-              <div className={styles.pillar}>
-                <span className={styles.pillarNumber}>01</span>
-                <h2 className={styles.pillarTitle}>Weekly Brackets</h2>
-                <p className={styles.pillarText}>
-                  Scheduled tournaments across fighting games, sports, and tactical shooters with double elimination formats.
-                </p>
-              </div>
-
-              <div className={styles.pillar}>
-                <span className={styles.pillarNumber}>02</span>
-                <h2 className={styles.pillarTitle}>Cash &amp; Hardware</h2>
-                <p className={styles.pillarText}>
-                  Transparent cash prize pools, custom hardware peripherals, and lounge playtime credits awarded to top finalists.
-                </p>
-              </div>
-
-              <div className={styles.pillar}>
-                <span className={styles.pillarNumber}>03</span>
-                <h2 className={styles.pillarTitle}>Verified Playtime</h2>
-                <p className={styles.pillarText}>
-                  Real-time session tracking syncing automatically with your player profile and global ladder standing.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
 
         {/* ─── CONTENT BODY ─── */}
         <div className={styles.contentBody}>

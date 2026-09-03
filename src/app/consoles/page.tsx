@@ -80,51 +80,6 @@ export default function Consoles() {
     <>
       <Header />
       <main className={styles.main}>
-        {/* ─── HERO ─── */}
-        <section className={styles.hero}>
-          <div className={styles.container}>
-            <span className={styles.kicker}>Venues &amp; Hardware</span>
-            <h1 className={styles.title}>
-              The Gaming Lounges.<br />
-              <span className={styles.titleAccent}>Built for performance.</span>
-            </h1>
-            <p className={styles.lead}>
-              Explore our flagship spaces, inspect station hardware specifications,
-              and select your venue to reserve your upcoming session.
-            </p>
-          </div>
-        </section>
-
-        {/* ─── LOUNGE VITALS (PILLARS) ─── */}
-        <section className={styles.pillarsSection}>
-          <div className={styles.container}>
-            <div className={styles.pillarsGrid}>
-              <div className={styles.pillar}>
-                <span className={styles.pillarNumber}>01</span>
-                <h2 className={styles.pillarTitle}>High-Refresh Displays</h2>
-                <p className={styles.pillarText}>
-                  240Hz and 360Hz low-latency panels tuned for competitive esports clarity and zero motion blur.
-                </p>
-              </div>
-
-              <div className={styles.pillar}>
-                <span className={styles.pillarNumber}>02</span>
-                <h2 className={styles.pillarTitle}>Gigabit Fiber Network</h2>
-                <p className={styles.pillarText}>
-                  Dedicated symmetric gigabit lines with low ping routing to premier tournament servers.
-                </p>
-              </div>
-
-              <div className={styles.pillar}>
-                <span className={styles.pillarNumber}>03</span>
-                <h2 className={styles.pillarTitle}>Ergonomic Stations</h2>
-                <p className={styles.pillarText}>
-                  Pro-grade ergonomic gaming chairs, modular desks, and premium peripheral support at every station.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
 
         {/* ─── VENUES & STATIONS ─── */}
         <section className={styles.contentSection}>
