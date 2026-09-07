@@ -64,7 +64,6 @@ export default function WalkInForm({
   prefilledName,
   onClearPrefill
 }: WalkInFormProps) {
-  const [billingMode, setBillingMode] = useState<'PREPAID' | 'POSTPAID'>('PREPAID');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string | undefined>(undefined);
@@ -75,6 +74,8 @@ export default function WalkInForm({
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isGamesModalOpen, setIsGamesModalOpen] = useState(false);
   const [platformFilter, setPlatformFilter] = useState<'ALL' | 'PS5' | 'PC' | 'XBOX'>('ALL');
+
+  const isPostpaid = selectedDurationId === 'postpaid';
 
   // Search state
   const [searchResults, setSearchResults] = useState<CustomerSearchResult[]>([]);
@@ -148,7 +149,7 @@ export default function WalkInForm({
     }
 
     const durationObj = durations.find(d => d.id === selectedDurationId) || durations[1] || durations[0];
-    const durationSecondsToCheck = billingMode === 'POSTPAID' ? 3600 : durationObj.seconds;
+    const durationSecondsToCheck = isPostpaid ? 3600 : durationObj.seconds;
     const availability = checkAvailability(selectedConsoleId, durationSecondsToCheck);
 
     if (!availability.available) {
@@ -159,7 +160,7 @@ export default function WalkInForm({
     const consoleObj = consoles.find(c => c.id === selectedConsoleId);
     if (!consoleObj) return;
 
-    if (billingMode === 'POSTPAID') {
+    if (isPostpaid) {
       if (onStartPostpaid) {
         try {
           await onStartPostpaid({
@@ -238,16 +239,17 @@ export default function WalkInForm({
     const consoleObj = consoles.find(c => c.id === selectedConsoleId);
     const stationLabel = consoleObj ? consoleObj.name : 'Any Station';
     const extraFee = additionalControllers * extraControllerRate;
-    const itemPrice = durationObj.price + extraFee;
+    const itemPrice = (isPostpaid ? baseRate : durationObj.price) + extraFee;
+    const durationLabel = isPostpaid ? 'Pay As Play' : durationObj.name;
 
     onAddToCart({
       id: `waitlist-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       type: 'waitlist',
-      name: `[Waitlist] ${name.trim()} - ${durationObj.name} (${stationLabel})`,
+      name: `[Waitlist] ${name.trim()} - ${durationLabel} (${stationLabel})`,
       price: itemPrice,
       consoleId: selectedConsoleId || undefined,
       consoleName: stationLabel,
-      durationSeconds: durationObj.seconds,
+      durationSeconds: isPostpaid ? 3600 : durationObj.seconds,
       phone: phone.trim() || undefined,
       userId: selectedUserId,
       extraControllers: additionalControllers
@@ -272,7 +274,7 @@ export default function WalkInForm({
 
   const selectedDuration = durations.find(d => d.id === selectedDurationId) || durations[1] || durations[0];
   const selectedConsoleAvailability = selectedConsoleId
-    ? checkAvailability(selectedConsoleId, billingMode === 'POSTPAID' ? 3600 : selectedDuration.seconds)
+    ? checkAvailability(selectedConsoleId, isPostpaid ? 3600 : selectedDuration.seconds)
     : { available: true, reason: '', isOccupied: false, isReserved: false };
 
   const selectedConsoleObj = consoles.find(c => c.id === selectedConsoleId);
@@ -282,64 +284,6 @@ export default function WalkInForm({
       <div className={styles.panelHeaderRow}>
         <h2 className={styles.panelHeader} style={{ borderBottom: 'none', paddingBottom: 0 }}>Walk-In Registration</h2>
         <span className={styles.panelBadge}>New Session</span>
-      </div>
-
-      {/* Billing Mode Switcher */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '0.5rem',
-        marginBottom: '1rem',
-        padding: '0.25rem',
-        background: 'rgba(255,255,255,0.03)',
-        borderRadius: '8px',
-        border: '1px solid rgba(255,255,255,0.08)'
-      }}>
-        <button
-          type="button"
-          onClick={() => setBillingMode('PREPAID')}
-          style={{
-            padding: '0.6rem 0.5rem',
-            background: billingMode === 'PREPAID' ? 'var(--primary-accent)' : 'transparent',
-            color: billingMode === 'PREPAID' ? '#000' : '#fff',
-            fontWeight: 800,
-            fontSize: '0.78rem',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.35rem'
-          }}
-        >
-          <span>⏱️ Fixed Duration</span>
-          <span style={{ fontSize: '0.68rem', opacity: billingMode === 'PREPAID' ? 0.85 : 0.6 }}>(Prepaid)</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setBillingMode('POSTPAID')}
-          style={{
-            padding: '0.6rem 0.5rem',
-            background: billingMode === 'POSTPAID' ? 'var(--primary-accent)' : 'transparent',
-            color: billingMode === 'POSTPAID' ? '#000' : '#fff',
-            fontWeight: 800,
-            fontSize: '0.78rem',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.35rem'
-          }}
-        >
-          <span>♾️ Pay As You Play</span>
-          <span style={{ fontSize: '0.68rem', opacity: billingMode === 'POSTPAID' ? 0.85 : 0.6 }}>(Postpaid / Bill at End)</span>
-        </button>
       </div>
 
       <form className={styles.form} onSubmit={handleSubmit}>
@@ -543,55 +487,72 @@ export default function WalkInForm({
           )}
         </div>
 
-        {/* Duration Selector (Only shown for Fixed Duration / Prepaid mode) */}
-        {billingMode === 'PREPAID' ? (
-          <div className={styles.field}>
-            <label className={styles.label}>Duration</label>
-            <div className={styles.gridOptions} style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-              {durations.map(d => (
-                <button
-                  key={d.id}
-                  type="button"
-                  className={`${styles.optionBtn} ${selectedDurationId === d.id ? styles.optionBtnActive : ''}`}
-                  onClick={() => setSelectedDurationId(d.id)}
-                >
-                  <span className={styles.optionMainText}>{d.name.split(' (')[0]}</span>
-                  <span className={styles.optionSubText}>PKR {d.price}</span>
-                </button>
-              ))}
-            </div>
+        {/* Duration Selector with Pay As You Play Option */}
+        <div className={styles.field}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+            <label className={styles.label} style={{ margin: 0 }}>Duration</label>
+            {isPostpaid && (
+              <span style={{ fontSize: '0.72rem', color: 'var(--primary-accent)', fontWeight: 800 }}>
+                ⚡ Open Session • Billed at End
+              </span>
+            )}
           </div>
-        ) : (
-          <div className={styles.field}>
-            <label className={styles.label}>Postpaid Pricing Terms</label>
+
+          <div className={styles.gridOptions} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
+            {durations.map(d => (
+              <button
+                key={d.id}
+                type="button"
+                className={`${styles.optionBtn} ${selectedDurationId === d.id ? styles.optionBtnActive : ''}`}
+                onClick={() => setSelectedDurationId(d.id)}
+              >
+                <span className={styles.optionMainText}>{d.name.split(' (')[0]}</span>
+                <span className={styles.optionSubText}>PKR {d.price}</span>
+              </button>
+            ))}
+
+            {/* Pay As You Play Option */}
+            <button
+              type="button"
+              className={`${styles.optionBtn} ${isPostpaid ? styles.optionBtnActive : ''}`}
+              onClick={() => setSelectedDurationId('postpaid')}
+              style={isPostpaid ? { borderColor: 'var(--primary-accent)' } : {}}
+            >
+              <span className={styles.optionMainText}>♾️ Pay As Play</span>
+              <span className={styles.optionSubText}>PKR {baseRate}/hr • Postpaid</span>
+            </button>
+          </div>
+
+          {isPostpaid && (
             <div style={{
+              marginTop: '0.65rem',
               background: 'rgba(193, 255, 28, 0.06)',
               border: '1px solid rgba(193, 255, 28, 0.25)',
               borderRadius: '8px',
-              padding: '0.85rem 1rem',
+              padding: '0.75rem 1rem',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.35rem'
+              gap: '0.25rem'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 800, color: '#fff', fontSize: '0.9rem' }}>
-                  ⚡ Pay As You Play Rate
+                <span style={{ fontWeight: 800, color: '#fff', fontSize: '0.85rem' }}>
+                  ⚡ Pay As You Play (Open Session)
                 </span>
-                <span style={{ color: 'var(--primary-accent)', fontWeight: 900, fontSize: '1rem' }}>
+                <span style={{ color: 'var(--primary-accent)', fontWeight: 900, fontSize: '0.95rem' }}>
                   PKR {baseRate} / hour
                 </span>
               </div>
-              <p style={{ margin: 0, fontSize: '0.74rem', color: 'rgba(255,255,255,0.7)', lineHeight: 1.4 }}>
-                No upfront payment required. Station timer will count up in real-time. Player will be billed accurately at checkout for the exact time played (pro-rated by minute) plus any snacks.
+              <p style={{ margin: 0, fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', lineHeight: 1.4 }}>
+                No upfront payment. Timer counts up live with exact per-minute pro-rating. Full bill settled at checkout.
               </p>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Extra Controllers */}
         <div className={styles.field}>
           <label className={styles.label}>
-            Additional Controllers {billingMode === 'POSTPAID' ? `(+PKR ${extraControllerRate} added to checkout bill)` : `(+PKR ${extraControllerRate} flat fee)`}
+            Additional Controllers {isPostpaid ? `(+PKR ${extraControllerRate} added to checkout bill)` : `(+PKR ${extraControllerRate} flat fee)`}
           </label>
           <div className={styles.gridOptions} style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
             {[0, 1, 3].map(num => (
@@ -614,12 +575,12 @@ export default function WalkInForm({
             type="submit"
             disabled={!selectedConsoleAvailability.available || !selectedConsoleId}
             className={`${styles.submitBtn} ${(!selectedConsoleAvailability.available || !selectedConsoleId) ? styles.submitBtnDisabled : ''}`}
-            title={!selectedConsoleAvailability.available ? 'Selected station is occupied. Add player to waitlist.' : (billingMode === 'POSTPAID' ? 'Start Open Session' : 'Add Session to Order')}
-            style={billingMode === 'POSTPAID' && selectedConsoleAvailability.available && selectedConsoleId ? { background: 'var(--primary-accent)', color: '#000', fontWeight: 900 } : {}}
+            title={!selectedConsoleAvailability.available ? 'Selected station is occupied. Add player to waitlist.' : (isPostpaid ? 'Start Open Session' : 'Add Session to Order')}
+            style={isPostpaid && selectedConsoleAvailability.available && selectedConsoleId ? { background: 'var(--primary-accent)', color: '#000', fontWeight: 900 } : {}}
           >
             {!selectedConsoleAvailability.available
               ? 'Station Unavailable'
-              : billingMode === 'POSTPAID'
+              : isPostpaid
                 ? '▶ Start Open Session (Pay at End)'
                 : 'Add to Order'}
           </button>
