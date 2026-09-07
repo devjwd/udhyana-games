@@ -6,7 +6,7 @@ import Footer from '@/components/layout/Footer';
 import ConsoleCard from '@/components/ui/ConsoleCard';
 import LocationCard from '@/components/ui/LocationCard';
 import styles from './page.module.css';
-import { getConsoles, getBaseHourlyRate } from '@/backend/actions';
+import { getConsoles, getBaseHourlyRate, getPublicConsoleOccupiedIds } from '@/backend/actions';
 
 export default function Consoles() {
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
@@ -21,17 +21,20 @@ export default function Consoles() {
     }[]
   >([]);
   const [baseRate, setBaseRate] = useState(1000);
+  const [occupiedIds, setOccupiedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [consoles, rate] = await Promise.all([
+        const [consoles, rate, occupied] = await Promise.all([
           getConsoles(),
           getBaseHourlyRate(),
+          getPublicConsoleOccupiedIds(),
         ]);
         setDbConsoles(consoles);
         setBaseRate(rate);
+        setOccupiedIds(occupied);
       } catch (err) {
         console.error('Failed to load consoles:', err);
       } finally {
@@ -175,8 +178,8 @@ export default function Consoles() {
                       currentLocation ? currentLocation.title : 'Udhyana Lounges'
                     }. Play top competitive titles with low latency.`}
                     image={getStationImage(c.hardwareTitle, c.imagePath || undefined)}
-                    status="Available"
-                    statusColor="#d6ff01"
+                    status={occupiedIds.includes(c.id) ? "Occupied" : "Available"}
+                    statusColor={occupiedIds.includes(c.id) ? "#ff3333" : "#d6ff01"}
                     games={
                       c.games && c.games.length > 0
                         ? c.games.map((g: { game: { name: string } }) => g.game.name)

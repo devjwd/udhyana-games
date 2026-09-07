@@ -1037,12 +1037,13 @@ export async function getActiveSessions() {
   await requireReceptionAuth();
   const now = new Date();
 
-  // Auto-complete stale sessions that have been expired for over 15 minutes
+  // Auto-complete stale prepaid sessions that have been expired for over 15 minutes (exclude POSTPAID sessions)
   const staleThreshold = new Date(now.getTime() - 15 * 60 * 1000);
   try {
     const staleSessions = await prisma.gameSession.findMany({
       where: {
         status: { in: ['ACTIVE', 'PAUSED'] },
+        billingType: { not: 'POSTPAID' },
         endTime: { lt: staleThreshold }
       }
     });
@@ -1062,6 +1063,233 @@ export async function getActiveSessions() {
     },
     orderBy: { endTime: 'asc' }
   });
+}
+
+export async function startPostpaidSession(
+  consoleId: string,
+  guestName: string,
+  userId?: string,
+  phone?: string,
+  extraControllers: number = 0
+) {
+  try {
+    await requireReceptionAuth();
+    const now = new Date();
+
+    // Check if station is occupied or booked
+    const [activeSession, overlappingBooking] = await Promise.all([
+      prisma.gameSession.findFirst({
+        where: {
+          consoleId,
+          status: { in: ['ACTIVE', 'PAUSED'] },
+          OR: [
+            { billingType: 'POSTPAID' },
+            { endTime: { gt: now } }
+          ]
+        }
+      }),
+      prisma.booking.findFirst({
+        where: {
+          consoleId,
+          status: 'CONFIRMED',
+          startTime: { lte: new Date(now.getTime() + 3600 * 1000) }, // within next 1 hour
+          endTime: { gt: now }
+        }
+      })
+    ]);
+
+    if (activeSession) {
+      return { error: 'Station is currently occupied by an active session.' };
+    }
+
+    if (overlappingBooking) {
+      const timeStr = overlappingBooking.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return { error: `Station has an upcoming reservation at ${timeStr}.` };
+    }
+
+    // Resolve userId if not provided but matches phone/name
+    let resolvedUserId = userId;
+    if (!resolvedUserId && guestName) {
+      const cleanName = guestName.trim();
+      const existing = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { username: { equals: cleanName, mode: 'insensitive' } },
+            { fullName: { equals: cleanName, mode: 'insensitive' } },
+            ...(phone?.trim() ? [{ phone: phone.trim() }] : [])
+          ]
+        },
+        select: { id: true }
+      });
+      if (existing) resolvedUserId = existing.id;
+    }
+
+    // Open-ended session: upper safety bound 24 hours from start, tagged as POSTPAID
+    const openEndTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    const session = await prisma.gameSession.create({
+      data: {
+        consoleId,
+        guestName: guestName.trim(),
+        userId: resolvedUserId || null,
+        startTime: now,
+        endTime: openEndTime,
+        status: 'ACTIVE',
+        billingType: 'POSTPAID',
+        extraControllers: extraControllers || 0
+      },
+      include: {
+        console: { select: { id: true, hardwareTitle: true } },
+        user: { select: { id: true, username: true, fullName: true, phone: true } }
+      }
+    });
+
+    revalidatePath('/reception');
+    return { success: true, session };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to start open session.';
+    return { error: message };
+  }
+}
+
+export async function settleAndEndPostpaidSession(
+  sessionId: string,
+  paymentMethod: string = 'cash',
+  customAmount?: number,
+  additionalItems?: { name: string; price: number; quantity?: number; type?: string }[]
+) {
+  try {
+    await requireReceptionAuth();
+    const session = await prisma.gameSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        console: true,
+        user: true
+      }
+    });
+
+    if (!session || (session.status !== 'ACTIVE' && session.status !== 'PAUSED')) {
+      return { error: 'Active session not found or already completed.' };
+    }
+
+    const now = new Date();
+    const startTime = session.startTime;
+    
+    // Calculate total elapsed seconds
+    const totalElapsedSeconds = Math.max(60, Math.floor((now.getTime() - startTime.getTime()) / 1000));
+    const totalMinutes = Math.ceil(totalElapsedSeconds / 60);
+    const totalHours = totalElapsedSeconds / 3600;
+
+    const baseRate = await getBaseHourlyRate();
+    const extraControllerRate = await getExtraControllerRate();
+
+    // Time-based calculation: pro-rated per minute with minimum 15 mins
+    const billableMinutes = Math.max(15, totalMinutes);
+    const timeCharge = Math.round((billableMinutes / 60) * baseRate);
+    const controllerCharge = (session.extraControllers || 0) * extraControllerRate;
+    
+    const calculatedGamingTotal = timeCharge + controllerCharge;
+    const finalGamingAmount = (customAmount !== undefined && customAmount >= 0) ? customAmount : calculatedGamingTotal;
+
+    const formattedHours = Math.floor(totalMinutes / 60);
+    const formattedMins = totalMinutes % 60;
+    const durationLabel = formattedHours > 0 
+      ? `${formattedHours}h ${formattedMins}m` 
+      : `${formattedMins} mins`;
+
+    const playerName = session.guestName || session.user?.fullName || session.user?.username || 'Player';
+
+    const orderItems: { name: string; price: number; type: string; quantity: number }[] = [
+      {
+        name: `Open Session (${durationLabel}) - ${session.console.hardwareTitle} (${playerName})`,
+        price: finalGamingAmount,
+        type: 'session',
+        quantity: 1
+      }
+    ];
+
+    if (additionalItems && additionalItems.length > 0) {
+      for (const item of additionalItems) {
+        orderItems.push({
+          name: item.name,
+          price: Number(item.price) || 0,
+          quantity: item.quantity || 1,
+          type: item.type || 'snack'
+        });
+      }
+    }
+
+    const grandTotal = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Mark Game Session completed
+      const updatedSession = await tx.gameSession.update({
+        where: { id: sessionId },
+        data: {
+          status: 'COMPLETED',
+          checkedOutAt: now,
+          endTime: now
+        }
+      });
+
+      // 2. Create Order & Items
+      const order = await tx.order.create({
+        data: {
+          userId: session.userId || null,
+          totalAmount: grandTotal,
+          paymentMethod,
+          status: 'COMPLETED',
+          items: {
+            create: orderItems.map(i => ({
+              name: i.name,
+              price: i.price,
+              quantity: i.quantity,
+              type: i.type
+            }))
+          }
+        }
+      });
+
+      // 3. Member loyalty points
+      if (session.userId) {
+        const hoursPlayed = Math.max(1, Math.ceil(totalHours));
+        const { pointsPerHour } = await getLoyaltyRates();
+        const loyaltyFromPlay = hoursPlayed * pointsPerHour;
+        const loyaltyFromSpend = Math.floor(grandTotal / 10);
+        const totalPointsEarned = Math.max(1, loyaltyFromPlay + loyaltyFromSpend);
+
+        const user = await tx.user.update({
+          where: { id: session.userId },
+          data: {
+            sessionsCount: { increment: 1 },
+            playtimeHours: { increment: hoursPlayed },
+            loyaltyPoints: { increment: totalPointsEarned }
+          }
+        });
+
+        let newRank = user.rank;
+        if (user.loyaltyPoints >= 1000) newRank = 'Elite';
+        else if (user.loyaltyPoints >= 500) newRank = 'Pro';
+        else if (user.loyaltyPoints >= 100) newRank = 'Regular';
+        else newRank = 'Rookie';
+
+        if (newRank !== user.rank) {
+          await tx.user.update({
+            where: { id: user.id },
+            data: { rank: newRank }
+          });
+        }
+      }
+
+      return { session: updatedSession, order };
+    });
+
+    revalidatePath('/reception');
+    return { success: true, orderId: result.order.id, totalAmount: grandTotal };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to settle session.';
+    return { error: message };
+  }
 }
 
 export async function addTimeToSession(
@@ -1168,6 +1396,7 @@ export async function endAllExpiredSessions() {
   const expiredSessions = await prisma.gameSession.findMany({
     where: {
       status: { in: ['ACTIVE', 'PAUSED'] },
+      billingType: { not: 'POSTPAID' },
       endTime: { lte: now }
     }
   });
@@ -2455,3 +2684,32 @@ export async function addRetroactiveOrder(data: {
   return { success: true, order };
 }
 
+export async function getPublicConsoleOccupiedIds() {
+  const now = new Date();
+  
+  // Walk-in sessions that are active
+  const activeSessions = await prisma.gameSession.findMany({
+    where: {
+      status: { in: ['ACTIVE', 'PAUSED'] },
+      endTime: { gt: now }
+    },
+    select: { consoleId: true }
+  });
+
+  // Online bookings that are currently happening
+  const activeBookings = await prisma.booking.findMany({
+    where: {
+      status: 'CONFIRMED',
+      startTime: { lte: now },
+      endTime: { gt: now }
+    },
+    select: { consoleId: true }
+  });
+
+  const occupiedIds = new Set([
+    ...activeSessions.map(s => s.consoleId),
+    ...activeBookings.map(b => b.consoleId)
+  ]);
+
+  return Array.from(occupiedIds);
+}

@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
 
     switch (action) {
       case 'START_SESSION': {
-        const { consoleId, userId, guestName, startTime, endTime, totalAmount, paymentMethod, orderItems } = payload;
+        const { consoleId, userId, guestName, startTime, endTime, totalAmount, paymentMethod, orderItems, billingType, extraControllers } = payload;
         
         // Upsert/create session
         const newSession = await prisma.gameSession.create({
@@ -104,6 +104,8 @@ export async function POST(req: NextRequest) {
             startTime: new Date(startTime),
             endTime: new Date(endTime),
             status: 'ACTIVE',
+            billingType: billingType || 'PREPAID',
+            extraControllers: Number(extraControllers) || 0,
           },
         });
 
@@ -128,6 +130,58 @@ export async function POST(req: NextRequest) {
         }
 
         return NextResponse.json({ success: true, mutationId, session: newSession });
+      }
+
+      case 'START_POSTPAID_SESSION': {
+        const { consoleId, userId, guestName, extraControllers } = payload;
+        const now = new Date();
+        const openEndTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+        const newSession = await prisma.gameSession.create({
+          data: {
+            consoleId,
+            userId: userId || null,
+            guestName: guestName || null,
+            startTime: now,
+            endTime: openEndTime,
+            status: 'ACTIVE',
+            billingType: 'POSTPAID',
+            extraControllers: Number(extraControllers) || 0,
+          },
+        });
+
+        return NextResponse.json({ success: true, mutationId, session: newSession });
+      }
+
+      case 'SETTLE_POSTPAID_SESSION': {
+        const { sessionId, totalAmount, paymentMethod, orderItems } = payload;
+        const now = new Date();
+
+        const updatedSession = await prisma.gameSession.update({
+          where: { id: sessionId },
+          data: { status: 'COMPLETED', checkedOutAt: now, endTime: now },
+        });
+
+        if (totalAmount && Number(totalAmount) > 0) {
+          await prisma.order.create({
+            data: {
+              userId: updatedSession.userId,
+              totalAmount: parseFloat(String(totalAmount)),
+              paymentMethod: paymentMethod || 'cash',
+              status: 'COMPLETED',
+              items: {
+                create: (orderItems || []).map((item: { name: string; price: string | number; quantity?: number; type?: string }) => ({
+                  name: item.name,
+                  price: parseFloat(String(item.price)),
+                  quantity: item.quantity || 1,
+                  type: item.type || 'session',
+                })),
+              },
+            },
+          });
+        }
+
+        return NextResponse.json({ success: true, mutationId, session: updatedSession });
       }
 
       case 'EXTEND_SESSION': {

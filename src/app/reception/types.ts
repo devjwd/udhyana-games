@@ -13,6 +13,8 @@ export interface Session {
   endTime: string | Date;
   checkedOutAt?: string | Date | null;
   pausedRemainingSeconds?: number | null;
+  billingType?: 'PREPAID' | 'POSTPAID';
+  extraControllers?: number;
   consoleId: string;
   console: {
     id?: string;
@@ -68,6 +70,7 @@ export interface CartItem {
   phone?: string;
   userId?: string;
   extraControllers?: number;
+  billingType?: 'PREPAID' | 'POSTPAID';
 }
 
 export interface ShiftSummary {

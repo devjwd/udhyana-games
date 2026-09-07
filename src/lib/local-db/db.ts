@@ -7,7 +7,9 @@ export interface LocalGameSession {
   consoleId: string;
   startTime: string; // ISO string
   endTime: string;   // ISO string
-  status: 'ACTIVE' | 'COMPLETED';
+  status: 'ACTIVE' | 'COMPLETED' | 'PAUSED';
+  billingType?: 'PREPAID' | 'POSTPAID';
+  extraControllers?: number;
   synced: boolean;
   updatedAt: string;
 }
@@ -84,6 +86,8 @@ export interface SyncMutation {
   id: string;
   actionType: 
     | 'START_SESSION' 
+    | 'START_POSTPAID_SESSION'
+    | 'SETTLE_POSTPAID_SESSION'
     | 'EXTEND_SESSION' 
     | 'END_SESSION' 
     | 'CREATE_ORDER' 

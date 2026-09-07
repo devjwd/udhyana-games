@@ -128,6 +128,8 @@ model GameSession {
   checkedOutAt           DateTime?
   status                 String    @default("ACTIVE") // ACTIVE, COMPLETED, PAUSED
   pausedRemainingSeconds Int?      @default(0)
+  billingType            String    @default("PREPAID") // PREPAID, POSTPAID
+  extraControllers       Int       @default(0)
   
   user                   User?     @relation(fields: [userId], references: [id])
   console                Console   @relation(fields: [consoleId], references: [id])

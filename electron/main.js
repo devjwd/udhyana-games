@@ -420,7 +420,7 @@ ipcMain.handle('terminal:fetch-live', async () => {
                     GROUP BY c.id
                     ORDER BY c.id ASC`),
         pool.query('SELECT id, name, price FROM "Snack" ORDER BY name ASC'),
-        pool.query(`SELECT s.id, s."consoleId", s."guestName", s."startTime", s."endTime", s.status, s."pausedRemainingSeconds", s."userId", u.username, u."fullName", u.phone
+        pool.query(`SELECT s.id, s."consoleId", s."guestName", s."startTime", s."endTime", s.status, s."pausedRemainingSeconds", s."billingType", s."extraControllers", s."userId", u.username, u."fullName", u.phone
                     FROM "GameSession" s LEFT JOIN "User" u ON s."userId" = u.id
                     WHERE s.status IN ('ACTIVE', 'PAUSED') ORDER BY s."endTime" ASC`),
         pool.query(`SELECT b.id, b."consoleId", c."hardwareTitle" AS "consoleName", b."startTime", b."endTime", u."fullName", u.username, u.phone
@@ -446,6 +446,8 @@ ipcMain.handle('terminal:fetch-live', async () => {
           endTime: s.endTime?.toISOString ? s.endTime.toISOString() : s.endTime,
           status: s.status,
           pausedRemainingSeconds: s.pausedRemainingSeconds || 0,
+          billingType: s.billingType || 'PREPAID',
+          extraControllers: s.extraControllers || 0,
         })),
         upcomingBookings: bookings.rows.map(b => ({
           id: b.id,
@@ -572,8 +574,16 @@ ipcMain.handle('terminal:session-action', async (event, { action, payload }) => 
         return { success: true };
       } else if (action === 'END') {
         const { consoleId } = payload;
-        await pool.query('UPDATE "GameSession" SET status = $1 WHERE "consoleId" = $2 AND status IN ($3, $4)', ['COMPLETED', consoleId, 'ACTIVE', 'PAUSED']);
+        await pool.query('UPDATE "GameSession" SET status = $1, "checkedOutAt" = NOW() WHERE "consoleId" = $2 AND status IN ($3, $4)', ['COMPLETED', consoleId, 'ACTIVE', 'PAUSED']);
         return { success: true };
+      } else if (action === 'START_POSTPAID') {
+        const { consoleId, guestName, userId, extraControllers } = payload;
+        const sId = 'sess_' + Date.now();
+        await pool.query(
+          'INSERT INTO "GameSession" (id, "consoleId", "guestName", "startTime", "endTime", status, "pausedRemainingSeconds", "billingType", "extraControllers", "userId") VALUES ($1, $2, $3, NOW(), NOW() + interval \'24 hours\', \'ACTIVE\', 0, \'POSTPAID\', $4, $5)',
+          [sId, consoleId, guestName || 'Guest', Number(extraControllers) || 0, userId || null]
+        );
+        return { success: true, sessionId: sId };
       }
       return { success: true };
     } catch (err) {

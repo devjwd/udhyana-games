@@ -41,7 +41,9 @@ import {
   cancelBooking,
   processPosCheckout,
   getDailyShiftSummary,
-  searchUsers
+  searchUsers,
+  startPostpaidSession,
+  settleAndEndPostpaidSession
 } from '@/backend/actions';
 
 // Modals & Feature Components
@@ -60,6 +62,7 @@ import CheckInModal from './modals/CheckInModal';
 import TransferModal from './modals/TransferModal';
 import AddTimeModal from './modals/AddTimeModal';
 import AssignWaitlistModal from './modals/AssignWaitlistModal';
+import PostpaidCheckoutModal from './modals/PostpaidCheckoutModal';
 
 export default function ReceptionPortal() {
   const { data: session, status: authStatus } = useSession();
@@ -91,6 +94,7 @@ export default function ReceptionPortal() {
   const [transferModalSession, setTransferModalSession] = useState<Session | null>(null);
   const [addTimeModalSession, setAddTimeModalSession] = useState<Session | null>(null);
   const [assignWaitlistModalWaiter, setAssignWaitlistModalWaiter] = useState<WaitlistEntry | null>(null);
+  const [postpaidModalSession, setPostpaidModalSession] = useState<Session | null>(null);
 
   const expiredNotifiedRef = useRef<Set<string>>(new Set());
 
@@ -547,6 +551,68 @@ export default function ReceptionPortal() {
     }
   };
 
+  // Postpaid Session Handlers
+  const handleStartPostpaidSession = async (params: {
+    consoleId: string;
+    guestName: string;
+    userId?: string;
+    phone?: string;
+    extraControllers?: number;
+  }) => {
+    try {
+      toast.loading('Starting open session...', { id: 'start-postpaid' });
+      const res = await startPostpaidSession(
+        params.consoleId,
+        params.guestName,
+        params.userId,
+        params.phone,
+        params.extraControllers
+      );
+
+      if (res && 'error' in res && res.error) {
+        throw new Error(res.error);
+      }
+
+      soundManager.playSuccessTone();
+      toast.success(`Pay As You Play session ACTIVE for ${params.guestName}! Timer running.`, { id: 'start-postpaid' });
+      await fetchLiveDashboardData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to start postpaid session.';
+      toast.error(message, { id: 'start-postpaid' });
+      throw err;
+    }
+  };
+
+  const handleConfirmPostpaidCheckout = async (
+    sessionId: string,
+    paymentMethod: string,
+    customGamingAmount: number,
+    snackItems: { name: string; price: number; quantity: number; type: string }[]
+  ) => {
+    try {
+      toast.loading('Settling bill & completing session...', { id: 'settle-postpaid' });
+      const res = await settleAndEndPostpaidSession(
+        sessionId,
+        paymentMethod,
+        customGamingAmount,
+        snackItems
+      );
+
+      if (res && 'error' in res && res.error) {
+        throw new Error(res.error);
+      }
+
+      soundManager.playSuccessTone();
+      toast.success(`Session settled! Collected PKR ${res.totalAmount} via ${paymentMethod.toUpperCase()}. Station is now free.`, { id: 'settle-postpaid' });
+      setPostpaidModalSession(null);
+      await fetchLiveDashboardData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to settle session.';
+      toast.error(message, { id: 'settle-postpaid' });
+      throw err;
+    }
+  };
+
   // Online Bookings Check-In & Acceptance
   const handleAcceptBooking = async (bookingId: string) => {
     try {
@@ -713,8 +779,10 @@ export default function ReceptionPortal() {
                   consoles={consoles}
                   durations={durations}
                   extraControllerRate={extraControllerRate}
+                  baseRate={baseRate}
                   checkAvailability={checkConsoleAvailability}
                   onAddToCart={handleAddSessionToCart}
+                  onStartPostpaid={handleStartPostpaidSession}
                   onAddToWaitlist={handleAddToWaitlist}
                   prefilledName={prefilledWaitlistName}
                   onClearPrefill={() => setPrefilledWaitlistName('')}
@@ -747,10 +815,13 @@ export default function ReceptionPortal() {
               />
               <ActiveSessionsMonitor
                 sessions={dbSessions}
+                baseRate={baseRate}
+                extraControllerRate={extraControllerRate}
                 onOpenAddTime={setAddTimeModalSession}
                 onTogglePause={handleTogglePause}
                 onOpenTransfer={setTransferModalSession}
                 onEndSession={handleEndSession}
+                onOpenPostpaidCheckout={setPostpaidModalSession}
                 onEndAllExpired={handleEndAllExpired}
               />
               <UpcomingReservationsTable
@@ -813,6 +884,15 @@ export default function ReceptionPortal() {
         checkAvailability={checkConsoleAvailability}
         onClose={() => setAssignWaitlistModalWaiter(null)}
         onConfirm={handleConfirmAssignWaitlist}
+      />
+
+      <PostpaidCheckoutModal
+        session={postpaidModalSession}
+        baseRate={baseRate}
+        extraControllerRate={extraControllerRate}
+        snacks={snacks}
+        onClose={() => setPostpaidModalSession(null)}
+        onConfirm={handleConfirmPostpaidCheckout}
       />
     </div>
   );

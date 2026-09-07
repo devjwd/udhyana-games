@@ -131,6 +131,8 @@ export async function GET(req: NextRequest) {
           endTime: s.endTime.toISOString(),
           status: s.status,
           pausedRemainingSeconds: s.pausedRemainingSeconds || 0,
+          billingType: s.billingType || 'PREPAID',
+          extraControllers: s.extraControllers || 0,
         })),
         upcomingBookings: bookings.map((b: any) => ({
           id: b.id,
@@ -429,10 +431,95 @@ export async function POST(req: NextRequest) {
 
       await prisma.gameSession.update({
         where: { id: session.id },
-        data: { status: 'COMPLETED' },
+        data: { status: 'COMPLETED', checkedOutAt: new Date() },
       });
 
       return NextResponse.json({ success: true, sessionId: session.id });
+    }
+
+    // E. Start Postpaid / Pay-As-You-Play Session
+    if (action === 'START_POSTPAID') {
+      const { consoleId, guestName, userId, extraControllers = 0 } = body;
+      const now = new Date();
+      const openEndTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+      const session = await prisma.gameSession.create({
+        data: {
+          consoleId,
+          guestName: guestName || 'Guest',
+          userId: userId || null,
+          startTime: now,
+          endTime: openEndTime,
+          status: 'ACTIVE',
+          billingType: 'POSTPAID',
+          extraControllers: Number(extraControllers) || 0,
+        },
+      });
+
+      return NextResponse.json({ success: true, session });
+    }
+
+    // F. Settle & End Postpaid Session
+    if (action === 'SETTLE_POSTPAID') {
+      const { sessionId, totalAmount, paymentMethod = 'cash', items = [] } = body;
+      const now = new Date();
+
+      const session = await prisma.gameSession.findUnique({
+        where: { id: sessionId },
+        include: { user: true, console: true },
+      });
+
+      if (!session) throw new Error('Postpaid session not found.');
+
+      const grandTotal = parseFloat(String(totalAmount)) || 0;
+
+      const result = await prisma.$transaction(async (tx) => {
+        // 1. Complete Session
+        const updatedSession = await tx.gameSession.update({
+          where: { id: sessionId },
+          data: {
+            status: 'COMPLETED',
+            checkedOutAt: now,
+            endTime: now,
+          },
+        });
+
+        // 2. Create Order
+        const order = await tx.order.create({
+          data: {
+            userId: session.userId || null,
+            totalAmount: grandTotal,
+            paymentMethod,
+            status: 'COMPLETED',
+            items: {
+              create: (items.length > 0 ? items : [{ name: `Open Session - ${session.console.hardwareTitle}`, price: grandTotal, type: 'session', quantity: 1 }]).map((it: any) => ({
+                name: it.name,
+                price: parseFloat(String(it.price)),
+                quantity: it.quantity || 1,
+                type: it.type || 'session',
+              })),
+            },
+          },
+        });
+
+        // 3. Award Points
+        if (session.userId) {
+          const pointsEarned = Math.floor(grandTotal / 10);
+          if (pointsEarned > 0) {
+            await tx.user.update({
+              where: { id: session.userId },
+              data: {
+                loyaltyPoints: { increment: pointsEarned },
+                sessionsCount: { increment: 1 },
+              },
+            });
+          }
+        }
+
+        return { session: updatedSession, order };
+      });
+
+      return NextResponse.json({ success: true, ...result });
     }
 
     return NextResponse.json({ success: false, error: 'Unknown action specified.' }, { status: 400 });
