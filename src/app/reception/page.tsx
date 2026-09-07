@@ -574,7 +574,7 @@ export default function ReceptionPortal() {
       }
 
       soundManager.playSuccessTone();
-      toast.success(`Pay As You Play session ACTIVE for ${params.guestName}! Timer running.`, { id: 'start-postpaid' });
+      toast.success(`Open session ACTIVE for ${params.guestName}! Timer running.`, { id: 'start-postpaid' });
       await fetchLiveDashboardData();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to start postpaid session.';

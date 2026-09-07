@@ -183,7 +183,7 @@ export default function WalkInForm({
         onAddToCart({
           id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
           type: 'session',
-          name: `${name.trim()} - Pay As You Play (Open Session)${additionalControllers > 0 ? ` (+${additionalControllers} Controller${additionalControllers > 1 ? 's' : ''})` : ''}`,
+          name: `${name.trim()} - Open Session${additionalControllers > 0 ? ` (+${additionalControllers} Controller${additionalControllers > 1 ? 's' : ''})` : ''}`,
           price: 0,
           consoleId: selectedConsoleId,
           consoleName: consoleObj.name,
@@ -240,7 +240,7 @@ export default function WalkInForm({
     const stationLabel = consoleObj ? consoleObj.name : 'Any Station';
     const extraFee = additionalControllers * extraControllerRate;
     const itemPrice = (isPostpaid ? baseRate : durationObj.price) + extraFee;
-    const durationLabel = isPostpaid ? 'Pay As Play' : durationObj.name;
+    const durationLabel = isPostpaid ? 'Open Session' : durationObj.name;
 
     onAddToCart({
       id: `waitlist-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -487,13 +487,13 @@ export default function WalkInForm({
           )}
         </div>
 
-        {/* Duration Selector with Pay As You Play Option */}
+        {/* Duration Selector with Open Session Option */}
         <div className={styles.field}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
             <label className={styles.label} style={{ margin: 0 }}>Duration</label>
             {isPostpaid && (
               <span style={{ fontSize: '0.72rem', color: 'var(--primary-accent)', fontWeight: 800 }}>
-                ⚡ Open Session • Billed at End
+                ⚡ Open Session • Pay on Exit
               </span>
             )}
           </div>
@@ -511,15 +511,15 @@ export default function WalkInForm({
               </button>
             ))}
 
-            {/* Pay As You Play Option */}
+            {/* Open Session Option */}
             <button
               type="button"
               className={`${styles.optionBtn} ${isPostpaid ? styles.optionBtnActive : ''}`}
               onClick={() => setSelectedDurationId('postpaid')}
               style={isPostpaid ? { borderColor: 'var(--primary-accent)' } : {}}
             >
-              <span className={styles.optionMainText}>♾️ Pay As Play</span>
-              <span className={styles.optionSubText}>PKR {baseRate}/hr • Postpaid</span>
+              <span className={styles.optionMainText}>Open Session</span>
+              <span className={styles.optionSubText}>PKR {baseRate}/hr • Pay on Exit</span>
             </button>
           </div>
 
@@ -536,7 +536,7 @@ export default function WalkInForm({
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 800, color: '#fff', fontSize: '0.85rem' }}>
-                  ⚡ Pay As You Play (Open Session)
+                  ⚡ Open Session (Postpaid)
                 </span>
                 <span style={{ color: 'var(--primary-accent)', fontWeight: 900, fontSize: '0.95rem' }}>
                   PKR {baseRate} / hour
@@ -581,7 +581,7 @@ export default function WalkInForm({
             {!selectedConsoleAvailability.available
               ? 'Station Unavailable'
               : isPostpaid
-                ? '▶ Start Open Session (Pay at End)'
+                ? '▶ Start Open Session (Pay on Exit)'
                 : 'Add to Order'}
           </button>
           <button

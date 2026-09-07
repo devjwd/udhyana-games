@@ -152,10 +152,10 @@ function PostpaidCheckoutDialog({
             <span style={{ fontSize: '1.4rem' }}>🧾</span>
             <div>
               <h2 className={styles.modalTitle} style={{ color: 'var(--primary-accent)', margin: 0 }}>
-                End & Bill Postpaid Session
+                End & Bill Open Session
               </h2>
               <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)' }}>
-                Pay As You Play • Real-Time Calculation
+                Open Session • Real-Time Calculation
               </span>
             </div>
           </div>

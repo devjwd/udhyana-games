@@ -103,7 +103,7 @@ function SessionCard({
     statusText = 'Paused';
     statusClass = styles.statusPaused;
   } else if (isPostpaid) {
-    statusText = 'Open (Postpaid)';
+    statusText = 'Open Session';
     statusClass = styles.statusActive;
   } else if (isTimeUp) {
     statusText = 'Time Expired';
