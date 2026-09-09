@@ -1459,7 +1459,13 @@ export async function processPosCheckout(
   orderItems: { name: string; price: number; type: string }[],
   totalAmount: number,
   paymentMethod: string,
-  sessionItems: { guestName: string; consoleId: string; durationSeconds: number }[],
+  sessionItems: {
+    guestName: string;
+    consoleId: string;
+    durationSeconds: number;
+    billingType?: string;
+    extraControllers?: number;
+  }[],
   walkInName?: string,
   walkInPhone?: string,
   existingUserId?: string,
@@ -1496,6 +1502,7 @@ export async function processPosCheckout(
       const cleanupPromise = tx.gameSession.updateMany({
         where: {
           status: 'ACTIVE',
+          billingType: { not: 'POSTPAID' },
           endTime: { lte: now }
         },
         data: { status: 'COMPLETED' }
@@ -1503,7 +1510,7 @@ export async function processPosCheckout(
 
       if (sessionItems.length > 0) {
         const consoleIds = sessionItems.map(s => s.consoleId);
-        const maxDuration = Math.max(...sessionItems.map(s => s.durationSeconds));
+        const maxDuration = Math.max(...sessionItems.map(s => s.durationSeconds || 3600));
         const maxEndTime = new Date(now.getTime() + maxDuration * 1000);
 
         const [activeSessions, overlappingBookings] = await Promise.all([
@@ -1542,6 +1549,7 @@ export async function processPosCheckout(
           where: {
             consoleId: { in: consoleIds },
             status: { in: ['ACTIVE', 'PAUSED'] },
+            billingType: { not: 'POSTPAID' },
             endTime: { lte: now }
           },
           data: {
@@ -1575,13 +1583,23 @@ export async function processPosCheckout(
 
       const sessionsPromise = sessionItems.length > 0
         ? tx.gameSession.createMany({
-            data: sessionItems.map(item => ({
-              userId: userId || null,
-              guestName: item.guestName,
-              consoleId: item.consoleId,
-              endTime: new Date(now.getTime() + item.durationSeconds * 1000),
-              status: 'ACTIVE' as const
-            }))
+            data: sessionItems.map(item => {
+              const isPostpaid = item.billingType === 'POSTPAID';
+              const endTime = isPostpaid
+                ? new Date(now.getTime() + 24 * 3600 * 1000)
+                : new Date(now.getTime() + (item.durationSeconds || 3600) * 1000);
+
+              return {
+                userId: userId || null,
+                guestName: item.guestName,
+                consoleId: item.consoleId,
+                startTime: now,
+                endTime: endTime,
+                status: 'ACTIVE' as const,
+                billingType: isPostpaid ? 'POSTPAID' : 'PREPAID',
+                extraControllers: item.extraControllers || 0
+              };
+            })
           })
         : Promise.resolve();
 

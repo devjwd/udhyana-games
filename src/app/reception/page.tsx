@@ -348,7 +348,9 @@ export default function ReceptionPortal() {
       .map(item => ({
         guestName: item.name.split(' - ')[0],
         consoleId: item.consoleId!,
-        durationSeconds: item.durationSeconds!
+        durationSeconds: item.durationSeconds || 3600,
+        billingType: item.billingType || 'PREPAID',
+        extraControllers: item.extraControllers || 0
       }));
 
     const waitlistItems = cart
@@ -387,8 +389,15 @@ export default function ReceptionPortal() {
       }
 
       soundManager.playSuccessTone();
+      const hasPostpaid = sessionItems.some(s => s.billingType === 'POSTPAID');
       const waitlistNotice = waitlistItems.length > 0 ? ` (${waitlistItems.length} queued on waitlist)` : '';
-      toast.success(`Payment of PKR ${totalAmount} completed via ${paymentMethod.toUpperCase()}!${waitlistNotice}`, { id: 'checkout' });
+      const successMsg = hasPostpaid && totalAmount === 0
+        ? `Open session started! Slip generated. (Payment due on exit)`
+        : hasPostpaid
+          ? `Payment of PKR ${totalAmount} completed & Open session started!${waitlistNotice}`
+          : `Payment of PKR ${totalAmount} completed via ${paymentMethod.toUpperCase()}!${waitlistNotice}`;
+
+      toast.success(successMsg, { id: 'checkout' });
       setCart([]);
       setIsSlipModalOpen(false);
       setIsSubmittingOrder(false);
@@ -604,8 +613,8 @@ export default function ReceptionPortal() {
 
       soundManager.playSuccessTone();
       toast.success(`Session settled! Collected PKR ${res.totalAmount} via ${paymentMethod.toUpperCase()}. Station is now free.`, { id: 'settle-postpaid' });
-      setPostpaidModalSession(null);
       await fetchLiveDashboardData();
+      return res;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to settle session.';
       toast.error(message, { id: 'settle-postpaid' });

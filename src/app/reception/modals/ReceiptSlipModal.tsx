@@ -90,6 +90,7 @@ export default function ReceiptSlipModal({
   if (!isOpen) return null;
 
   const totalAmount = cart.reduce((sum, item) => sum + item.price, 0);
+  const hasPostpaid = cart.some(item => item.billingType === 'POSTPAID');
   const now = new Date();
   const dateStr = now.toLocaleDateString();
   const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -134,13 +135,19 @@ export default function ReceiptSlipModal({
     try {
       const receiptBytes = generateThermalReceiptBytes({
         storeName: 'UDHYANA GAMES',
-        storeSub: 'Official POS Receipt',
+        storeSub: hasPostpaid ? 'Open Session Entry Pass' : 'Official POS Receipt',
         staffName,
         dateStr,
         timeStr,
-        items: cart.map(i => ({ name: i.name, price: i.price, sub: i.consoleName })),
+        items: cart.map(i => ({
+          name: i.name,
+          price: i.price,
+          sub: i.consoleName,
+          priceStr: i.billingType === 'POSTPAID' ? 'PAY ON EXIT' : undefined
+        })),
         totalAmount,
-        paymentMethod
+        paymentMethod: hasPostpaid && totalAmount === 0 ? 'POSTPAID (PAY ON EXIT)' : paymentMethod,
+        footerNote: hasPostpaid ? 'OPEN SESSION: Please retain slip and pay at exit.' : undefined
       });
       await printDirectWebSerial(receiptBytes);
       toast.success('ESC/POS direct print successful!');
@@ -170,7 +177,9 @@ export default function ReceiptSlipModal({
             />
           </div>
           <div className={styles.printBrand}>UDHYANA GAMES</div>
-          <div className={styles.printSub}>Official Receipt & Game Pass</div>
+          <div className={styles.printSub}>
+            {hasPostpaid ? 'Official Game Pass (Open Session)' : 'Official Receipt & Game Pass'}
+          </div>
           <div className={styles.printMeta}>
             <span>Date: {dateStr} {timeStr}</span>
             <span>Staff: {staffName}</span>
@@ -180,32 +189,42 @@ export default function ReceiptSlipModal({
         <div className={styles.printDivider} />
 
         <div className={styles.printItems}>
-          {cart.map((item, idx) => (
-            <div key={idx} className={styles.printItemRow}>
-              <div className={styles.printItemName}>
-                <span>{item.name}</span>
-                {item.consoleName && <small className={styles.printItemSub}>Station: {item.consoleName}</small>}
+          {cart.map((item, idx) => {
+            const isPostpaid = item.billingType === 'POSTPAID';
+            return (
+              <div key={idx} className={styles.printItemRow}>
+                <div className={styles.printItemName}>
+                  <span>{item.name}</span>
+                  {item.consoleName && <small className={styles.printItemSub}>Station: {item.consoleName}</small>}
+                  {isPostpaid && (
+                    <small className={styles.printItemSub} style={{ fontWeight: 'bold' }}>
+                      ⏱️ Check-In: {timeStr} • Pay on Exit
+                    </small>
+                  )}
+                </div>
+                <span className={styles.printItemPrice}>
+                  {isPostpaid ? 'PAY ON EXIT' : `PKR ${item.price}`}
+                </span>
               </div>
-              <span className={styles.printItemPrice}>PKR {item.price}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className={styles.printDivider} />
 
         <div className={styles.printTotalRow}>
-          <span>TOTAL AMOUNT</span>
-          <span>PKR {totalAmount}</span>
+          <span>{hasPostpaid && totalAmount === 0 ? 'TOTAL DUE NOW' : 'TOTAL AMOUNT'}</span>
+          <span>{hasPostpaid && totalAmount === 0 ? 'PAY ON EXIT' : `PKR ${totalAmount}`}</span>
         </div>
         <div className={styles.printMethodRow}>
           <span>Payment Method:</span>
-          <span>{paymentMethod.toUpperCase()}</span>
+          <span>{hasPostpaid && totalAmount === 0 ? 'POSTPAID (PAY ON EXIT)' : paymentMethod.toUpperCase()}</span>
         </div>
 
         <div className={styles.printDivider} />
 
         <div className={styles.printFooter}>
-          <div>Thank you for playing with us!</div>
+          <div>{hasPostpaid ? 'Please retain this slip and present at counter when checking out.' : 'Thank you for playing with us!'}</div>
           <div>Please retain slip for console verification.</div>
           <div className={styles.printWeb}>🌐 udhyana.com</div>
         </div>
@@ -223,30 +242,52 @@ export default function ReceiptSlipModal({
                 height={36}
                 style={{ objectFit: 'contain' }}
               />
-              <h2 className={styles.modalTitle} style={{ color: 'var(--primary-accent)', fontSize: '1.1rem' }}>Order Slip</h2>
+              <h2 className={styles.modalTitle} style={{ color: 'var(--primary-accent)', fontSize: '1.1rem' }}>
+                {hasPostpaid ? 'Open Session Slip & Pass' : 'Order Slip'}
+              </h2>
             </div>
             <button className={styles.modalCloseBtn} onClick={onClose} disabled={isSubmitting}>✕</button>
           </div>
 
           <div className={styles.slipItemList}>
-            {cart.map((item, i) => (
-              <div key={i} className={styles.slipItemRow}>
-                <div>
-                  <div className={styles.slipItemName}>{item.name}</div>
-                  {item.consoleName && <div className={styles.slipItemSub}>{item.consoleName}</div>}
+            {cart.map((item, i) => {
+              const isPostpaid = item.billingType === 'POSTPAID';
+              return (
+                <div key={i} className={styles.slipItemRow}>
+                  <div>
+                    <div className={styles.slipItemName}>{item.name}</div>
+                    {item.consoleName && <div className={styles.slipItemSub}>{item.consoleName}</div>}
+                    {isPostpaid && (
+                      <div style={{ fontSize: '0.74rem', color: 'var(--primary-accent)', marginTop: '0.2rem', fontWeight: 600 }}>
+                        ⏱️ Check-In Time: {timeStr} • Live Accrual • Pay at Checkout
+                      </div>
+                    )}
+                  </div>
+                  <div className={styles.slipItemPrice} style={isPostpaid ? { color: 'var(--primary-accent)', fontWeight: 800, fontSize: '0.8rem' } : {}}>
+                    {isPostpaid ? 'PAY ON CHECKOUT' : `PKR ${item.price}`}
+                  </div>
                 </div>
-                <div className={styles.slipItemPrice}>PKR {item.price}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className={styles.slipTotalRow}>
-            <span>Total Payable:</span>
-            <span className={styles.slipTotalAmount}>PKR {totalAmount}</span>
+            <span>{hasPostpaid && totalAmount === 0 ? 'Billing Status:' : 'Total Payable Now:'}</span>
+            <span className={styles.slipTotalAmount}>
+              {hasPostpaid && totalAmount === 0
+                ? 'Pay on Checkout'
+                : hasPostpaid
+                  ? `PKR ${totalAmount} (+ Open Session)`
+                  : `PKR ${totalAmount}`}
+            </span>
           </div>
 
           <div className={styles.slipMethodBanner}>
-            Payment Method: <strong>{paymentMethod.toUpperCase()}</strong>
+            {hasPostpaid && totalAmount === 0 ? (
+              <span>Billing Mode: <strong>POSTPAID (PAY ON EXIT)</strong></span>
+            ) : (
+              <span>Payment Method: <strong>{paymentMethod.toUpperCase()}</strong></span>
+            )}
           </div>
 
           {/* Thermal Printer Settings in Modal */}
@@ -284,8 +325,13 @@ export default function ReceiptSlipModal({
               onClick={onConfirmPayment}
               disabled={isSubmitting}
               className={styles.submitBtn}
+              style={hasPostpaid ? { background: 'var(--primary-accent)', color: '#000', fontWeight: 900 } : {}}
             >
-              {isSubmitting ? 'Processing Order...' : 'Mark as Paid & Confirm'}
+              {isSubmitting
+                ? 'Processing Order...'
+                : hasPostpaid && totalAmount === 0
+                  ? '▶ Confirm & Start Open Session'
+                  : 'Mark as Paid & Confirm'}
             </button>
 
             <div style={{ display: 'flex', gap: '0.5rem' }}>

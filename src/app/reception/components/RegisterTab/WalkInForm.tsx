@@ -161,45 +161,26 @@ export default function WalkInForm({
     if (!consoleObj) return;
 
     if (isPostpaid) {
-      if (onStartPostpaid) {
-        try {
-          await onStartPostpaid({
-            consoleId: selectedConsoleId,
-            guestName: name.trim(),
-            userId: selectedUserId,
-            phone: phone.trim() || undefined,
-            extraControllers: additionalControllers
-          });
-          setName('');
-          setPhone('');
-          setSelectedUserId(undefined);
-          setSelectedConsoleId('');
-          setAdditionalControllers(0);
-          setGameSearchQuery('');
-        } catch {
-          // Toast handled by parent action
-        }
-      } else {
-        onAddToCart({
-          id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          type: 'session',
-          name: `${name.trim()} - Open Session${additionalControllers > 0 ? ` (+${additionalControllers} Controller${additionalControllers > 1 ? 's' : ''})` : ''}`,
-          price: 0,
-          consoleId: selectedConsoleId,
-          consoleName: consoleObj.name,
-          durationSeconds: 3600,
-          phone: phone.trim() || undefined,
-          userId: selectedUserId,
-          extraControllers: additionalControllers,
-          billingType: 'POSTPAID'
-        });
-        setName('');
-        setPhone('');
-        setSelectedUserId(undefined);
-        setSelectedConsoleId('');
-        setAdditionalControllers(0);
-        setGameSearchQuery('');
-      }
+      onAddToCart({
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        type: 'session',
+        name: `${name.trim()} - Open Session${additionalControllers > 0 ? ` (+${additionalControllers} Controller${additionalControllers > 1 ? 's' : ''})` : ''}`,
+        price: 0,
+        consoleId: selectedConsoleId,
+        consoleName: consoleObj.name,
+        durationSeconds: 3600,
+        phone: phone.trim() || undefined,
+        userId: selectedUserId,
+        extraControllers: additionalControllers,
+        billingType: 'POSTPAID'
+      });
+      toast.success(`Open Session for ${name.trim()} added to order cart!`);
+      setName('');
+      setPhone('');
+      setSelectedUserId(undefined);
+      setSelectedConsoleId('');
+      setAdditionalControllers(0);
+      setGameSearchQuery('');
       return;
     }
 
@@ -575,13 +556,13 @@ export default function WalkInForm({
             type="submit"
             disabled={!selectedConsoleAvailability.available || !selectedConsoleId}
             className={`${styles.submitBtn} ${(!selectedConsoleAvailability.available || !selectedConsoleId) ? styles.submitBtnDisabled : ''}`}
-            title={!selectedConsoleAvailability.available ? 'Selected station is occupied. Add player to waitlist.' : (isPostpaid ? 'Start Open Session' : 'Add Session to Order')}
+            title={!selectedConsoleAvailability.available ? 'Selected station is occupied. Add player to waitlist.' : (isPostpaid ? 'Add Open Session to Order Cart' : 'Add Session to Order')}
             style={isPostpaid && selectedConsoleAvailability.available && selectedConsoleId ? { background: 'var(--primary-accent)', color: '#000', fontWeight: 900 } : {}}
           >
             {!selectedConsoleAvailability.available
               ? 'Station Unavailable'
               : isPostpaid
-                ? '▶ Start Open Session (Pay on Exit)'
+                ? '🛒 Add Open Session to Order'
                 : 'Add to Order'}
           </button>
           <button

@@ -7,10 +7,30 @@ export interface ESCPOSReceiptData {
   staffName?: string;
   dateStr?: string;
   timeStr?: string;
-  items: { name: string; price: number; sub?: string }[];
+  items: { name: string; price: number; sub?: string; priceStr?: string }[];
   totalAmount: number;
   paymentMethod: string;
   footerNote?: string;
+}
+
+export interface PostpaidSettlementReceiptData {
+  storeName?: string;
+  storeSub?: string;
+  orderId?: string;
+  staffName?: string;
+  dateStr?: string;
+  startTimeStr?: string;
+  endTimeStr?: string;
+  durationLabel: string;
+  stationName: string;
+  playerName: string;
+  timeCharge: number;
+  controllerCharge?: number;
+  snacks?: { name: string; price: number; quantity: number }[];
+  totalAmount: number;
+  paymentMethod: string;
+  cashTendered?: number;
+  changeDue?: number;
 }
 
 export class ESCPOSBuilder {
@@ -129,9 +149,10 @@ export function generateThermalReceiptBytes(data: ESCPOSReceiptData): Uint8Array
   builder.divider();
 
   for (const item of data.items) {
-    builder.row(item.name, item.price.toString());
+    const priceStr = item.priceStr !== undefined ? item.priceStr : item.price.toString();
+    builder.row(item.name, priceStr);
     if (item.sub) {
-      builder.line(`  Station: ${item.sub}`);
+      builder.line(`  ${item.sub}`);
     }
   }
 
@@ -151,6 +172,84 @@ export function generateThermalReceiptBytes(data: ESCPOSReceiptData): Uint8Array
     .align('center')
     .line(data.footerNote || 'Thank you for playing with us!')
     .line('Please retain slip for station verification.')
+    .line('udhyana.com')
+    .cut();
+
+  return builder.getBytes();
+}
+
+// Generate ESC/POS Settlement Receipt with Detailed Time Breakdown
+export function generatePostpaidSettlementReceiptBytes(data: PostpaidSettlementReceiptData): Uint8Array {
+  const builder = new ESCPOSBuilder();
+
+  // Header
+  builder
+    .align('center')
+    .size('double')
+    .bold(true)
+    .line(data.storeName || 'UDHYANA GAMES')
+    .size('normal')
+    .bold(false)
+    .line(data.storeSub || 'Open Session Final Receipt')
+    .divider()
+    .align('left')
+    .row(`Date: ${data.dateStr || new Date().toLocaleDateString()}`, `Time: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`)
+    .row(`Cashier: ${data.staffName || 'Staff'}`, data.orderId ? `#${data.orderId.slice(-6)}` : '')
+    .divider();
+
+  // Session Time Info
+  builder
+    .bold(true)
+    .line(`Player: ${data.playerName}`)
+    .line(`Station: ${data.stationName}`)
+    .bold(false)
+    .row(`Check-In Time:`, data.startTimeStr || '')
+    .row(`Check-Out Time:`, data.endTimeStr || '')
+    .bold(true)
+    .row(`Total Playtime:`, data.durationLabel)
+    .bold(false)
+    .divider();
+
+  // Items Breakdown
+  builder.bold(true).row('ITEM', 'AMOUNT (PKR)').bold(false);
+  builder.divider();
+
+  builder.row('Gaming Time Charge', data.timeCharge.toString());
+  if (data.controllerCharge && data.controllerCharge > 0) {
+    builder.row('Extra Controllers', data.controllerCharge.toString());
+  }
+
+  if (data.snacks && data.snacks.length > 0) {
+    for (const snack of data.snacks) {
+      const lineTotal = snack.price * snack.quantity;
+      builder.row(`${snack.name} (${snack.quantity}x)`, lineTotal.toString());
+    }
+  }
+
+  // Total & Payment
+  builder
+    .divider()
+    .bold(true)
+    .size('double-height')
+    .row('TOTAL PAID:', `PKR ${data.totalAmount}`)
+    .size('normal')
+    .bold(false)
+    .row('Payment Method:', data.paymentMethod.toUpperCase());
+
+  if (data.cashTendered !== undefined && data.cashTendered > 0) {
+    builder.row('Cash Tendered:', `PKR ${data.cashTendered}`);
+    if (data.changeDue !== undefined && data.changeDue >= 0) {
+      builder.row('Change Returned:', `PKR ${data.changeDue}`);
+    }
+  }
+
+  builder.divider();
+
+  // Footer
+  builder
+    .align('center')
+    .line('Thank you for playing at Udhyana!')
+    .line('Hope you enjoyed your session.')
     .line('udhyana.com')
     .cut();
 
