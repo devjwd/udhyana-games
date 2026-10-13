@@ -9,7 +9,12 @@
     "start": "next start",
     "lint": "eslint",
     "desktop:dev": "electron .",
-    "package:exe": "electron-builder --win"
+    "package:exe": "electron-builder --win",
+    "db:generate": "npx prisma generate --schema=./src/backend/schema.prisma",
+    "db:push": "npx prisma db push --schema=./src/backend/schema.prisma",
+    "db:inspect": "node scripts/inspect-db.mjs",
+    "db:test": "node scripts/test-db.mjs",
+    "icons:generate": "node scripts/generate_icons.js"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",

@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
           billingType: s.billingType || 'PREPAID',
           extraControllers: s.extraControllers || 0,
         })),
-        upcomingBookings: bookings.map((b: any) => ({
+        upcomingBookings: bookings.map((b) => ({
           id: b.id,
           consoleId: b.consoleId,
           consoleName: b.console.hardwareTitle,
@@ -492,9 +492,12 @@ export async function POST(req: NextRequest) {
             paymentMethod,
             status: 'COMPLETED',
             items: {
-              create: (items.length > 0 ? items : [{ name: `Open Session - ${session.console.hardwareTitle}`, price: grandTotal, type: 'session', quantity: 1 }]).map((it: any) => ({
-                name: it.name,
-                price: parseFloat(String(it.price)),
+              create: ((items && (items as Array<{ name?: string; price?: number | string; quantity?: number; type?: string }>).length > 0)
+                ? (items as Array<{ name?: string; price?: number | string; quantity?: number; type?: string }>)
+                : [{ name: `Open Session - ${session.console.hardwareTitle}`, price: grandTotal, type: 'session', quantity: 1 }]
+              ).map((it) => ({
+                name: it.name || 'Session Charge',
+                price: parseFloat(String(it.price || 0)),
                 quantity: it.quantity || 1,
                 type: it.type || 'session',
               })),

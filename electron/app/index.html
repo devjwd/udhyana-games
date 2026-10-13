@@ -53,6 +53,14 @@
           </svg>
           <span>Daily History</span>
         </button>
+        <button class="nav-item" data-tab="tv-display" id="nav-tv-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="7" width="20" height="15" rx="2" ry="2" />
+            <polyline points="17 2 12 7 7 2" />
+          </svg>
+          <span>TV Entrance Screen</span>
+          <span class="nav-pill" style="background: rgba(193, 255, 28, 0.2); color: #c1ff1c; border: 1px solid rgba(193, 255, 28, 0.4);">LIVE</span>
+        </button>
         <button class="nav-item nav-admin" data-tab="admin" id="nav-admin-btn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -81,6 +89,7 @@
           <p id="page-subtitle">Walk-in player session registration and cafe orders</p>
         </div>
         <div class="header-actions">
+          <button class="btn btn-subtle btn-sm" id="btn-open-tv-popout" title="Open TV Entrance Screen in Secondary Monitor or Fullscreen" style="color: #c1ff1c; border-color: rgba(193, 255, 28, 0.4);">📺 Launch TV Window ↗</button>
           <button class="btn btn-subtle btn-sm" id="header-shift-btn">📊 Close Shift (Z-Report)</button>
           <span class="shift-badge">STATION DESK ACTIVE</span>
           <button class="btn btn-subtle btn-sm" id="admin-lock-btn" style="display: none;">🔒 Lock Admin</button>
@@ -327,6 +336,38 @@
               </tbody>
             </table>
           </div>
+        </div>
+      </section>
+
+      <!-- View: TV / Entrance Screen & Standalone Timers -->
+      <section class="view-panel" id="view-tv-display">
+        <div class="panel-card" style="padding: 16px 20px; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h2 style="margin: 0; color: #ffffff; display: flex; align-items: center; gap: 8px; font-size: 1.15rem;">
+                <span>📺 Entrance TV & Live Arena Timers</span>
+                <span class="badge-tag tag-avail" style="background: rgba(193, 255, 28, 0.15); color: #c1ff1c; border-color: rgba(193, 255, 28, 0.4);">LIVE</span>
+              </h2>
+              <p style="margin: 4px 0 0; color: #94a3b8; font-size: 0.82rem;">
+                Shows walk-in customers free/busy stations with live remaining countdown timers.
+              </p>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <button class="btn btn-primary btn-sm" id="btn-launch-tv-visitor" style="font-weight: 700;">
+                👥 Pop Out Customer View ↗
+              </button>
+              <button class="btn btn-subtle btn-sm" id="btn-launch-tv-staff" style="font-weight: 700; color: #c1ff1c; border-color: rgba(193, 255, 28, 0.4);">
+                ⏱️ Pop Out Staff Timers ↗
+              </button>
+              <button class="btn btn-subtle btn-sm" id="btn-refresh-tv-frame" title="Reload Frame">
+                🔄 Reload
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card" style="padding: 0; overflow: hidden; border-radius: 12px; height: calc(100vh - 200px); position: relative; background: #080c14; border: 1px solid rgba(255,255,255,0.08);">
+          <iframe id="tv-frame" src="http://localhost:3000/stations" style="width: 100%; height: 100%; border: none; background: #080c14;"></iframe>
         </div>
       </section>
 

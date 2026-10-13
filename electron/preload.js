@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   getPrinters: () => ipcRenderer.invoke('get-printers'),
   printReceipt: (options) => ipcRenderer.invoke('print-receipt', options),
+  openTvScreen: (options) => ipcRenderer.invoke('open-tv-screen', options),
 });
 
 contextBridge.exposeInMainWorld('terminalAPI', {

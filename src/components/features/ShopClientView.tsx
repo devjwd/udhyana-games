@@ -180,7 +180,7 @@ export default function ShopClientView({ initialProducts }: ShopClientViewProps)
             <div className={styles.emptyIcon}>🔍</div>
             <h3 className={styles.emptyTitle}>No matching gear found</h3>
             <p className={styles.emptySubtitle}>
-              We couldn't find any products matching "{searchQuery}". Try searching for another keyword or reset the category filters.
+              We couldn&apos;t find any products matching &quot;{searchQuery}&quot;. Try searching for another keyword or reset the category filters.
             </p>
             <button onClick={clearFilters} className={styles.resetBtn} style={{ padding: '0.6rem 1.2rem', marginTop: '0.5rem' }}>
               View All Equipment

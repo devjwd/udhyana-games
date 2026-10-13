@@ -5,9 +5,10 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 async function generate() {
-  const svgPath = path.join(__dirname, 'public', 'favicon.svg');
-  const buildDir = path.join(__dirname, 'build');
-  const electronAppDir = path.join(__dirname, 'electron', 'app');
+  const rootDir = path.join(__dirname, '..');
+  const svgPath = path.join(rootDir, 'public', 'favicon.svg');
+  const buildDir = path.join(rootDir, 'build');
+  const electronAppDir = path.join(rootDir, 'electron', 'app');
 
   if (!fs.existsSync(buildDir)) fs.mkdirSync(buildDir, { recursive: true });
   if (!fs.existsSync(electronAppDir)) fs.mkdirSync(electronAppDir, { recursive: true });
@@ -32,17 +33,22 @@ async function generate() {
     .png()
     .toFile(appPng);
 
-  console.log('PNG icons created successfully.');
+  console.log('PNG icons created successfully in build/ and electron/app/');
 
-  // Use Python Pillow to produce build/icon.ico
+  // Use Python Pillow to produce build/icon.ico and electron/app/icon.ico
   const pyScript = `
 from PIL import Image
 img = Image.open(r"${png512}")
 img.save(r"${path.join(buildDir, 'icon.ico')}", format="ICO", sizes=[(16,16), (24,24), (32,32), (48,48), (64,64), (128,128), (256,256)])
-print("ICO created successfully.")
+img.save(r"${path.join(electronAppDir, 'icon.ico')}", format="ICO", sizes=[(16,16), (24,24), (32,32), (48,48), (64,64), (128,128), (256,256)])
+print("ICO created successfully in build/ and electron/app/")
   `;
 
-  execSync(`python -c "${pyScript.replace(/\n/g, ' ')}"`, { stdio: 'inherit' });
+  try {
+    execSync(`python -c "${pyScript.replace(/\n/g, ' ')}"`, { stdio: 'inherit' });
+  } catch {
+    console.warn('Note: Python Pillow not found to compile .ico file. PNGs were generated.');
+  }
 }
 
 generate().catch(console.error);

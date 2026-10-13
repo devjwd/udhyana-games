@@ -60,7 +60,9 @@ function SessionCard({
   useEffect(() => {
     if (session.status === 'PAUSED') {
       if (!isPostpaid && session.pausedRemainingSeconds != null) {
-        setRemainingSeconds(Math.max(0, session.pausedRemainingSeconds));
+        const pausedSec = Math.max(0, session.pausedRemainingSeconds);
+        const timer = setTimeout(() => setRemainingSeconds(pausedSec), 0);
+        return () => clearTimeout(timer);
       }
       return;
     }
@@ -227,17 +229,34 @@ export default function ActiveSessionsMonitor({
   onOpenPostpaidCheckout,
   onEndAllExpired
 }: ActiveSessionsMonitorProps) {
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const expiredSessionsCount = sessions.filter(s => {
     if (s.status === 'PAUSED' || s.billingType === 'POSTPAID') return false;
-    return new Date(s.endTime).getTime() <= Date.now();
+    return nowMs > 0 && new Date(s.endTime).getTime() <= nowMs;
   }).length;
 
   return (
     <div className={styles.panel}>
       <div className={styles.panelHeaderRow}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <h2 className={styles.panelHeader} style={{ borderBottom: 'none', paddingBottom: 0 }}>Active Sessions Monitor</h2>
           <span className={styles.panelBadge}>{sessions.length} In-Use</span>
+          <a
+            href="/stations?mode=staff"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.actionBtnOutline}
+            style={{ textDecoration: 'none', fontSize: '0.76rem', padding: '0.35rem 0.65rem' }}
+            title="Open standalone TV display with live timers for all stations"
+          >
+            📺 Standalone Timers Board ↗
+          </a>
         </div>
         {expiredSessionsCount > 0 && onEndAllExpired && (
           <button

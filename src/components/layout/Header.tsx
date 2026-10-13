@@ -23,6 +23,10 @@ export default function Header() {
         <Link href="/" className={styles.navLink}>HOME</Link>
         <Link href="/about" className={styles.navLink}>ABOUT</Link>
         <Link href="/consoles" className={styles.navLink}>LOUNGES</Link>
+        <Link href="/stations" className={styles.navLink} style={{ color: '#c1ff1c', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c1ff1c' }}></span>
+          LIVE STATIONS
+        </Link>
         <Link href="/book" className={styles.navLink}>BOOK</Link>
         <Link href="/events" className={styles.navLink}>EVENTS</Link>
         <Link href="/shop" className={styles.navLink}>SHOP</Link>

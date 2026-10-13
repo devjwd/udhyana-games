@@ -155,9 +155,7 @@ function renderConsolesSelector() {
 
     if (session) {
       isOccupied = true;
-      let remainingSec = 0;
       if (session.isPaused) {
-        remainingSec = Math.max(0, Math.floor((session.pausedRemainingMs || 0) / 1000));
         statusText = `${session.playerName || 'Player'} (PAUSED)`;
         statusClass = 'text-paused';
       } else {
@@ -1746,6 +1744,7 @@ function switchTab(tabId) {
     monitor: ['Station Timers', 'Active gaming stations, live countdowns, and time controls'],
     waitlist: ['Waitlist Queue', 'Player queue management and station assignments'],
     history: ['Daily History', 'Today\'s player sessions and order activity log'],
+    'tv-display': ['TV Entrance Screen & Standalone Timers', 'Live arena board for walk-in players and standalone staff timer monitor'],
     admin: ['Admin Controls & Analytics', 'Lounge revenue, station hardware, pricing rates & security'],
   };
 
@@ -1758,11 +1757,43 @@ function switchTab(tabId) {
   if (tabId === 'waitlist') renderWaitlist();
   if (tabId === 'history') renderHistory();
   if (tabId === 'admin') renderAdminView();
+  if (tabId === 'tv-display') {
+    const frame = document.getElementById('tv-frame');
+    if (frame && (!frame.src || frame.src === 'about:blank')) {
+      frame.src = 'http://localhost:3000/stations';
+    }
+  }
 }
 
 document.querySelectorAll('.sidebar-nav .nav-item').forEach((btn) => {
   btn.onclick = () => switchTab(btn.dataset.tab);
 });
+
+// TV Entrance Screen & Standalone Timers Popout Launchers
+const launchTvScreen = async (mode = 'visitor') => {
+  if (window.electronAPI?.openTvScreen) {
+    await window.electronAPI.openTvScreen({ mode });
+  } else {
+    window.open(`http://localhost:3000/stations?mode=${mode}`, '_blank');
+  }
+};
+
+const btnPopout = document.getElementById('btn-open-tv-popout');
+if (btnPopout) btnPopout.onclick = () => launchTvScreen('visitor');
+
+const btnVisitor = document.getElementById('btn-launch-tv-visitor');
+if (btnVisitor) btnVisitor.onclick = () => launchTvScreen('visitor');
+
+const btnStaff = document.getElementById('btn-launch-tv-staff');
+if (btnStaff) btnStaff.onclick = () => launchTvScreen('staff');
+
+const btnReloadFrame = document.getElementById('btn-refresh-tv-frame');
+if (btnReloadFrame) {
+  btnReloadFrame.onclick = () => {
+    const frame = document.getElementById('tv-frame');
+    if (frame) frame.src = frame.src;
+  };
+};
 
 // Live timer tick
 setInterval(() => {

@@ -9,7 +9,6 @@ async function main() {
   const localDbDir = path.join(process.cwd(), 'local_database');
   const queuePath = path.join(localDbDir, 'offline_sync_queue.json');
   const terminalPath = path.join(localDbDir, 'terminal_state.json');
-  const localMirrorPath = path.join(localDbDir, 'udhyana_local.json');
 
   console.log('1. Checking local_database/ directory existence:');
   console.log('   Directory:', localDbDir);
@@ -74,8 +73,14 @@ async function main() {
       snacks: snacksRes.rows
     };
     fs.writeFileSync(terminalPath, JSON.stringify(snapshot, null, 2), 'utf8');
-    console.log('   ✓ Updated local_database/terminal_state.json with live snapshot.');
   } finally {
+    try {
+      const currentQueue = JSON.parse(fs.readFileSync(queuePath, 'utf8') || '[]');
+      const cleaned = currentQueue.filter(q => q.id !== testAction.id);
+      fs.writeFileSync(queuePath, JSON.stringify(cleaned, null, 2), 'utf8');
+    } catch {
+      // ignore
+    }
     await pool.end();
   }
 

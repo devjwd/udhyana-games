@@ -30,12 +30,12 @@ function ensureFilesExist() {
 export type OfflineAction = {
   id: string;
   type: 'session_start' | 'session_end' | 'order_create' | 'snack_sale' | 'add_time' | 'customer_create';
-  payload: any;
+  payload: Record<string, unknown>;
   timestamp: string;
 };
 
 // 1. Read Terminal State from local_database
-export function getLocalTerminalState(): any {
+export function getLocalTerminalState(): Record<string, unknown> | null {
   ensureFilesExist();
   try {
     const raw = fs.readFileSync(TERMINAL_STATE_PATH, 'utf-8');
@@ -47,7 +47,7 @@ export function getLocalTerminalState(): any {
 }
 
 // 2. Save Terminal State to local_database
-export function saveLocalTerminalState(data: any): boolean {
+export function saveLocalTerminalState(data: Record<string, unknown>): boolean {
   ensureFilesExist();
   try {
     fs.writeFileSync(TERMINAL_STATE_PATH, JSON.stringify(data, null, 2), 'utf-8');
@@ -71,7 +71,7 @@ export function getOfflineQueue(): OfflineAction[] {
 }
 
 // 4. Enqueue an offline action
-export function enqueueOfflineAction(type: OfflineAction['type'], payload: any): OfflineAction {
+export function enqueueOfflineAction(type: OfflineAction['type'], payload: Record<string, unknown>): OfflineAction {
   ensureFilesExist();
   const queue = getOfflineQueue();
   const action: OfflineAction = {
@@ -101,7 +101,16 @@ export async function drainOfflineQueue(): Promise<{ processed: number; errors: 
   for (const action of queue) {
     try {
       if (action.type === 'session_start') {
-        const { consoleId, userId, guestName, startTime, endTime, totalPaid, paymentMethod, notes } = action.payload;
+        const payload = action.payload as {
+          consoleId: string;
+          userId?: string | null;
+          guestName?: string | null;
+          startTime: string | number;
+          endTime: string | number;
+          totalPaid?: number;
+          paymentMethod?: string;
+        };
+        const { consoleId, userId, guestName, startTime, endTime, totalPaid, paymentMethod } = payload;
         await prisma.gameSession.create({
           data: {
             consoleId,
@@ -132,13 +141,21 @@ export async function drainOfflineQueue(): Promise<{ processed: number; errors: 
           });
         }
       } else if (action.type === 'session_end') {
-        const { consoleId, endedAt } = action.payload;
+        const payload = action.payload as { consoleId: string; endedAt?: string | number };
+        const { consoleId, endedAt } = payload;
         await prisma.gameSession.updateMany({
           where: { consoleId, status: { in: ['ACTIVE', 'PAUSED'] } },
           data: { status: 'COMPLETED', checkedOutAt: new Date(endedAt || Date.now()) }
         });
       } else if (action.type === 'order_create' || action.type === 'snack_sale') {
-        const { userId, totalAmount, paymentMethod, items, createdAt } = action.payload;
+        const payload = action.payload as {
+          userId?: string;
+          totalAmount?: number | string;
+          paymentMethod?: string;
+          createdAt?: string;
+          items?: Array<{ name?: string; price?: number | string; quantity?: number; type?: string }>;
+        };
+        const { userId, totalAmount, paymentMethod, items, createdAt } = payload;
         await prisma.order.create({
           data: {
             userId: userId || null,
@@ -146,8 +163,8 @@ export async function drainOfflineQueue(): Promise<{ processed: number; errors: 
             paymentMethod: paymentMethod || 'cash',
             createdAt: new Date(createdAt || Date.now()),
             items: {
-              create: (items || []).map((it: any) => ({
-                name: it.name,
+              create: (items || []).map((it) => ({
+                name: it.name || 'Order Item',
                 price: Number(it.price) || 0,
                 quantity: Number(it.quantity) || 1,
                 type: it.type || 'snack'
@@ -156,12 +173,13 @@ export async function drainOfflineQueue(): Promise<{ processed: number; errors: 
           }
         });
       } else if (action.type === 'add_time') {
-        const { consoleId, additionalSeconds } = action.payload;
+        const payload = action.payload as { consoleId: string; additionalSeconds: number };
+        const { consoleId, additionalSeconds } = payload;
         const active = await prisma.gameSession.findFirst({
           where: { consoleId, status: { in: ['ACTIVE', 'PAUSED'] } }
         });
         if (active) {
-          const newEndTime = new Date(active.endTime.getTime() + additionalSeconds * 1000);
+          const newEndTime = new Date(active.endTime.getTime() + (Number(additionalSeconds) || 0) * 1000);
           await prisma.gameSession.update({
             where: { id: active.id },
             data: { endTime: newEndTime }
@@ -221,16 +239,16 @@ export async function syncLocalWithCloud(): Promise<{
       })
     ]);
 
-    const formattedConsoles = consoles.map((c: any) => ({
+    const formattedConsoles = consoles.map((c) => ({
       id: c.id,
       name: c.hardwareTitle,
       type: c.hardwareSlug || c.hardwareTitle,
       rate: c.hourlyRate || 300,
-      games: (c.games || []).map((g: any) => g.game.name)
+      games: (c.games || []).map((g) => g.game.name)
     }));
 
-    const activeSessionsMap: Record<string, any> = {};
-    activeSessions.forEach((s: any) => {
+    const activeSessionsMap: Record<string, unknown> = {};
+    activeSessions.forEach((s) => {
       activeSessionsMap[s.consoleId] = {
         sessionId: s.id,
         playerName: s.guestName || 'Player',
@@ -241,14 +259,14 @@ export async function syncLocalWithCloud(): Promise<{
       };
     });
 
-    const baseRateSetting = pricingSettings.find((p: any) => p.key === 'baseHourlyRate');
-    const extraCtrlSetting = pricingSettings.find((p: any) => p.key === 'extraControllerRate');
+    const baseRateSetting = pricingSettings.find((p) => p.key === 'baseHourlyRate');
+    const extraCtrlSetting = pricingSettings.find((p) => p.key === 'extraControllerRate');
 
     const syncedSnapshot = {
       lastSyncedAt: new Date().toISOString(),
       cloudConnected: true,
       consoles: formattedConsoles,
-      snacks: snacks.map((s: any) => ({ id: s.id, name: s.name, price: s.price, icon: s.icon || '🍿' })),
+      snacks: snacks.map((s) => ({ id: s.id, name: s.name, price: s.price, icon: s.icon || '🍿' })),
       activeSessions: activeSessionsMap,
       pricing: {
         baseRate: baseRateSetting ? Number(baseRateSetting.value) : 300,

@@ -208,6 +208,34 @@ ipcMain.handle('print-receipt', async (event, options) => {
   });
 });
 
+let tvWindow = null;
+ipcMain.handle('open-tv-screen', async (event, options) => {
+  if (tvWindow && !tvWindow.isDestroyed()) {
+    tvWindow.focus();
+    return true;
+  }
+  const config = loadConfig();
+  const baseUrl = config.apiBaseUrl || 'http://localhost:3000';
+  const mode = options?.mode || 'visitor';
+  const targetUrl = `${baseUrl}/stations?mode=${mode}`;
+
+  tvWindow = new BrowserWindow({
+    width: 1920,
+    height: 1080,
+    minWidth: 1024,
+    minHeight: 600,
+    title: 'Udhyana Games — Live Station Arena & Entrance Display',
+    backgroundColor: '#080c14',
+    autoHideMenuBar: true,
+  });
+
+  tvWindow.loadURL(targetUrl);
+  tvWindow.on('closed', () => {
+    tvWindow = null;
+  });
+  return true;
+});
+
 // Terminal API Bridge: Communicates with Supabase / Next.js backend
 async function callTerminalApi(endpoint, options = {}) {
   const config = loadConfig();
@@ -346,7 +374,7 @@ async function flushOfflineQueueIfOnline() {
       }
     }
     fs.writeFileSync(LOCAL_QUEUE_PATH, JSON.stringify(remaining, null, 2), 'utf8');
-  } catch (err) {
+  } catch {
     // offline
   }
 }
@@ -489,7 +517,7 @@ ipcMain.handle('terminal:checkout', async (event, orderPayload) => {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
-        const { cartItems, totalAmount, paymentMethod = 'cash', sessionData = [], walkInName, walkInPhone, userId: pUserId } = orderPayload;
+        const { cartItems, totalAmount, paymentMethod = 'cash', sessionData = [], walkInName, userId: pUserId } = orderPayload;
         let userId = pUserId;
         if (!userId && walkInName && walkInName.trim()) {
           const match = await client.query('SELECT id FROM "User" WHERE username ILIKE $1 OR "fullName" ILIKE $1 LIMIT 1', [walkInName.trim()]);
@@ -537,7 +565,7 @@ ipcMain.handle('terminal:checkout', async (event, orderPayload) => {
       } finally {
         client.release();
       }
-    } catch (err) {
+    } catch {
       console.warn('[DB Checkout Offline] Appending to local_database/offline_sync_queue.json...');
       // 3. Save to local_database/ offline queue
       const orderId = 'off_ord_' + Date.now();
@@ -586,7 +614,7 @@ ipcMain.handle('terminal:session-action', async (event, { action, payload }) => 
         return { success: true, sessionId: sId };
       }
       return { success: true };
-    } catch (err) {
+    } catch {
       console.warn('[Session Action Offline] Queued locally in local_database/');
       appendToOfflineQueue({
         type: action === 'END' ? 'session_end' : 'session_action',

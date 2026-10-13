@@ -60,7 +60,6 @@ export default function WalkInForm({
   baseRate = 300,
   checkAvailability,
   onAddToCart,
-  onStartPostpaid,
   prefilledName,
   onClearPrefill
 }: WalkInFormProps) {
@@ -431,7 +430,11 @@ export default function WalkInForm({
                   <span className={styles.optionMainText}>{mainName}</span>
                   <span className={styles.optionSubText}>{subName || ''}</span>
 
-                  {!availability.available && (
+                  {availability.available ? (
+                    <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#10b981', marginTop: '0.2rem', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      🟢 Ready Now
+                    </span>
+                  ) : (
                     <span className={availability.isOccupied ? styles.stationBadgeOccupied : styles.stationBadgeReserved}>
                       {availability.reason}
                     </span>

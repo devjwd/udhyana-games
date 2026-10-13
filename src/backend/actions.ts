@@ -2731,3 +2731,324 @@ export async function getPublicConsoleOccupiedIds() {
 
   return Array.from(occupiedIds);
 }
+
+// ==========================================
+// LIVE ARENA STATION DISPLAY & TIMERS BOARD
+// ==========================================
+
+export interface LiveStationItem {
+  id: string;
+  hardwareTitle: string;
+  hardwareSlug?: string | null;
+  hourlyRate?: number | null;
+  imagePath?: string | null;
+  specs?: string | null;
+  type: string;
+  games: string[];
+  status: 'AVAILABLE' | 'ACTIVE' | 'PAUSED' | 'ENDING_SOON' | 'EXPIRED';
+  isOccupied: boolean;
+  sessionId?: string;
+  billingType?: 'PREPAID' | 'POSTPAID';
+  startTime?: string;
+  endTime?: string;
+  remainingSeconds: number;
+  elapsedSeconds: number;
+  totalDurationSeconds?: number;
+  isPaused: boolean;
+  pausedRemainingSeconds?: number | null;
+  extraControllers?: number;
+  playerName?: string;
+  playerPhone?: string | null;
+  nextBookingTime?: string | null;
+  nextBookingName?: string | null;
+}
+
+export interface LiveStationStats {
+  total: number;
+  available: number;
+  occupied: number;
+  paused: number;
+  endingSoon: number;
+  nextAvailableSeconds: number | null;
+  nextAvailableStation: string | null;
+}
+
+export interface LiveStationBoardResponse {
+  stations: LiveStationItem[];
+  stats: LiveStationStats;
+  serverTime: string;
+  isStaff: boolean;
+  baseRate: number;
+}
+
+function detectStationType(title: string, slug?: string | null): string {
+  const t = `${title} ${slug || ''}`.toLowerCase();
+  if (t.includes('ps5') || t.includes('playstation')) return 'PS5';
+  if (t.includes('xbox')) return 'XBOX';
+  if (t.includes('pc') || t.includes('rig') || t.includes('computer')) return 'PC';
+  if (t.includes('vr') || t.includes('quest') || t.includes('virtual')) return 'VR';
+  if (t.includes('sim') || t.includes('racing') || t.includes('wheel')) return 'RACING';
+  return 'CONSOLE';
+}
+
+export async function getLiveStationDisplayData(): Promise<LiveStationBoardResponse> {
+  const session = await getServerSession(authOptions);
+  const isStaff = session?.user?.role === 'ADMIN' || session?.user?.role === 'RECEPTIONIST';
+  const now = new Date();
+  const nowMs = now.getTime();
+
+  let consoles: Array<{
+    id: string;
+    hardwareTitle: string;
+    hardwareSlug?: string | null;
+    hourlyRate?: number | null;
+    imagePath?: string | null;
+    specs?: string | null;
+    games: Array<{ game: { name: string } }>;
+  }> = [];
+  let activeSessions: Array<{
+    id: string;
+    consoleId: string;
+    status: string;
+    billingType: string;
+    startTime: Date;
+    endTime: Date;
+    pausedRemainingSeconds?: number | null;
+    extraControllers?: number;
+    guestName?: string | null;
+    user?: { id?: string; username?: string | null; fullName?: string | null; phone?: string | null } | null;
+  }> = [];
+  let upcomingBookings: Array<{
+    id: string;
+    consoleId: string;
+    startTime: Date;
+    guestName?: string | null;
+  }> = [];
+  let defaultHourlyRate = 300;
+
+  try {
+    const [dbConsoles, dbSessions, dbBookings, baseRateSetting] = await Promise.all([
+      prisma.console.findMany({
+        include: {
+          games: {
+            include: { game: true }
+          }
+        },
+        orderBy: { hardwareTitle: 'asc' }
+      }),
+      prisma.gameSession.findMany({
+        where: {
+          status: { in: ['ACTIVE', 'PAUSED'] }
+        },
+        include: {
+          user: {
+            select: { id: true, username: true, fullName: true, phone: true }
+          }
+        },
+        orderBy: { endTime: 'asc' }
+      }),
+      prisma.booking.findMany({
+        where: {
+          status: 'CONFIRMED',
+          startTime: {
+            gte: now,
+            lte: new Date(nowMs + 4 * 3600 * 1000)
+          }
+        },
+        orderBy: { startTime: 'asc' }
+      }),
+      prisma.settings.findUnique({ where: { key: 'baseHourlyRate' } })
+    ]);
+
+    consoles = dbConsoles as typeof consoles;
+    activeSessions = dbSessions as typeof activeSessions;
+    upcomingBookings = dbBookings as typeof upcomingBookings;
+    if (baseRateSetting?.value) {
+      defaultHourlyRate = parseInt(baseRateSetting.value, 10);
+    }
+  } catch (dbErr) {
+    console.warn('[LiveStationBoard] Database offline or unreachable, using local database cache:', dbErr);
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const localFilePath = path.join(process.cwd(), 'local_database', 'udhyana_local.json');
+      if (fs.existsSync(localFilePath)) {
+        const localData = JSON.parse(fs.readFileSync(localFilePath, 'utf-8'));
+        if (localData.consoles) {
+          consoles = localData.consoles.map((c: { id: string; hardwareTitle: string; hourlyRate?: number; games?: string[] }) => ({
+            id: c.id,
+            hardwareTitle: c.hardwareTitle,
+            hardwareSlug: c.id,
+            hourlyRate: c.hourlyRate || 300,
+            games: (c.games || []).map((gName: string) => ({ game: { name: gName } }))
+          }));
+        }
+        if (localData.sessions) {
+          activeSessions = localData.sessions
+            .filter((s: { status: string }) => s.status === 'ACTIVE' || s.status === 'PAUSED')
+            .map((s: { startTime: string; endTime: string }) => ({
+              ...s,
+              startTime: new Date(s.startTime),
+              endTime: new Date(s.endTime)
+            }));
+        }
+        if (localData.pricing?.baseHourlyRate) {
+          defaultHourlyRate = localData.pricing.baseHourlyRate;
+        }
+      }
+    } catch (fsErr) {
+      console.error('[LiveStationBoard] Failed to read local_database fallback:', fsErr);
+    }
+  }
+
+  // Session map by consoleId
+  const sessionMap = new Map<string, typeof activeSessions[0]>();
+  for (const sess of activeSessions) {
+    if (!sessionMap.has(sess.consoleId)) {
+      sessionMap.set(sess.consoleId, sess);
+    }
+  }
+
+  // Booking map by consoleId
+  const bookingMap = new Map<string, typeof upcomingBookings[0]>();
+  for (const b of upcomingBookings) {
+    if (!bookingMap.has(b.consoleId)) {
+      bookingMap.set(b.consoleId, b);
+    }
+  }
+
+  let totalAvailable = 0;
+  let totalOccupied = 0;
+  let totalPaused = 0;
+  let totalEndingSoon = 0;
+  let minRemainingSeconds: number | null = null;
+  let nextAvailableStationTitle: string | null = null;
+
+  const stationItems: LiveStationItem[] = consoles.map(consoleStation => {
+    const active = sessionMap.get(consoleStation.id);
+    const booking = bookingMap.get(consoleStation.id);
+    const gamesList = consoleStation.games.map(g => g.game.name);
+    const stationType = detectStationType(consoleStation.hardwareTitle, consoleStation.hardwareSlug);
+    const rate = consoleStation.hourlyRate || defaultHourlyRate;
+
+    if (!active) {
+      totalAvailable++;
+      let nextBookingTime: string | null = null;
+      let nextBookingName: string | null = null;
+
+      if (booking) {
+        const bStart = new Date(booking.startTime);
+        nextBookingTime = bStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        if (isStaff) {
+          nextBookingName = booking.guestName || 'Reserved';
+        }
+      }
+
+      return {
+        id: consoleStation.id,
+        hardwareTitle: consoleStation.hardwareTitle,
+        hardwareSlug: consoleStation.hardwareSlug,
+        hourlyRate: rate,
+        imagePath: consoleStation.imagePath,
+        specs: consoleStation.specs,
+        type: stationType,
+        games: gamesList,
+        status: 'AVAILABLE',
+        isOccupied: false,
+        remainingSeconds: 0,
+        elapsedSeconds: 0,
+        isPaused: false,
+        nextBookingTime,
+        nextBookingName
+      };
+    }
+
+    // Active or Paused session on this station
+    totalOccupied++;
+    const isPostpaid = active.billingType === 'POSTPAID';
+    const isPaused = active.status === 'PAUSED';
+
+    let remainingSeconds = 0;
+    let elapsedSeconds = 0;
+    let totalDurationSeconds = 0;
+
+    const startMs = new Date(active.startTime).getTime();
+    const endMs = new Date(active.endTime).getTime();
+    totalDurationSeconds = Math.max(0, Math.floor((endMs - startMs) / 1000));
+
+    if (isPostpaid) {
+      elapsedSeconds = Math.max(0, Math.floor((nowMs - startMs) / 1000));
+    } else if (isPaused && active.pausedRemainingSeconds != null) {
+      remainingSeconds = Math.max(0, active.pausedRemainingSeconds);
+      elapsedSeconds = Math.max(0, Math.floor((nowMs - startMs) / 1000));
+    } else {
+      remainingSeconds = Math.max(0, Math.floor((endMs - nowMs) / 1000));
+      elapsedSeconds = Math.max(0, Math.floor((nowMs - startMs) / 1000));
+    }
+
+    let status: 'AVAILABLE' | 'ACTIVE' | 'PAUSED' | 'ENDING_SOON' | 'EXPIRED' = 'ACTIVE';
+
+    if (isPaused) {
+      status = 'PAUSED';
+      totalPaused++;
+    } else if (isPostpaid) {
+      status = 'ACTIVE';
+    } else if (remainingSeconds <= 0) {
+      status = 'EXPIRED';
+    } else if (remainingSeconds <= 900) { // 15 mins
+      status = 'ENDING_SOON';
+      totalEndingSoon++;
+    }
+
+    if (!isPostpaid && remainingSeconds > 0) {
+      if (minRemainingSeconds === null || remainingSeconds < minRemainingSeconds) {
+        minRemainingSeconds = remainingSeconds;
+        nextAvailableStationTitle = consoleStation.hardwareTitle;
+      }
+    }
+
+    const rawPlayer = active.guestName || active.user?.fullName || active.user?.username || 'Player';
+    const sanitizedPlayer = isStaff ? rawPlayer : (rawPlayer.split(' ')[0] || 'Player');
+
+    return {
+      id: consoleStation.id,
+      hardwareTitle: consoleStation.hardwareTitle,
+      hardwareSlug: consoleStation.hardwareSlug,
+      hourlyRate: rate,
+      imagePath: consoleStation.imagePath,
+      specs: consoleStation.specs,
+      type: stationType,
+      games: gamesList,
+      status,
+      isOccupied: true,
+      sessionId: isStaff ? active.id : undefined,
+      billingType: active.billingType as 'PREPAID' | 'POSTPAID',
+      startTime: active.startTime.toISOString(),
+      endTime: active.endTime.toISOString(),
+      remainingSeconds,
+      elapsedSeconds,
+      totalDurationSeconds,
+      isPaused,
+      pausedRemainingSeconds: active.pausedRemainingSeconds,
+      extraControllers: active.extraControllers,
+      playerName: sanitizedPlayer,
+      playerPhone: isStaff ? (active.user?.phone || null) : null
+    };
+  });
+
+  return {
+    stations: stationItems,
+    stats: {
+      total: consoles.length,
+      available: totalAvailable,
+      occupied: totalOccupied,
+      paused: totalPaused,
+      endingSoon: totalEndingSoon,
+      nextAvailableSeconds: minRemainingSeconds,
+      nextAvailableStation: nextAvailableStationTitle
+    },
+    serverTime: now.toISOString(),
+    isStaff,
+    baseRate: defaultHourlyRate
+  };
+}

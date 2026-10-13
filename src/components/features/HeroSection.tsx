@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
 import styles from './HeroSection.module.css';
 import CyberArrowButton from '@/components/ui/CyberArrowButton';

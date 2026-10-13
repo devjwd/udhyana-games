@@ -734,6 +734,16 @@ export default function ReceptionPortal() {
             <span>Lounge Monitor</span>
             {actionItemCount > 0 && <span className={styles.navBadge}>{actionItemCount}</span>}
           </div>
+
+          <a
+            href="/stations?mode=staff"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.navItem}
+            title="Open Live TV & Station Timers Board in a new window or secondary monitor"
+          >
+            <span>📺 Live TV & Timers ↗</span>
+          </a>
         </nav>
 
         <div className={styles.sidebarFooter}>
@@ -758,6 +768,17 @@ export default function ReceptionPortal() {
           </div>
 
           <div className={styles.headerRight}>
+            <a
+              href="/stations?mode=staff"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.iconBtn}
+              style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary-accent)', borderColor: 'rgba(193, 255, 28, 0.4)' }}
+              title="Open Standalone Station Timers & TV Display"
+            >
+              📺 Live TV Screen ↗
+            </a>
+
             <button
               type="button"
               className={styles.iconBtn}

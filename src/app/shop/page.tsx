@@ -16,7 +16,7 @@ export const revalidate = 60; // ISR cache revalidation every 60 seconds
 
 export default async function ShopPage() {
   const dbProducts = await getProducts().catch(() => []);
-  const initialProducts = getMergedShopProducts(dbProducts as any);
+  const initialProducts = getMergedShopProducts(dbProducts as Parameters<typeof getMergedShopProducts>[0]);
 
   return (
     <>
