@@ -12,8 +12,9 @@ export async function POST(request: NextRequest) {
   try {
     // 1. Authentication check
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized: Authentication required to upload files.' }, { status: 401 });
+    const role = session?.user?.role;
+    if (!session?.user || (role !== 'ADMIN' && role !== 'RECEPTIONIST')) {
+      return NextResponse.json({ error: 'Unauthorized: Staff account required to upload files.' }, { status: 403 });
     }
 
     const formData = await request.formData();

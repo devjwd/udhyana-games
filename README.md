@@ -38,13 +38,12 @@ Udhyana Games is an end-to-end gaming lounge operating system that unifies a cus
 | Directory / File | Description |
 |---|---|
 | **`src/app/`** | Next.js App Router pages: storefront, online booking (`/book`), consoles, events, admin dashboard (`/admin`), live reception POS (`/reception`), and lounge status screen (`/stations`). |
-| **`src/app/api/`** | Server API endpoints: NextAuth (`/api/auth`), Station Pod IoT bridge (`/api/station-pod`), live station state (`/api/stations/live`), and terminal sync (`/api/terminal`, `/api/sync`). |
+| **`src/app/api/`** | Server API endpoints: NextAuth (`/api/auth`), Station Phone Display (`/api/station-display`), live station state (`/api/stations/live`), and terminal sync (`/api/terminal`, `/api/sync`). |
 | **`src/backend/`** | Core business logic: `actions.ts` (Next.js server actions), `localDb.ts` (offline filesystem sync), `schema.prisma` & `schema.sql` (database models). |
 | **`src/components/`** | Reusable UI design system: navigation, layouts, modal dialogs, cards, and shopping drawers. |
 | **`src/lib/`** | Prisma database client (`prisma.ts`), NextAuth configuration (`auth.ts`), and Dexie browser IndexedDB (`local-db/`). |
 | **`electron/`** | Standalone Windows desktop wrapper for Reception Desk. Contains `main.js` (IPC & process lifecycle), `preload.js`, and `electron/app/` (emergency fallback offline UI). |
 | **`local_database/`** | Dedicated local JSON state for the offline lounge engine: `terminal_state.json` (live active timers), `offline_sync_queue.json` (pending unsynced transactions), and `udhyana_local.json` (offline mirror). |
-| **`station_pod/`** | Hardware & firmware for lounge console stations: ESP32 Arduino C++ code, pinout wiring diagrams, BOM parts list, and TV IR cloning guide. |
 | **`scripts/`** | Maintenance and CLI utilities: `inspect-db.mjs`, `test-db.mjs`, `seed-games.mjs`, `reset-fresh.mjs`, `test-local-db-sync.mjs`, `generate_icons.js`, and `make_ico.py`. |
 | **`build/`** | Windows application icons (`icon.ico`, `icon.png`, `icon_256.png`) used by `electron-builder`. |
 | **`reception-config.json`**| Configuration file for the Reception Desktop app specifying target URLs and local endpoints. |
@@ -102,11 +101,14 @@ Udhyana Games is engineered to be **resilient against internet drops**:
 
 ---
 
-## 📡 Station Pod IoT Microcontrollers
+## 📱 Phone Station Monitor (Wireless Desk Display)
 
-For setup, pinouts, and flashing ESP32 firmware for physical station countdown pods, see:
-- [`station_pod/README.md`](file:///e:/udhyana%20games/website/station_pod/README.md)
-- [`station_pod/WIRING_DIAGRAM.md`](file:///e:/udhyana%20games/website/station_pod/WIRING_DIAGRAM.md)
+Use old Android phones or tablets as dedicated station countdown timers & customer reminder monitors:
+- Visit `/station/[id]` (e.g. `http://localhost:3000/station/PS5`) or `/station` on the phone's browser.
+- **Always-on Screen**: Built-in Screen WakeLock API prevents the phone display from sleeping.
+- **Dynamic HUD**: Smooth countdown clock, player name, 5-minute warning amber pulse, and red time's-up alert screen.
+- **Synthesizer Audio Chimes**: Web Audio API generates start tones, 5-minute alerts, and session-expired alarms directly through the phone speakers without any external files.
+- **Kiosk Setup**: Open in Chrome Fullscreen or install **Fully Kiosk Browser** on Android to lock the phone to the station monitor URL.
 
 ---
 

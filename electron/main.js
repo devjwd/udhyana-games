@@ -240,7 +240,7 @@ ipcMain.handle('open-tv-screen', async (event, options) => {
 async function callTerminalApi(endpoint, options = {}) {
   const config = loadConfig();
   const baseUrl = config.apiBaseUrl || 'http://localhost:3000';
-  const secret = config.terminalSecret || 'super-secret-key-for-next-auth-123';
+  const secret = config.terminalSecret || process.env.TERMINAL_SECRET || process.env.NEXTAUTH_SECRET || '';
   const url = `${baseUrl}${endpoint}`;
 
   const res = await fetch(url, {
@@ -264,8 +264,12 @@ let pgPool = null;
 function getDirectDbPool() {
   if (pgPool) return pgPool;
   try {
+    const config = loadConfig();
+    const dbUrl = process.env.DIRECT_URL || process.env.DATABASE_URL || config.directDbUrl;
+    if (!dbUrl) {
+      return null;
+    }
     const { Pool } = require('pg');
-    const dbUrl = process.env.DIRECT_URL || process.env.DATABASE_URL || 'postgresql://postgres.phyrzsgkloxdggjjlfba:UdhyanaGamesDb2026%21%23%24@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres';
     pgPool = new Pool({
       connectionString: dbUrl,
       ssl: { rejectUnauthorized: false },
@@ -346,27 +350,65 @@ async function flushOfflineQueueIfOnline() {
     for (const item of queue) {
       try {
         if (item.type === 'CHECKOUT' || item.type === 'session_start') {
-          const { cartItems, totalAmount, paymentMethod = 'cash', sessionData = [], walkInName, userId } = item.payload;
+          const { cartItems, totalAmount, paymentMethod = 'cash', sessionData = [], walkInName, userId } = item.payload || {};
           const orderId = 'ord_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+          const orderCreated = item.payload?.createdAt ? new Date(item.payload.createdAt) : new Date(item.timestamp || Date.now());
+          
           await pool.query(
-            'INSERT INTO "Order" (id, "userId", "totalAmount", "paymentMethod", status, "createdAt") VALUES ($1, $2, $3, $4, $5, NOW())',
-            [orderId, userId || null, totalAmount, paymentMethod, 'COMPLETED']
+            'INSERT INTO "Order" (id, "userId", "totalAmount", "paymentMethod", status, "createdAt") VALUES ($1, $2, $3, $4, $5, $6)',
+            [orderId, userId || null, Number(totalAmount) || 0, paymentMethod, 'COMPLETED', orderCreated]
           );
           for (const it of (cartItems || [])) {
             const itemId = 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
             await pool.query(
               'INSERT INTO "OrderItem" (id, "orderId", name, price, type, quantity) VALUES ($1, $2, $3, $4, $5, $6)',
-              [itemId, orderId, it.name, it.price, it.type || 'session', it.quantity || 1]
+              [itemId, orderId, it.name || 'Order Item', Number(it.price) || 0, it.type || 'session', Number(it.quantity) || 1]
             );
           }
           for (const s of sessionData) {
             const sessId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+            const sessStart = s.startTime ? new Date(s.startTime) : orderCreated;
             const durSec = Number(s.durationSeconds) || (Number(s.durationHours) * 3600) || 3600;
+            const sessEnd = s.endTime ? new Date(s.endTime) : new Date(sessStart.getTime() + durSec * 1000);
+            const isStillActive = sessEnd.getTime() > Date.now();
+            const sessStatus = isStillActive ? 'ACTIVE' : 'COMPLETED';
+
             await pool.query(
-              'INSERT INTO "GameSession" (id, "consoleId", "guestName", "startTime", "endTime", status, "pausedRemainingSeconds", "userId") VALUES ($1, $2, $3, NOW(), NOW() + make_interval(secs => $4), $5, 0, $6)',
-              [sessId, s.consoleId, s.playerName || walkInName || 'Guest', durSec, 'ACTIVE', userId || null]
+              'INSERT INTO "GameSession" (id, "consoleId", "guestName", "startTime", "endTime", status, "pausedRemainingSeconds", "userId", "checkedOutAt") VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $8)',
+              [sessId, s.consoleId, s.playerName || walkInName || 'Guest', sessStart, sessEnd, sessStatus, userId || null, isStillActive ? null : sessEnd]
             );
           }
+        } else if (item.type === 'session_end') {
+          const { consoleId, endedAt } = item.payload || {};
+          const checkoutTime = new Date(endedAt || item.timestamp || Date.now());
+          await pool.query(
+            'UPDATE "GameSession" SET status = $1, "checkedOutAt" = $2 WHERE "consoleId" = $3 AND status IN (\'ACTIVE\', \'PAUSED\')',
+            ['COMPLETED', checkoutTime, consoleId]
+          );
+        } else if (item.type === 'session_action') {
+          const { action, consoleId, remainingSeconds } = item.payload || {};
+          if (action === 'PAUSE') {
+            await pool.query(
+              'UPDATE "GameSession" SET status = $1, "pausedRemainingSeconds" = $2 WHERE "consoleId" = $3 AND status = $4',
+              ['PAUSED', Number(remainingSeconds) || 60, consoleId, 'ACTIVE']
+            );
+          } else if (action === 'RESUME') {
+            const s = await pool.query('SELECT "pausedRemainingSeconds" FROM "GameSession" WHERE "consoleId" = $1 AND status = $2', [consoleId, 'PAUSED']);
+            const sec = s.rows[0]?.pausedRemainingSeconds || 60;
+            await pool.query(
+              'UPDATE "GameSession" SET status = $1, "endTime" = NOW() + make_interval(secs => $2), "pausedRemainingSeconds" = 0 WHERE "consoleId" = $3 AND status = $4',
+              ['ACTIVE', sec, consoleId, 'PAUSED']
+            );
+          }
+        } else if (item.type === 'add_time') {
+          const { consoleId, additionalSeconds } = item.payload || {};
+          await pool.query(
+            'UPDATE "GameSession" SET "endTime" = "endTime" + make_interval(secs => $1) WHERE "consoleId" = $2 AND status IN (\'ACTIVE\', \'PAUSED\')',
+            [Number(additionalSeconds) || 0, consoleId]
+          );
+        } else {
+          // Keep unhandled item types in queue so they are not silently lost
+          remaining.push(item);
         }
       } catch (flushErr) {
         console.warn(`[Auto-Sync] Error flushing item ${item.id}:`, flushErr.message);
@@ -374,8 +416,8 @@ async function flushOfflineQueueIfOnline() {
       }
     }
     fs.writeFileSync(LOCAL_QUEUE_PATH, JSON.stringify(remaining, null, 2), 'utf8');
-  } catch {
-    // offline
+  } catch (err) {
+    console.warn('[Auto-Sync] Batch flush error:', err.message);
   }
 }
 

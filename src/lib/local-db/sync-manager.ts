@@ -188,7 +188,17 @@ class SyncManager {
           const errorData = await res.json().catch(() => ({}));
           const errorMsg = errorData.error || `Server error ${res.status}`;
           
-          // If 4xx client/payload error, don't block subsequent mutations — mark DEAD
+          // If 401 or 403, staff auth session expired or required — do NOT mark DEAD, leave as PENDING
+          if (res.status === 401 || res.status === 403) {
+            await localDb.syncQueue.update(mutation.id, {
+              status: 'PENDING',
+              lastError: `Authentication required (${res.status}): ${errorMsg}. Please re-authenticate staff session.`,
+            });
+            // Stop syncing batch until staff logs back in
+            break;
+          }
+
+          // If other 4xx client/payload error, don't block subsequent mutations — mark DEAD
           if (res.status >= 400 && res.status < 500) {
             await localDb.syncQueue.update(mutation.id, {
               status: 'DEAD',

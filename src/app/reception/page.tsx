@@ -405,6 +405,45 @@ export default function ReceptionPortal() {
       // Refresh live dashboard in background without blocking UI
       fetchLiveDashboardData().catch(console.error);
     } catch (err: unknown) {
+      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+      const isNetworkErr = err instanceof TypeError || (err instanceof Error && (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('Failed to fetch')));
+
+      if (isOffline || isNetworkErr) {
+        try {
+          const { syncManager } = await import('@/lib/local-db/sync-manager');
+          for (const s of sessionItems) {
+            await syncManager.enqueue('START_SESSION', {
+              consoleId: s.consoleId,
+              userId: existingUserId,
+              guestName: s.guestName || walkInName || 'Guest',
+              startTime: new Date().toISOString(),
+              endTime: new Date(Date.now() + (s.durationSeconds || 3600) * 1000).toISOString(),
+              totalAmount,
+              paymentMethod,
+              orderItems,
+              billingType: s.billingType || 'PREPAID',
+              extraControllers: s.extraControllers || 0,
+            });
+          }
+          if (sessionItems.length === 0 && orderItems.length > 0) {
+            await syncManager.enqueue('CREATE_ORDER', {
+              userId: existingUserId,
+              totalAmount,
+              paymentMethod,
+              items: orderItems,
+            });
+          }
+          soundManager.playSuccessTone();
+          toast.success('Network offline — Order saved locally! Will sync automatically when online.', { id: 'checkout', icon: '💾', duration: 5000 });
+          setCart([]);
+          setIsSlipModalOpen(false);
+          setIsSubmittingOrder(false);
+          return;
+        } catch (queueErr) {
+          console.error('Failed to queue offline order in IndexedDB:', queueErr);
+        }
+      }
+
       const message = err instanceof Error ? err.message : 'Failed to process checkout.';
       toast.error(message, { id: 'checkout' });
       setIsSubmittingOrder(false);

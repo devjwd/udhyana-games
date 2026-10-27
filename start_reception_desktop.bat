@@ -8,10 +8,15 @@ echo.
 :: Check if server is already responding on port 3000
 netstat -ano | findstr :3000 | findstr LISTENING >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo [1/2] Starting Udhyana Games Local Backend Engine...
+    echo [1/2] Checking local backend engine build...
+    if not exist ".next" (
+        echo Production build not found. Building application now...
+        call npm run build
+    )
+    echo Starting Udhyana Games Local Backend Engine...
     start /min "Udhyana Backend Server" npm run start
     echo Waiting for backend engine to initialize...
-    timeout /t 3 /nobreak >nul
+    timeout /t 4 /nobreak >nul
 ) else (
     echo [1/2] Backend engine is already online!
 )

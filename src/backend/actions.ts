@@ -2302,12 +2302,32 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
   const hourlyRateToUse = booking.console.hourlyRate || baseRate;
   const totalAmount = Math.round(durationHours * hourlyRateToUse);
 
-  const activeSession = await prisma.gameSession.findFirst({
-    where: { consoleId: booking.consoleId, status: { in: ['ACTIVE', 'PAUSED'] }, endTime: { gt: now } }
-  });
+  const requestedEndTime = new Date(now.getTime() + durationSeconds * 1000);
+
+  const [activeSession, overlappingBooking] = await Promise.all([
+    prisma.gameSession.findFirst({
+      where: { consoleId: booking.consoleId, status: { in: ['ACTIVE', 'PAUSED'] }, endTime: { gt: now } }
+    }),
+    prisma.booking.findFirst({
+      where: {
+        consoleId: booking.consoleId,
+        id: { not: bookingId },
+        status: 'CONFIRMED',
+        startTime: { lt: requestedEndTime },
+        endTime: { gt: now }
+      }
+    })
+  ]);
 
   if (activeSession) {
     return { error: `Cannot check in: Station ${booking.console.hardwareTitle} is currently occupied.` };
+  }
+
+  if (overlappingBooking) {
+    const nextStartStr = overlappingBooking.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return {
+      error: `Cannot check in: Session would collide with next reservation at ${nextStartStr} on ${booking.console.hardwareTitle}.`
+    };
   }
 
   const result = await prisma.$transaction(async (tx) => {

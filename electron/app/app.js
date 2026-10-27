@@ -42,7 +42,7 @@ let state = {
   selectedControllersCount: 0,
   baseRate: 300,
   ctrlRate: 100,
-  adminPin: '8899', // Default Master PIN
+  adminPin: (typeof localStorage !== 'undefined' ? localStorage.getItem('udhyana_admin_pin') : null) || '',
   isAdminUnlocked: false,
   shiftStartTime: Date.now(),
 };
@@ -990,6 +990,22 @@ document.getElementById('admin-pin-submit-btn').onclick = () => {
   const err = document.getElementById('pin-error-msg');
   const entered = input.value.trim();
 
+  // If no PIN is configured on this terminal yet, allow configuring the new master PIN
+  if (!state.adminPin) {
+    if (entered.length < 4) {
+      if (err) {
+        err.textContent = 'Please choose a master PIN of at least 4 digits.';
+        err.style.display = 'block';
+      }
+      return;
+    }
+    state.adminPin = entered;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('udhyana_admin_pin', entered);
+    }
+    alert('Master Terminal PIN set successfully!');
+  }
+
   if (entered === state.adminPin) {
     state.isAdminUnlocked = true;
     closeAdminPinModal();
@@ -998,7 +1014,10 @@ document.getElementById('admin-pin-submit-btn').onclick = () => {
     switchTab('admin');
     renderAdminView();
   } else {
-    if (err) err.style.display = 'block';
+    if (err) {
+      err.textContent = 'Invalid Master PIN. Access denied.';
+      err.style.display = 'block';
+    }
     input.value = '';
     input.focus();
   }

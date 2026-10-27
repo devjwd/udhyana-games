@@ -6,9 +6,9 @@ import { authOptions } from '@/lib/auth';
 // Validate terminal authorization: either via pre-shared secret or authenticated staff session
 async function isAuthorized(req: NextRequest): Promise<boolean> {
   const secretHeader = req.headers.get('x-terminal-secret');
-  const configuredSecret = process.env.NEXTAUTH_SECRET || 'super-secret-key-for-next-auth-123';
+  const configuredSecret = process.env.TERMINAL_SECRET || process.env.NEXTAUTH_SECRET;
 
-  if (secretHeader && secretHeader === configuredSecret) {
+  if (configuredSecret && secretHeader && secretHeader === configuredSecret) {
     return true;
   }
 
