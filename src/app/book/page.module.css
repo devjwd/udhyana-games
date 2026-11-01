@@ -511,3 +511,152 @@
   align-items: center;
   gap: 0.5rem;
 }
+
+/* ══════════════════════════════════
+   LIVE ARENA STATIONS WIDGET
+   ══════════════════════════════════ */
+.liveStationsWrapper {
+  background: var(--surface-1, #13161c);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-card, 14px);
+  padding: 1.1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.liveStationsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.liveIndicatorRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.livePulseDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c1ff1c;
+  box-shadow: 0 0 10px #c1ff1c;
+  animation: livePulseAnim 2s infinite ease-in-out;
+}
+
+@keyframes livePulseAnim {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+}
+
+.liveTitle {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #ffffff;
+}
+
+.liveSubtitle {
+  font-size: 0.72rem;
+  color: var(--text-muted, #64748b);
+  letter-spacing: 0.04em;
+}
+
+.liveStationsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.65rem;
+}
+
+.liveStationPill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.liveStationPill:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(193, 255, 28, 0.3);
+}
+
+.liveStationSelected {
+  border-color: var(--accent, #c1ff1c) !important;
+  background: rgba(193, 255, 28, 0.06) !important;
+}
+
+.stationNameText {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.55rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.statusAvailable {
+  background: rgba(193, 255, 28, 0.12);
+  border: 1px solid rgba(193, 255, 28, 0.3);
+  color: #c1ff1c;
+}
+
+.statusAvailable .statusDot {
+  background: #c1ff1c;
+  box-shadow: 0 0 6px #c1ff1c;
+}
+
+.statusOccupied {
+  background: rgba(255, 77, 77, 0.12);
+  border: 1px solid rgba(255, 77, 77, 0.3);
+  color: #ff6b6b;
+}
+
+.statusOccupied .statusDot {
+  background: #ff6b6b;
+}
+
+.statusEnding {
+  background: rgba(255, 184, 0, 0.12);
+  border: 1px solid rgba(255, 184, 0, 0.3);
+  color: #ffb800;
+}
+
+.statusEnding .statusDot {
+  background: #ffb800;
+}

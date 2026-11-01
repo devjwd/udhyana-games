@@ -247,16 +247,6 @@ export default function ActiveSessionsMonitor({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <h2 className={styles.panelHeader} style={{ borderBottom: 'none', paddingBottom: 0 }}>Active Sessions Monitor</h2>
           <span className={styles.panelBadge}>{sessions.length} In-Use</span>
-          <a
-            href="/stations?mode=staff"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.actionBtnOutline}
-            style={{ textDecoration: 'none', fontSize: '0.76rem', padding: '0.35rem 0.65rem' }}
-            title="Open standalone TV display with live timers for all stations"
-          >
-            📺 Standalone Timers Board ↗
-          </a>
         </div>
         {expiredSessionsCount > 0 && onEndAllExpired && (
           <button

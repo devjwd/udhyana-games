@@ -51,6 +51,12 @@ function BookPageContent() {
   const [consoles, setConsoles] = useState<{ id: string; hardwareTitle: string; hourlyRate?: number | null; games?: { game?: { name: string } }[] }[]>([]);
   const [baseRate, setBaseRate] = useState<number>(1000);
   const [selectedConsole, setSelectedConsole] = useState(consoleParam);
+  const [liveStations, setLiveStations] = useState<Array<{
+    id: string;
+    hardwareTitle: string;
+    status: 'AVAILABLE' | 'ACTIVE' | 'PAUSED' | 'ENDING_SOON' | 'EXPIRED';
+    isOccupied: boolean;
+  }>>([]);
 
   // Game Selection & Dropdown State
   const [gameSearch, setGameSearch] = useState('');
@@ -119,6 +125,34 @@ function BookPageContent() {
     }
     fetchBookedSlots();
   }, [selectedConsole, date]);
+
+  // Fetch real-time live station status
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchLiveStatus() {
+      try {
+        const res = await fetch('/api/stations/live', { cache: 'no-store' });
+        const data = await res.json();
+        if (isMounted && data.success && Array.isArray(data.stations)) {
+          setLiveStations(data.stations.map((s: { id: string; hardwareTitle: string; status: string; isOccupied: boolean }) => ({
+            id: s.id,
+            hardwareTitle: s.hardwareTitle,
+            status: s.status as 'AVAILABLE' | 'ACTIVE' | 'PAUSED' | 'ENDING_SOON' | 'EXPIRED',
+            isOccupied: s.isOccupied,
+          })));
+        }
+      } catch {
+        // Silently keep previous state
+      }
+    }
+
+    fetchLiveStatus();
+    const interval = setInterval(fetchLiveStatus, 15000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Aggregate all unique installed games
   const allInstalledGames = useMemo(() => {
@@ -259,6 +293,56 @@ function BookPageContent() {
             Find stations by game title, pick an open slot, and pay at check-in.
           </p>
         </section>
+
+        {/* ─── LIVE STATIONS AVAILABILITY STRIP ─── */}
+        <div className={styles.container} style={{ paddingBottom: 0 }}>
+          {liveStations.length > 0 && (
+            <div className={styles.liveStationsWrapper}>
+              <div className={styles.liveStationsHeader}>
+                <div className={styles.liveIndicatorRow}>
+                  <span className={styles.livePulseDot} />
+                  <span className={styles.liveTitle}>Live Station Status</span>
+                </div>
+                <span className={styles.liveSubtitle}>Real-time lounge availability</span>
+              </div>
+
+              <div className={styles.liveStationsGrid}>
+                {liveStations.map((st) => {
+                  const isAvail = st.status === 'AVAILABLE';
+                  const isEnding = st.status === 'ENDING_SOON';
+                  const statusLabel = isAvail
+                    ? 'Available'
+                    : isEnding
+                    ? 'Ending Soon'
+                    : 'In Play';
+
+                  const statusClass = isAvail
+                    ? styles.statusAvailable
+                    : isEnding
+                    ? styles.statusEnding
+                    : styles.statusOccupied;
+
+                  const isSelected = effectiveSelectedConsole === st.id;
+
+                  return (
+                    <div
+                      key={st.id}
+                      className={`${styles.liveStationPill} ${isSelected ? styles.liveStationSelected : ''}`}
+                      onClick={() => setSelectedConsole(st.id)}
+                      title={`Click to select ${st.hardwareTitle}`}
+                    >
+                      <span className={styles.stationNameText}>{st.hardwareTitle}</span>
+                      <span className={`${styles.statusBadge} ${statusClass}`}>
+                        <span className={styles.statusDot} />
+                        {statusLabel}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* ─── BOOKING CARD ─── */}
         <div className={styles.container}>
