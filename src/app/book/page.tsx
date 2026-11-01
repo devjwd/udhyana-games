@@ -294,56 +294,6 @@ function BookPageContent() {
           </p>
         </section>
 
-        {/* ─── LIVE STATIONS AVAILABILITY STRIP ─── */}
-        <div className={styles.container} style={{ paddingBottom: 0 }}>
-          {liveStations.length > 0 && (
-            <div className={styles.liveStationsWrapper}>
-              <div className={styles.liveStationsHeader}>
-                <div className={styles.liveIndicatorRow}>
-                  <span className={styles.livePulseDot} />
-                  <span className={styles.liveTitle}>Live Station Status</span>
-                </div>
-                <span className={styles.liveSubtitle}>Real-time lounge availability</span>
-              </div>
-
-              <div className={styles.liveStationsGrid}>
-                {liveStations.map((st) => {
-                  const isAvail = st.status === 'AVAILABLE';
-                  const isEnding = st.status === 'ENDING_SOON';
-                  const statusLabel = isAvail
-                    ? 'Available'
-                    : isEnding
-                    ? 'Ending Soon'
-                    : 'In Play';
-
-                  const statusClass = isAvail
-                    ? styles.statusAvailable
-                    : isEnding
-                    ? styles.statusEnding
-                    : styles.statusOccupied;
-
-                  const isSelected = effectiveSelectedConsole === st.id;
-
-                  return (
-                    <div
-                      key={st.id}
-                      className={`${styles.liveStationPill} ${isSelected ? styles.liveStationSelected : ''}`}
-                      onClick={() => setSelectedConsole(st.id)}
-                      title={`Click to select ${st.hardwareTitle}`}
-                    >
-                      <span className={styles.stationNameText}>{st.hardwareTitle}</span>
-                      <span className={`${styles.statusBadge} ${statusClass}`}>
-                        <span className={styles.statusDot} />
-                        {statusLabel}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* ─── BOOKING CARD ─── */}
         <div className={styles.container}>
           <div className={styles.card}>
@@ -599,6 +549,54 @@ function BookPageContent() {
 
             </form>
           </div>
+
+          {/* ─── LIVE STATIONS AVAILABILITY STRIP (BELOW BOOKING) ─── */}
+          {liveStations.length > 0 && (
+            <div className={styles.liveStationsWrapper}>
+              <div className={styles.liveStationsHeader}>
+                <div className={styles.liveIndicatorRow}>
+                  <span className={styles.livePulseDot} />
+                  <span className={styles.liveTitle}>Live Station Status</span>
+                </div>
+                <span className={styles.liveSubtitle}>Real-time lounge availability</span>
+              </div>
+
+              <div className={styles.liveStationsGrid}>
+                {liveStations.map((st) => {
+                  const isAvail = st.status === 'AVAILABLE';
+                  const isEnding = st.status === 'ENDING_SOON';
+                  const statusLabel = isAvail
+                    ? 'Available'
+                    : isEnding
+                    ? 'Ending Soon'
+                    : 'In Play';
+
+                  const statusClass = isAvail
+                    ? styles.statusAvailable
+                    : isEnding
+                    ? styles.statusEnding
+                    : styles.statusOccupied;
+
+                  const isSelected = effectiveSelectedConsole === st.id;
+
+                  return (
+                    <div
+                      key={st.id}
+                      className={`${styles.liveStationPill} ${isSelected ? styles.liveStationSelected : ''}`}
+                      onClick={() => setSelectedConsole(st.id)}
+                      title={`Click to select ${st.hardwareTitle}`}
+                    >
+                      <span className={styles.stationNameText}>{st.hardwareTitle}</span>
+                      <span className={`${styles.statusBadge} ${statusClass}`}>
+                        <span className={styles.statusDot} />
+                        {statusLabel}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
       </main>
