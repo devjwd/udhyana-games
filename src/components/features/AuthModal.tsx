@@ -206,10 +206,10 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               fullWidth
             >
               {isSubmitting
-                ? 'Processing...'
+                ? (mode === 'login' ? 'Signing In...' : 'Creating Account...')
                 : mode === 'login'
-                  ? 'Access Terminal'
-                  : 'Register Identity'}
+                  ? 'Sign In'
+                  : 'Create Account'}
             </CyberButton>
           </div>
         </form>
