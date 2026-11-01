@@ -17,7 +17,8 @@ interface PostpaidCheckoutModalProps {
     sessionId: string,
     paymentMethod: string,
     customGamingAmount: number,
-    snackItems: { name: string; price: number; quantity: number; type: string }[]
+    snackItems: { name: string; price: number; quantity: number; type: string }[],
+    pointsToRedeem?: number
   ) => Promise<unknown>;
 }
 
@@ -63,7 +64,8 @@ function PostpaidCheckoutDialog({
     sessionId: string,
     paymentMethod: string,
     customGamingAmount: number,
-    snackItems: { name: string; price: number; quantity: number; type: string }[]
+    snackItems: { name: string; price: number; quantity: number; type: string }[],
+    pointsToRedeem?: number
   ) => Promise<unknown>;
 }) {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'account'>('cash');
@@ -71,6 +73,7 @@ function PostpaidCheckoutDialog({
   const [isCustomAmount, setIsCustomAmount] = useState<boolean>(false);
   const [customGamingPrice, setCustomGamingPrice] = useState<string>('');
   const [addedSnacks, setAddedSnacks] = useState<AddedSnack[]>([]);
+  const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSettled, setIsSettled] = useState<boolean>(false);
   const [orderId, setOrderId] = useState<string>('');
@@ -121,11 +124,17 @@ function PostpaidCheckoutDialog({
   const snacksTotal = addedSnacks.reduce((sum, s) => sum + s.price * s.quantity, 0);
   const grandTotal = finalGamingAmount + snacksTotal;
 
+  const userLoyaltyPoints = session.user?.loyaltyPoints ?? 0;
+  const maxPointsRedeemable = Math.min(userLoyaltyPoints, finalGamingAmount);
+  const activePointsRedeemed = Math.min(pointsToRedeem, maxPointsRedeemable);
+  const netGrandTotal = Math.max(0, grandTotal - activePointsRedeemed);
+  const pointsEarned = Math.floor(netGrandTotal / 100);
+
   const changeDue = useMemo(() => {
     const tendered = parseFloat(cashTendered);
-    if (isNaN(tendered) || tendered < grandTotal) return 0;
-    return tendered - grandTotal;
-  }, [cashTendered, grandTotal]);
+    if (isNaN(tendered) || tendered < netGrandTotal) return 0;
+    return tendered - netGrandTotal;
+  }, [cashTendered, netGrandTotal]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -224,7 +233,11 @@ function PostpaidCheckoutDialog({
         timeCharge: finalGamingAmount,
         controllerCharge: controllerFee,
         snacks: addedSnacks.map(s => ({ name: s.name, price: s.price, quantity: s.quantity })),
-        totalAmount: grandTotal,
+        subtotalAmount: grandTotal,
+        discountAmount: activePointsRedeemed,
+        pointsRedeemed: activePointsRedeemed,
+        pointsEarned,
+        totalAmount: netGrandTotal,
         paymentMethod,
         cashTendered: parseFloat(cashTendered) || undefined,
         changeDue: changeDue > 0 ? changeDue : undefined
@@ -249,7 +262,7 @@ function PostpaidCheckoutDialog({
         type: 'snack'
       }));
 
-      const res = await onConfirm(session.id, paymentMethod, finalGamingAmount, snackPayload);
+      const res = await onConfirm(session.id, paymentMethod, finalGamingAmount, snackPayload, activePointsRedeemed);
       if (res && typeof res === 'object' && 'orderId' in res && res.orderId) {
         setOrderId(res.orderId as string);
       }
@@ -337,14 +350,33 @@ function PostpaidCheckoutDialog({
 
         <div className={styles.printDivider} />
 
+        {activePointsRedeemed > 0 && (
+          <>
+            <div className={styles.printTotalRow} style={{ fontSize: '0.85em', fontWeight: 'normal' }}>
+              <span>Gross Subtotal:</span>
+              <span>PKR {grandTotal}</span>
+            </div>
+            <div className={styles.printTotalRow} style={{ fontSize: '0.85em', fontWeight: 'normal' }}>
+              <span>Points Used ({activePointsRedeemed} XP):</span>
+              <span>-PKR {activePointsRedeemed}</span>
+            </div>
+          </>
+        )}
+
         <div className={styles.printTotalRow}>
           <span>TOTAL PAID</span>
-          <span>PKR {grandTotal}</span>
+          <span>PKR {netGrandTotal}</span>
         </div>
         <div className={styles.printMethodRow}>
           <span>Payment Method:</span>
           <span>{paymentMethod.toUpperCase()}</span>
         </div>
+        {pointsEarned > 0 && (
+          <div className={styles.printMethodRow} style={{ fontSize: '0.8em' }}>
+            <span>Points Earned Today:</span>
+            <span>+{pointsEarned} XP</span>
+          </div>
+        )}
 
         {paymentMethod === 'cash' && parseFloat(cashTendered) >= grandTotal && (
           <div style={{ fontSize: '10px', marginTop: '3px' }}>
@@ -407,7 +439,7 @@ function PostpaidCheckoutDialog({
                 <div>
                   <strong style={{ color: 'var(--primary-accent)', fontSize: '0.9rem' }}>Payment Collected & Completed</strong>
                   <div style={{ fontSize: '0.74rem', color: '#fff' }}>
-                    PKR {grandTotal} settled via {paymentMethod.toUpperCase()}. Station {session.console.hardwareTitle} is now available.
+                    PKR {netGrandTotal} settled via {paymentMethod.toUpperCase()}{activePointsRedeemed > 0 ? ` (used ${activePointsRedeemed} XP)` : ''}. Station {session.console.hardwareTitle} is now available.
                   </div>
                 </div>
               </div>
@@ -472,9 +504,22 @@ function PostpaidCheckoutDialog({
                   ))}
                 </div>
 
+                {activePointsRedeemed > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginBottom: '0.35rem', fontSize: '0.8rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8' }}>
+                      <span>Gross Total:</span>
+                      <span>PKR {grandTotal}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4ade80' }}>
+                      <span>Points Used ({activePointsRedeemed} XP):</span>
+                      <span>-PKR {activePointsRedeemed}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem', fontWeight: 900, color: 'var(--primary-accent)' }}>
                   <span>TOTAL PAID:</span>
-                  <span>PKR {grandTotal}</span>
+                  <span>PKR {netGrandTotal}</span>
                 </div>
                 <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', marginTop: '0.2rem', display: 'flex', justifyContent: 'space-between' }}>
                   <span>Payment Method: {paymentMethod.toUpperCase()}</span>
@@ -763,6 +808,152 @@ function PostpaidCheckoutDialog({
                 )}
               </div>
 
+              {/* Loyalty Points Redemption (Only applies to Game Time) */}
+              {session.user && userLoyaltyPoints > 0 && finalGamingAmount > 0 && (
+                <div style={{
+                  marginBottom: '1rem',
+                  padding: '0.85rem',
+                  background: 'rgba(214, 255, 1, 0.04)',
+                  border: '1px solid rgba(214, 255, 1, 0.25)',
+                  borderRadius: '8px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ color: '#d6ff01' }}>⚡</span>
+                      <strong style={{ fontSize: '0.82rem', color: '#fff' }}>
+                        Member Loyalty XP ({playerName})
+                      </strong>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: '#d6ff01', fontWeight: 800 }}>
+                      {userLoyaltyPoints} XP Available (= PKR {userLoyaltyPoints})
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.65rem' }}>
+                    Redeemable on Game Time fee up to PKR {finalGamingAmount}.
+                    {snacksTotal > 0 && ` (Snacks PKR ${snacksTotal} must be paid in cash/card).`}
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.65rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setPointsToRedeem(0)}
+                      style={{
+                        background: activePointsRedeemed === 0 ? '#d6ff01' : 'rgba(255,255,255,0.08)',
+                        color: activePointsRedeemed === 0 ? '#000' : '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        padding: '0.25rem 0.55rem',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      No Points (0 XP)
+                    </button>
+                    {maxPointsRedeemable >= 50 && (
+                      <button
+                        type="button"
+                        onClick={() => setPointsToRedeem(50)}
+                        style={{
+                          background: activePointsRedeemed === 50 ? '#d6ff01' : 'rgba(255,255,255,0.08)',
+                          color: activePointsRedeemed === 50 ? '#000' : '#fff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '0.25rem 0.55rem',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        50 XP (-PKR 50)
+                      </button>
+                    )}
+                    {maxPointsRedeemable >= 100 && (
+                      <button
+                        type="button"
+                        onClick={() => setPointsToRedeem(100)}
+                        style={{
+                          background: activePointsRedeemed === 100 ? '#d6ff01' : 'rgba(255,255,255,0.08)',
+                          color: activePointsRedeemed === 100 ? '#000' : '#fff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '0.25rem 0.55rem',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        100 XP (-PKR 100)
+                      </button>
+                    )}
+                    {maxPointsRedeemable >= 200 && (
+                      <button
+                        type="button"
+                        onClick={() => setPointsToRedeem(200)}
+                        style={{
+                          background: activePointsRedeemed === 200 ? '#d6ff01' : 'rgba(255,255,255,0.08)',
+                          color: activePointsRedeemed === 200 ? '#000' : '#fff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '0.25rem 0.55rem',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        200 XP (-PKR 200)
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setPointsToRedeem(maxPointsRedeemable)}
+                      style={{
+                        background: activePointsRedeemed === maxPointsRedeemable ? '#d6ff01' : 'rgba(255,255,255,0.08)',
+                        color: activePointsRedeemed === maxPointsRedeemable ? '#000' : '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        padding: '0.25rem 0.55rem',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Max ({maxPointsRedeemable} XP)
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>Custom Points:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={maxPointsRedeemable}
+                      value={activePointsRedeemed || ''}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (isNaN(val)) setPointsToRedeem(0);
+                        else setPointsToRedeem(Math.min(Math.max(0, val), maxPointsRedeemable));
+                      }}
+                      placeholder="0"
+                      style={{
+                        background: '#0d1015',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        color: '#d6ff01',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '4px',
+                        width: '90px',
+                        fontSize: '0.8rem',
+                        fontWeight: 800
+                      }}
+                    />
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                      = -PKR {activePointsRedeemed} discount
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Payment Method */}
               <div className={styles.field} style={{ marginBottom: '1rem' }}>
                 <label className={styles.label}>Payment Method</label>
@@ -797,7 +988,7 @@ function PostpaidCheckoutDialog({
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                     <label className={styles.label} style={{ margin: 0 }}>Cash Tendered (PKR)</label>
                     <div style={{ display: 'flex', gap: '0.3rem' }}>
-                      {[grandTotal, Math.ceil(grandTotal / 500) * 500, Math.ceil(grandTotal / 1000) * 1000].filter((v, i, a) => v > 0 && a.indexOf(v) === i).slice(0, 3).map(amt => (
+                      {[netGrandTotal, Math.ceil(netGrandTotal / 500) * 500, Math.ceil(netGrandTotal / 1000) * 1000].filter((v, i, a) => v > 0 && a.indexOf(v) === i).slice(0, 3).map(amt => (
                         <button
                           key={amt}
                           type="button"
@@ -820,13 +1011,13 @@ function PostpaidCheckoutDialog({
                   <input
                     type="number"
                     min="0"
-                    placeholder={`Enter cash given (e.g. ${grandTotal})`}
+                    placeholder={`Enter cash given (e.g. ${netGrandTotal})`}
                     value={cashTendered}
                     onChange={e => setCashTendered(e.target.value)}
                     className={styles.input}
                   />
 
-                  {parseFloat(cashTendered) >= grandTotal && (
+                  {parseFloat(cashTendered) >= netGrandTotal && (
                     <div style={{
                       marginTop: '0.5rem',
                       padding: '0.4rem 0.6rem',
@@ -861,10 +1052,11 @@ function PostpaidCheckoutDialog({
                   <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>Total Amount to Collect</div>
                   <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)' }}>
                     Gaming: PKR {finalGamingAmount} {addedSnacks.length > 0 ? `+ Snacks: PKR ${snacksTotal}` : ''}
+                    {activePointsRedeemed > 0 ? ` (Points: -PKR ${activePointsRedeemed})` : ''}
                   </div>
                 </div>
                 <span className={styles.slipTotalAmount} style={{ fontSize: '1.5rem', color: 'var(--primary-accent)', fontWeight: 900 }}>
-                  PKR {grandTotal}
+                  PKR {netGrandTotal}
                 </span>
               </div>
 
@@ -873,11 +1065,11 @@ function PostpaidCheckoutDialog({
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={isSubmitting || grandTotal < 0}
+                  disabled={isSubmitting || netGrandTotal < 0}
                   className={styles.submitBtn}
                   style={{ flex: 1, padding: '0.85rem' }}
                 >
-                  {isSubmitting ? 'Processing Settlement & Clearing Station...' : `✓ Settle & View Receipt (PKR ${grandTotal})`}
+                  {isSubmitting ? 'Processing Settlement & Clearing Station...' : `✓ Settle & View Receipt (PKR ${netGrandTotal})`}
                 </button>
                 <button
                   type="button"

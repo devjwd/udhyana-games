@@ -11,7 +11,6 @@ import {
   SessionInfo,
   StationSummary,
   StationApiResponse,
-  StationStatus
 } from './types/station';
 
 // Modular UI components
@@ -19,7 +18,6 @@ import StationHeader from './components/StationHeader';
 import TimerDisplay from './components/TimerDisplay';
 import StationProgressBar from './components/StationProgressBar';
 import ScreenFlashOverlay from './components/ScreenFlashOverlay';
-import PreviewToolbar from './components/PreviewToolbar';
 import StationSwitcherModal from './components/StationSwitcherModal';
 import KioskTapOverlay from './components/KioskTapOverlay';
 import SleepBlackoutOverlay from './components/SleepBlackoutOverlay';
@@ -68,20 +66,17 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
 
   const [allStations, setAllStations] = useState<StationSummary[]>([]);
   const [localSeconds, setLocalSeconds] = useState<number>(0);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(() => {
+    return typeof window !== 'undefined' ? stationSounds.getMuted() : false;
+  });
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [hasStartedKiosk, setHasStartedKiosk] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('preview') === 'true' || params.get('demo') === 'true') return true;
       return localStorage.getItem('station_kiosk_active') === 'true';
     }
     return false;
   });
   const [isSwitcherOpen, setIsSwitcherOpen] = useState<boolean>(false);
-  const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
-  const [previewState, setPreviewState] = useState<StationStatus>('WARNING');
-  const isPreviewModeRef = useRef<boolean>(false);
 
   // Determine current active/warning/expired state
   const isTimeUp =
@@ -104,10 +99,12 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
   const isEndingSoonRef = useRef<boolean>(isEndingSoon);
   const isTimeUpRef = useRef<boolean>(isTimeUp);
 
-  isEndingSoonRef.current = isEndingSoon;
-  isTimeUpRef.current = isTimeUp;
+  useEffect(() => {
+    isEndingSoonRef.current = isEndingSoon;
+    isTimeUpRef.current = isTimeUp;
+  }, [isEndingSoon, isTimeUp]);
 
-  // Wake screen: wakes up display, then schedules return to sleep after duration (if not ending soon/expired)
+  // Wake screen: wakes up display, then schedules return to sleep after duration
   const wakeScreen = useCallback((durationSeconds: number = STATION_CONFIG.SLEEP_MODE.MANUAL_WAKE_DURATION_SECONDS) => {
     setIsScreenAsleep(false);
     if (wakeTimerRef.current) clearTimeout(wakeTimerRef.current);
@@ -123,17 +120,9 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
     }, durationSeconds * 1000);
   }, []);
 
-  // Turn screen off (blackout) immediately
-  const putScreenToSleep = useCallback(() => {
-    if (isEndingSoonRef.current || isTimeUpRef.current) return;
-    if (wakeTimerRef.current) clearTimeout(wakeTimerRef.current);
-    setIsScreenAsleep(true);
-  }, []);
-
-  // When 5-minute alert or timeout triggers, automatically wake screen and keep awake!
+  // When 5-minute alert or timeout triggers, clear any scheduled sleep timer
   useEffect(() => {
     if (isEndingSoon || isTimeUp) {
-      setIsScreenAsleep(false);
       if (wakeTimerRef.current) {
         clearTimeout(wakeTimerRef.current);
         wakeTimerRef.current = null;
@@ -189,117 +178,12 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
     }, STATION_CONFIG.SOFT_FLASH_DURATION_MS);
   }, []);
 
-  // Check URL query parameters for ?preview=true
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('preview') === 'true' || params.get('demo') === 'true') {
-        setIsPreviewMode(true);
-        isPreviewModeRef.current = true;
-        applyPreviewState('WARNING');
-      }
-    }
-  }, []);
-
-  // Synchronize audio mute state
-  useEffect(() => {
-    setIsMuted(stationSounds.getMuted());
-  }, []);
-
   // Save assigned stationId in localStorage
   useEffect(() => {
     if (typeof window !== 'undefined' && stationId) {
       localStorage.setItem(STATION_CONFIG.STORAGE_STATION_KEY, stationId);
     }
   }, [stationId]);
-
-  const applyPreviewState = (state: StationStatus) => {
-    stationSounds.playClick();
-    setPreviewState(state);
-    setIsPreviewMode(true);
-    isPreviewModeRef.current = true;
-
-    if (state === 'IDLE') {
-      setSessionData({
-        id: null,
-        status: 'IDLE',
-        guestName: 'Available to Play',
-        billingType: 'PREPAID',
-        remainingSeconds: 0,
-        elapsedSeconds: 0,
-        totalDurationSeconds: 0,
-        extraControllers: 0,
-        startTime: null,
-        endTime: null
-      });
-      setLocalSeconds(0);
-      wakeScreen(8);
-    } else if (state === 'ACTIVE') {
-      setSessionData({
-        id: 'demo-session',
-        status: 'ACTIVE',
-        guestName: 'Alex',
-        billingType: 'PREPAID',
-        remainingSeconds: 2700,
-        elapsedSeconds: 900,
-        totalDurationSeconds: 3600,
-        extraControllers: 0,
-        startTime: new Date().toISOString(),
-        endTime: new Date(Date.now() + 2700000).toISOString()
-      });
-      setLocalSeconds(2700);
-      stationSounds.playSessionStart();
-      wakeScreen(8);
-    } else if (state === 'WARNING' || state === 'ENDING_SOON') {
-      setIsScreenAsleep(false);
-      setSessionData({
-        id: 'demo-session',
-        status: 'ENDING_SOON',
-        guestName: 'Alex',
-        billingType: 'PREPAID',
-        remainingSeconds: 212, // 00:03:32
-        elapsedSeconds: 3388,
-        totalDurationSeconds: 3600,
-        extraControllers: 0,
-        startTime: new Date(Date.now() - 3388000).toISOString(),
-        endTime: new Date(Date.now() + 212000).toISOString()
-      });
-      setLocalSeconds(212);
-      stationSounds.playWarningChime();
-      triggerSoftWarningFlash();
-    } else if (state === 'EXPIRED') {
-      setIsScreenAsleep(false);
-      setSessionData({
-        id: 'demo-session',
-        status: 'EXPIRED',
-        guestName: 'Alex',
-        billingType: 'PREPAID',
-        remainingSeconds: 0,
-        elapsedSeconds: 3600,
-        totalDurationSeconds: 3600,
-        extraControllers: 0,
-        startTime: new Date(Date.now() - 3600000).toISOString(),
-        endTime: new Date().toISOString()
-      });
-      setLocalSeconds(0);
-      stationSounds.playTimeUpAlarm();
-    } else if (state === 'PAUSED') {
-      setSessionData({
-        id: 'demo-session',
-        status: 'PAUSED',
-        guestName: 'Alex',
-        billingType: 'PREPAID',
-        remainingSeconds: 1500,
-        elapsedSeconds: 2100,
-        totalDurationSeconds: 3600,
-        extraControllers: 0,
-        startTime: new Date(Date.now() - 2100000).toISOString(),
-        endTime: new Date(Date.now() + 1500000).toISOString()
-      });
-      setLocalSeconds(1500);
-      wakeScreen(8);
-    }
-  };
 
   // Main polling engine
   const fetchStationStatus = useCallback(async () => {
@@ -314,8 +198,7 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
         if (data.allStations) setAllStations(data.allStations);
         if (data.station) setStationData(data.station);
 
-        // Only overwrite session from database if NOT in preview mode
-        if (data.session && !isPreviewModeRef.current) {
+        if (data.session) {
           const sess = data.session;
           setSessionData(sess);
           setLocalSeconds(sess.remainingSeconds);
@@ -360,13 +243,20 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
     } catch {
       // Graceful offline fallback
     }
-  }, [stationId, triggerSoftWarningFlash]);
+  }, [stationId, triggerSoftWarningFlash, wakeScreen]);
 
   // Polling interval
   useEffect(() => {
-    fetchStationStatus();
-    const pollInterval = setInterval(fetchStationStatus, STATION_CONFIG.POLL_INTERVAL_MS);
-    return () => clearInterval(pollInterval);
+    let active = true;
+    const poll = async () => {
+      if (active) await fetchStationStatus();
+    };
+    poll();
+    const pollInterval = setInterval(poll, STATION_CONFIG.POLL_INTERVAL_MS);
+    return () => {
+      active = false;
+      clearInterval(pollInterval);
+    };
   }, [fetchStationStatus]);
 
   // Local second-by-second countdown ticker
@@ -475,6 +365,9 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
     statusText = STATION_CONFIG.LABELS.IDLE;
   }
 
+  // Display blackout only when asleep and not in alert states
+  const isDisplayAsleep = isScreenAsleep && !isEndingSoon && !isTimeUp;
+
   return (
     <div
       className={styles.container}
@@ -489,20 +382,9 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
         stationName={cleanStationName}
         isMuted={isMuted}
         isFullscreen={isFullscreen}
-        isPreviewMode={isPreviewMode}
         onOpenSwitcher={() => setIsSwitcherOpen(true)}
         onToggleMute={toggleMute}
         onToggleFullscreen={toggleFullscreen}
-        onTogglePreview={() => {
-          stationSounds.playClick();
-          if (isPreviewMode) {
-            isPreviewModeRef.current = false;
-            setIsPreviewMode(false);
-            fetchStationStatus();
-          } else {
-            applyPreviewState('WARNING');
-          }
-        }}
       />
 
       {/* CENTER CLOCK & STATUS CAPSULE & CALL STAFF BUTTON */}
@@ -521,27 +403,12 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
 
       {/* STEALTH OLED BLACKOUT OVERLAY (WAKES ON DOUBLE-TAP, 5 MINS LEFT, OR TIMEOUT) */}
       <SleepBlackoutOverlay
-        isAsleep={isScreenAsleep}
+        isAsleep={isDisplayAsleep}
         onDoubleTapWake={() => wakeScreen()}
       />
 
       {/* INITIAL TAP-TO-ENTER KIOSK OVERLAY */}
       <KioskTapOverlay isVisible={!hasStartedKiosk} onStartKiosk={handleStartKiosk} />
-
-      {/* PREVIEW TOOLBAR (WHEN DEMO MODE IS ON) */}
-      {isPreviewMode && (
-        <PreviewToolbar
-          previewState={previewState}
-          onApplyState={applyPreviewState}
-          onTriggerSleep={putScreenToSleep}
-          onExitPreview={() => {
-            stationSounds.playClick();
-            isPreviewModeRef.current = false;
-            setIsPreviewMode(false);
-            fetchStationStatus();
-          }}
-        />
-      )}
 
       {/* STATION SWITCHER MODAL */}
       <StationSwitcherModal

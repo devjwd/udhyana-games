@@ -31,6 +31,9 @@ interface WalkInFormProps {
     userId?: string;
     extraControllers?: number;
     billingType?: 'PREPAID' | 'POSTPAID';
+    userLoyaltyPoints?: number;
+    userRank?: string;
+    userName?: string;
   }) => void;
   onStartPostpaid?: (params: {
     consoleId: string;
@@ -66,6 +69,8 @@ export default function WalkInForm({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string | undefined>(undefined);
+  const [selectedUserPoints, setSelectedUserPoints] = useState<number | undefined>(undefined);
+  const [selectedUserRank, setSelectedUserRank] = useState<string | undefined>(undefined);
   const [selectedConsoleId, setSelectedConsoleId] = useState<string>('');
   const [selectedDurationId, setSelectedDurationId] = useState<string>('3600');
   const [additionalControllers, setAdditionalControllers] = useState<number>(0);
@@ -108,6 +113,8 @@ export default function WalkInForm({
     const val = typeof e === 'string' ? e : e.target.value;
     setName(val);
     setSelectedUserId(undefined);
+    setSelectedUserPoints(undefined);
+    setSelectedUserRank(undefined);
 
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
 
@@ -131,6 +138,8 @@ export default function WalkInForm({
 
   const handleSelectUser = (u: CustomerSearchResult) => {
     setSelectedUserId(u.id);
+    setSelectedUserPoints(u.loyaltyPoints ?? 0);
+    setSelectedUserRank(u.rank ?? 'ROOKIE');
     setName(u.fullName || u.username || '');
     if (u.phone) setPhone(u.phone);
     setSearchResults([]);
@@ -170,6 +179,9 @@ export default function WalkInForm({
         durationSeconds: 3600,
         phone: phone.trim() || undefined,
         userId: selectedUserId,
+        userLoyaltyPoints: selectedUserPoints,
+        userRank: selectedUserRank,
+        userName: name.trim(),
         extraControllers: additionalControllers,
         billingType: 'POSTPAID'
       });
@@ -177,6 +189,8 @@ export default function WalkInForm({
       setName('');
       setPhone('');
       setSelectedUserId(undefined);
+      setSelectedUserPoints(undefined);
+      setSelectedUserRank(undefined);
       setSelectedConsoleId('');
       setAdditionalControllers(0);
       setGameSearchQuery('');
@@ -196,6 +210,9 @@ export default function WalkInForm({
       durationSeconds: durationObj.seconds,
       phone: phone.trim() || undefined,
       userId: selectedUserId,
+      userLoyaltyPoints: selectedUserPoints,
+      userRank: selectedUserRank,
+      userName: name.trim(),
       extraControllers: additionalControllers,
       billingType: 'PREPAID'
     });
@@ -204,6 +221,8 @@ export default function WalkInForm({
     setName('');
     setPhone('');
     setSelectedUserId(undefined);
+    setSelectedUserPoints(undefined);
+    setSelectedUserRank(undefined);
     setSelectedConsoleId('');
     setAdditionalControllers(0);
     setGameSearchQuery('');
@@ -232,6 +251,9 @@ export default function WalkInForm({
       durationSeconds: isPostpaid ? 3600 : durationObj.seconds,
       phone: phone.trim() || undefined,
       userId: selectedUserId,
+      userLoyaltyPoints: selectedUserPoints,
+      userRank: selectedUserRank,
+      userName: name.trim(),
       extraControllers: additionalControllers
     });
 
@@ -240,6 +262,8 @@ export default function WalkInForm({
     setName('');
     setPhone('');
     setSelectedUserId(undefined);
+    setSelectedUserPoints(undefined);
+    setSelectedUserRank(undefined);
     setSelectedConsoleId('');
     setAdditionalControllers(0);
     setGameSearchQuery('');
@@ -273,7 +297,12 @@ export default function WalkInForm({
             <label className={styles.label}>
               Gamer Tag / Customer Name
               {selectedUserId ? (
-                <span className={styles.verifiedMemberBadge}>[Verified Member]</span>
+                <span className={styles.verifiedMemberBadge} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  [Verified Member]
+                  <span style={{ color: '#d6ff01', fontWeight: 900, marginLeft: '4px' }}>
+                    ⚡ {selectedUserPoints ?? 0} XP ({selectedUserRank || 'ROOKIE'})
+                  </span>
+                </span>
               ) : name.length >= 2 ? (
                 <span className={styles.newAccountBadge}>(New Guest)</span>
               ) : null}

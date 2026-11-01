@@ -11,6 +11,8 @@ interface CurrentOrderCartProps {
   onRemoveItem: (id: string) => void;
   onClearCart: () => void;
   onCheckout: () => void;
+  pointsToRedeem: number;
+  onPointsToRedeemChange: (points: number) => void;
 }
 
 export default function CurrentOrderCart({
@@ -19,10 +21,33 @@ export default function CurrentOrderCart({
   onPaymentMethodChange,
   onRemoveItem,
   onClearCart,
-  onCheckout
+  onCheckout,
+  pointsToRedeem,
+  onPointsToRedeemChange
 }: CurrentOrderCartProps) {
-  const totalAmount = cart.reduce((sum, item) => sum + item.price, 0);
+  const grossTotal = cart.reduce((sum, item) => sum + item.price, 0);
   const hasPostpaid = cart.some(item => item.billingType === 'POSTPAID');
+
+  // Detect attached member from any session/waitlist item
+  const memberItem = cart.find(item => item.userId);
+  const memberPoints = memberItem?.userLoyaltyPoints ?? 0;
+  const memberRank = memberItem?.userRank || 'ROOKIE';
+  const memberName = memberItem?.userName || 'Member';
+
+  // Game Time restriction: Points can strictly discount console sessions, not snacks
+  const gameTimeSubtotal = cart
+    .filter(item => item.type === 'session')
+    .reduce((sum, item) => sum + item.price, 0);
+  const nonGameTimeSubtotal = grossTotal - gameTimeSubtotal;
+
+  const maxRedeemableXP = Math.min(memberPoints, gameTimeSubtotal);
+  const activePointsRedeemed = Math.min(pointsToRedeem, maxRedeemableXP);
+  const netDueNow = Math.max(0, grossTotal - activePointsRedeemed);
+  const pointsToEarn = Math.floor(netDueNow / 100);
+
+  const handlePointPillClick = (amount: number) => {
+    onPointsToRedeemChange(Math.min(amount, maxRedeemableXP));
+  };
 
   return (
     <div className={styles.panel}>
@@ -61,6 +86,11 @@ export default function CurrentOrderCart({
                       ⏳ Paid Waitlist Queue Spot ({item.consoleName || 'Any Station'})
                     </span>
                   )}
+                  {item.type === 'snack' && (
+                    <span className={styles.cartItemSub} style={{ color: '#94a3b8' }}>
+                      Retail Snack / Drink (Cash only, points excluded)
+                    </span>
+                  )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
                   {isPostpaid ? (
@@ -94,23 +124,191 @@ export default function CurrentOrderCart({
         )}
       </div>
 
+      {/* Loyalty Points Redemption Module */}
+      {memberItem && gameTimeSubtotal > 0 && memberPoints > 0 && (
+        <div style={{
+          margin: '1rem 0',
+          padding: '0.85rem',
+          background: 'rgba(214, 255, 1, 0.04)',
+          border: '1px solid rgba(214, 255, 1, 0.25)',
+          borderRadius: '8px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span style={{ color: '#d6ff01', fontSize: '0.9rem' }}>⚡</span>
+              <strong style={{ fontSize: '0.82rem', color: '#fff' }}>
+                Loyalty Discount ({memberName} - {memberRank})
+              </strong>
+            </div>
+            <span style={{ fontSize: '0.75rem', color: '#d6ff01', fontWeight: 800 }}>
+              {memberPoints} XP Available (= PKR {memberPoints})
+            </span>
+          </div>
+
+          <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.65rem' }}>
+            Points discount Game Time up to PKR {gameTimeSubtotal}.
+            {nonGameTimeSubtotal > 0 && ` (PKR ${nonGameTimeSubtotal} snacks require cash/card)`}
+          </div>
+
+          {/* Quick Redemption Pills */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.65rem' }}>
+            <button
+              type="button"
+              onClick={() => handlePointPillClick(0)}
+              style={{
+                background: activePointsRedeemed === 0 ? '#d6ff01' : 'rgba(255,255,255,0.08)',
+                color: activePointsRedeemed === 0 ? '#000' : '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '0.25rem 0.55rem',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              No Points (0 XP)
+            </button>
+            {maxRedeemableXP >= 50 && (
+              <button
+                type="button"
+                onClick={() => handlePointPillClick(50)}
+                style={{
+                  background: activePointsRedeemed === 50 ? '#d6ff01' : 'rgba(255,255,255,0.08)',
+                  color: activePointsRedeemed === 50 ? '#000' : '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '0.25rem 0.55rem',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                50 XP (-PKR 50)
+              </button>
+            )}
+            {maxRedeemableXP >= 100 && (
+              <button
+                type="button"
+                onClick={() => handlePointPillClick(100)}
+                style={{
+                  background: activePointsRedeemed === 100 ? '#d6ff01' : 'rgba(255,255,255,0.08)',
+                  color: activePointsRedeemed === 100 ? '#000' : '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '0.25rem 0.55rem',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                100 XP (-PKR 100)
+              </button>
+            )}
+            {maxRedeemableXP >= 200 && (
+              <button
+                type="button"
+                onClick={() => handlePointPillClick(200)}
+                style={{
+                  background: activePointsRedeemed === 200 ? '#d6ff01' : 'rgba(255,255,255,0.08)',
+                  color: activePointsRedeemed === 200 ? '#000' : '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '0.25rem 0.55rem',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                200 XP (-PKR 200)
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => handlePointPillClick(maxRedeemableXP)}
+              style={{
+                background: activePointsRedeemed === maxRedeemableXP ? '#d6ff01' : 'rgba(255,255,255,0.08)',
+                color: activePointsRedeemed === maxRedeemableXP ? '#000' : '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '0.25rem 0.55rem',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              Max ({maxRedeemableXP} XP)
+            </button>
+          </div>
+
+          {/* Precise Points Input */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>Custom Points:</span>
+            <input
+              type="number"
+              min={0}
+              max={maxRedeemableXP}
+              value={activePointsRedeemed || ''}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (isNaN(val)) onPointsToRedeemChange(0);
+                else onPointsToRedeemChange(Math.min(Math.max(0, val), maxRedeemableXP));
+              }}
+              placeholder="0"
+              style={{
+                background: '#0d1015',
+                border: '1px solid rgba(255,255,255,0.15)',
+                color: '#d6ff01',
+                padding: '0.25rem 0.5rem',
+                borderRadius: '4px',
+                width: '90px',
+                fontSize: '0.8rem',
+                fontWeight: 800
+              }}
+            />
+            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+              = -PKR {activePointsRedeemed} discount
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className={styles.cartTotalSection}>
+        {/* Breakdown if points redeemed */}
+        {activePointsRedeemed > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '0.65rem', paddingBottom: '0.65rem', borderBottom: '1px dashed rgba(255,255,255,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#94a3b8' }}>
+              <span>Subtotal:</span>
+              <span>PKR {grossTotal}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#4ade80', fontWeight: 700 }}>
+              <span>⚡ Loyalty Discount ({activePointsRedeemed} XP):</span>
+              <span>-PKR {activePointsRedeemed}</span>
+            </div>
+          </div>
+        )}
+
         <div className={styles.cartTotalRow}>
-          <span>{hasPostpaid && totalAmount === 0 ? 'Billing Terms:' : 'Due Now:'}</span>
-          <span className={styles.cartTotalAmount} style={hasPostpaid && totalAmount === 0 ? { fontSize: '1.05rem', color: 'var(--primary-accent)' } : {}}>
-            {hasPostpaid && totalAmount === 0
+          <span>{hasPostpaid && grossTotal === 0 ? 'Billing Terms:' : 'Due Now:'}</span>
+          <span className={styles.cartTotalAmount} style={hasPostpaid && grossTotal === 0 ? { fontSize: '1.05rem', color: 'var(--primary-accent)' } : {}}>
+            {hasPostpaid && grossTotal === 0
               ? 'Pay on Checkout'
               : hasPostpaid
-                ? `PKR ${totalAmount} (+ Session on Exit)`
-                : `PKR ${totalAmount}`}
+                ? `PKR ${netDueNow} (+ Session on Exit)`
+                : `PKR ${netDueNow}`}
           </span>
         </div>
 
+        {memberItem && netDueNow > 0 && (
+          <div style={{ fontSize: '0.7rem', color: '#a3e635', marginTop: '0.25rem' }}>
+            🎁 Member will earn +{pointsToEarn} XP on this purchase (net cash)
+          </div>
+        )}
+
         <div className={styles.field} style={{ marginTop: '1.25rem', marginBottom: '1.25rem' }}>
           <label className={styles.label}>
-            {hasPostpaid && totalAmount === 0 ? 'Settlement Type' : 'Payment Method'}
+            {hasPostpaid && grossTotal === 0 ? 'Settlement Type' : 'Payment Method'}
           </label>
-          {hasPostpaid && totalAmount === 0 ? (
+          {hasPostpaid && grossTotal === 0 ? (
             <div style={{
               background: 'rgba(193, 255, 28, 0.06)',
               border: '1px solid rgba(193, 255, 28, 0.25)',
@@ -164,7 +362,7 @@ export default function CurrentOrderCart({
           disabled={cart.length === 0}
           style={hasPostpaid ? { background: 'var(--primary-accent)', color: '#000', fontWeight: 900 } : {}}
         >
-          {hasPostpaid && totalAmount === 0 ? '▶ Generate Slip & Start Session' : 'Proceed to Checkout'}
+          {hasPostpaid && grossTotal === 0 ? '▶ Generate Slip & Start Session' : 'Proceed to Checkout'}
         </button>
       </div>
     </div>

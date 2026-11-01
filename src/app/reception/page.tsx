@@ -85,6 +85,7 @@ export default function ReceptionPortal() {
   // POS Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'account'>('cash');
+  const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
   const [prefilledWaitlistName, setPrefilledWaitlistName] = useState<string>('');
 
   // Active Modals State
@@ -336,6 +337,7 @@ export default function ReceptionPortal() {
 
   const handleClearCart = () => {
     setCart([]);
+    setPointsToRedeem(0);
   };
 
   const handleConfirmPosPayment = async () => {
@@ -381,7 +383,8 @@ export default function ReceptionPortal() {
         walkInName,
         walkInPhone,
         existingUserId,
-        waitlistItems
+        waitlistItems,
+        pointsToRedeem
       );
 
       if (res && 'error' in res && res.error) {
@@ -391,14 +394,17 @@ export default function ReceptionPortal() {
       soundManager.playSuccessTone();
       const hasPostpaid = sessionItems.some(s => s.billingType === 'POSTPAID');
       const waitlistNotice = waitlistItems.length > 0 ? ` (${waitlistItems.length} queued on waitlist)` : '';
+      const finalPaid = res && 'totalAmount' in res ? res.totalAmount : totalAmount;
+      const pointsMsg = res && 'pointsRedeemed' in res && res.pointsRedeemed > 0 ? ` (used ${res.pointsRedeemed} XP)` : '';
       const successMsg = hasPostpaid && totalAmount === 0
         ? `Open session started! Slip generated. (Payment due on exit)`
         : hasPostpaid
-          ? `Payment of PKR ${totalAmount} completed & Open session started!${waitlistNotice}`
-          : `Payment of PKR ${totalAmount} completed via ${paymentMethod.toUpperCase()}!${waitlistNotice}`;
+          ? `Payment of PKR ${finalPaid}${pointsMsg} completed & Open session started!${waitlistNotice}`
+          : `Payment of PKR ${finalPaid}${pointsMsg} completed via ${paymentMethod.toUpperCase()}!${waitlistNotice}`;
 
       toast.success(successMsg, { id: 'checkout' });
       setCart([]);
+      setPointsToRedeem(0);
       setIsSlipModalOpen(false);
       setIsSubmittingOrder(false);
 
@@ -635,7 +641,8 @@ export default function ReceptionPortal() {
     sessionId: string,
     paymentMethod: string,
     customGamingAmount: number,
-    snackItems: { name: string; price: number; quantity: number; type: string }[]
+    snackItems: { name: string; price: number; quantity: number; type: string }[],
+    pointsToRedeem: number = 0
   ) => {
     try {
       toast.loading('Settling bill & completing session...', { id: 'settle-postpaid' });
@@ -643,7 +650,8 @@ export default function ReceptionPortal() {
         sessionId,
         paymentMethod,
         customGamingAmount,
-        snackItems
+        snackItems,
+        pointsToRedeem
       );
 
       if (res && 'error' in res && res.error) {
@@ -651,7 +659,10 @@ export default function ReceptionPortal() {
       }
 
       soundManager.playSuccessTone();
-      toast.success(`Session settled! Collected PKR ${res.totalAmount} via ${paymentMethod.toUpperCase()}. Station is now free.`, { id: 'settle-postpaid' });
+      const finalTotal = res && 'totalAmount' in res ? res.totalAmount : 0;
+      const pointsRedeemedNum = res && 'pointsRedeemed' in res && typeof res.pointsRedeemed === 'number' ? res.pointsRedeemed : 0;
+      const pointsMsg = pointsRedeemedNum > 0 ? ` (used ${pointsRedeemedNum} XP)` : '';
+      toast.success(`Session settled! Collected PKR ${finalTotal}${pointsMsg} via ${paymentMethod.toUpperCase()}. Station is now free.`, { id: 'settle-postpaid' });
       await fetchLiveDashboardData();
       return res;
     } catch (err: unknown) {
@@ -870,6 +881,8 @@ export default function ReceptionPortal() {
                   onRemoveItem={handleRemoveCartItem}
                   onClearCart={handleClearCart}
                   onCheckout={() => setIsSlipModalOpen(true)}
+                  pointsToRedeem={pointsToRedeem}
+                  onPointsToRedeemChange={setPointsToRedeem}
                 />
               </div>
             </div>
@@ -921,6 +934,7 @@ export default function ReceptionPortal() {
         isSubmitting={isSubmittingOrder}
         onConfirmPayment={handleConfirmPosPayment}
         staffName={session?.user?.name || 'Reception Staff'}
+        pointsToRedeem={pointsToRedeem}
       />
 
       <CheckInModal

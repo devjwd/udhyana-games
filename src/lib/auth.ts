@@ -73,6 +73,7 @@ export const authOptions: NextAuthOptions = {
             sessionsCount: true,
             playtimeHours: true,
             loyaltyPoints: true,
+            lifetimeEarnedXP: true,
             fullName: true,
             image: true,
             role: true,
@@ -86,6 +87,7 @@ export const authOptions: NextAuthOptions = {
           session.user.sessionsCount = dbUser.sessionsCount;
           session.user.playtimeHours = dbUser.playtimeHours;
           session.user.loyaltyPoints = dbUser.loyaltyPoints;
+          session.user.lifetimeEarnedXP = dbUser.lifetimeEarnedXP;
           session.user.role = dbUser.role;
         }
       }

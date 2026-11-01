@@ -3,16 +3,20 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState, useEffect, use } from 'react';
+import { useSession } from 'next-auth/react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import CyberButton from '@/components/ui/CyberButton';
 import { useCart } from '@/context/CartContext';
-import { getProductById, getProducts } from '@/backend/actions';
+import { getProductById, getProducts, redeemStoreProductWithPoints, getUserLoyaltyHistory } from '@/backend/actions';
 import { getShopProductById, ProductItem } from '@/data/shopCatalog';
+import AuthModal from '@/components/features/AuthModal';
+import DigitalMemberPassModal from '@/components/profile/DigitalMemberPassModal';
 import styles from './page.module.css';
 
 export default function ProductDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { data: session } = useSession();
   const { addItem } = useCart();
   const [product, setProduct] = useState<ProductItem | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<ProductItem[]>([]);
@@ -20,13 +24,28 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
 
+  // Loyalty states
+  const [userPoints, setUserPoints] = useState<number>(() => session?.user?.loyaltyPoints || 0);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isPassModalOpen, setIsPassModalOpen] = useState(false);
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [redeemSuccess, setRedeemSuccess] = useState<{
+    orderId: string;
+    pointsDeducted: number;
+    newBalance: number;
+  } | null>(null);
+
   useEffect(() => {
+    let isMounted = true;
     async function loadProduct() {
       try {
         const [dbData, allProducts] = await Promise.all([
           getProductById(id).catch(() => null),
           getProducts().catch(() => [])
         ]);
+
+        if (!isMounted) return;
 
         if (dbData) {
           const resolvedProduct = getShopProductById(id, dbData as unknown as ProductItem);
@@ -42,13 +61,40 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
           setProduct(null);
         }
       } catch {
-        setProduct(null);
+        if (isMounted) setProduct(null);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }
     loadProduct();
+
+    return () => {
+      isMounted = false;
+    };
   }, [id]);
+
+  const userId = session?.user?.id;
+  const sessionPoints = session?.user?.loyaltyPoints || 0;
+
+  useEffect(() => {
+    let isMounted = true;
+    if (userId) {
+      getUserLoyaltyHistory(userId)
+        .then((res) => {
+          if (isMounted && res?.user) {
+            setUserPoints(res.user.loyaltyPoints || 0);
+          }
+        })
+        .catch(() => {
+          if (isMounted) {
+            setUserPoints(sessionPoints);
+          }
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [userId, sessionPoints]);
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -64,6 +110,29 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
 
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2000);
+  };
+
+  const handleRedeemReward = async () => {
+    if (!product || !session?.user?.id) return;
+    setIsRedeeming(true);
+    setRedeemError(null);
+
+    try {
+      const res = await redeemStoreProductWithPoints(session.user.id, product.id);
+      if (res.success) {
+        setUserPoints(res.newBalance);
+        setRedeemSuccess({
+          orderId: res.orderId,
+          pointsDeducted: res.pointsDeducted,
+          newBalance: res.newBalance,
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to redeem reward item.';
+      setRedeemError(msg);
+    } finally {
+      setIsRedeeming(false);
+    }
   };
 
   if (loading) {
@@ -104,6 +173,11 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
 
   const calculatedPoints = (product.points || Math.max(10, Math.floor(product.price / 10))) * quantity;
   const totalPrice = product.price * quantity;
+  const rewardPointsCost = product.pointsCost && product.pointsCost > 0
+    ? product.pointsCost
+    : Math.round(product.price);
+  const hasEnoughPoints = userPoints >= rewardPointsCost;
+  const progressPercent = Math.min(100, Math.round((userPoints / rewardPointsCost) * 100));
 
   return (
     <>
@@ -126,7 +200,13 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
             {/* Left: Media Showcase */}
             <div className={styles.mediaContainer}>
               <div className={styles.ambientGlow} />
-              {product.tag && <span className={styles.tagBadge}>{product.tag}</span>}
+              {product.pointsEligible ? (
+                <span className={styles.tagBadge} style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>
+                  ⚡ Reward Store
+                </span>
+              ) : product.tag ? (
+                <span className={styles.tagBadge}>{product.tag}</span>
+              ) : null}
               <div className={styles.imageCanvas}>
                 <Image
                   src={product.imageUrl || '/images/products/headphones.png'}
@@ -161,7 +241,7 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
                 </div>
               )}
 
-              {/* Price & Reward */}
+              {/* Price & Reward Accrual */}
               <div className={styles.priceContainer}>
                 <div className={styles.priceWrap}>
                   <span className={styles.currency}>PKR</span>
@@ -176,6 +256,106 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
                   ⭐ +{calculatedPoints} Loyalty XP Points
                 </div>
               </div>
+
+              {/* ─── POINTS REWARD STORE REDEMPTION BLOCK ─── */}
+              {product.pointsEligible && (
+                <div className={styles.rewardRedeemBox}>
+                  <div className={styles.rewardHeader}>
+                    <span className={styles.rewardKicker}>
+                      ⚡ Official Reward Store Item
+                    </span>
+                    <span className={styles.rewardCostPill}>
+                      {rewardPointsCost} XP (100% Free)
+                    </span>
+                  </div>
+
+                  {redeemSuccess ? (
+                    <div className={styles.rewardSuccessBanner}>
+                      <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>
+                        🎉 Reward Claimed Successfully!
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: '#fff' }}>
+                        Order <strong>#{redeemSuccess.orderId.slice(-8).toUpperCase()}</strong> has been generated for reception desk collection.
+                        XP Deducted: <strong>-{redeemSuccess.pointsDeducted} XP</strong> · Remaining: <strong>{redeemSuccess.newBalance} XP</strong>
+                      </div>
+                      <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.8)', margin: '0.25rem 0 0.5rem 0' }}>
+                        Present your Digital Member Pass QR code at the Udhyana lounge reception desk to verify and collect your gear.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setIsPassModalOpen(true)}
+                        style={{
+                          background: 'var(--accent)',
+                          color: '#000',
+                          border: 'none',
+                          padding: '0.5rem 1rem',
+                          borderRadius: '4px',
+                          fontWeight: 800,
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          alignSelf: 'flex-start'
+                        }}
+                      >
+                        View Member Pass QR ⚡
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      {session?.user ? (
+                        <>
+                          <div className={styles.rewardUserStatus}>
+                            <span>Your XP Balance: <strong style={{ color: 'var(--accent)' }}>{userPoints} XP</strong></span>
+                            <span>{hasEnoughPoints ? '✓ Ready to Claim' : `Need ${rewardPointsCost - userPoints} more XP`}</span>
+                          </div>
+
+                          {!hasEnoughPoints && (
+                            <div className={styles.rewardProgressBar} title={`${progressPercent}% towards reward`}>
+                              <div
+                                className={styles.rewardProgressFill}
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
+                          )}
+
+                          {redeemError && (
+                            <div style={{ background: 'rgba(255, 77, 77, 0.15)', border: '1px solid #ff4d4d', color: '#ff6b6b', padding: '0.6rem 0.8rem', borderRadius: '4px', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                              {redeemError}
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={!hasEnoughPoints || isRedeeming}
+                            onClick={handleRedeemReward}
+                            className={styles.rewardActionBtn}
+                          >
+                            {isRedeeming ? (
+                              'Claiming Reward...'
+                            ) : hasEnoughPoints ? (
+                              <>⚡ Claim Free with {rewardPointsCost} XP</>
+                            ) : (
+                              <>Need {rewardPointsCost - userPoints} More XP to Claim</>
+                            )}
+                          </button>
+                        </>
+                      ) : (
+                        <div>
+                          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                            Udhyana VIP Members can claim this gear 100% free with <strong>{rewardPointsCost} XP</strong>.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setIsAuthModalOpen(true)}
+                            className={styles.rewardActionBtn}
+                          >
+                            ⚡ Log in to Claim Free with {rewardPointsCost} XP
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
               <p className={styles.description}>
                 {product.description ||
@@ -294,6 +474,19 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
           )}
         </div>
       </main>
+
+      {/* ─── DIGITAL MEMBER PASS MODAL ─── */}
+      <DigitalMemberPassModal
+        isOpen={isPassModalOpen}
+        onClose={() => setIsPassModalOpen(false)}
+      />
+
+      {/* ─── AUTH MODAL ─── */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
+
       <Footer />
     </>
   );

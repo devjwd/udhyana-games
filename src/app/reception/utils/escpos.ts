@@ -8,6 +8,10 @@ export interface ESCPOSReceiptData {
   dateStr?: string;
   timeStr?: string;
   items: { name: string; price: number; sub?: string; priceStr?: string }[];
+  subtotalAmount?: number;
+  discountAmount?: number;
+  pointsRedeemed?: number;
+  pointsEarned?: number;
   totalAmount: number;
   paymentMethod: string;
   footerNote?: string;
@@ -27,6 +31,10 @@ export interface PostpaidSettlementReceiptData {
   timeCharge: number;
   controllerCharge?: number;
   snacks?: { name: string; price: number; quantity: number }[];
+  subtotalAmount?: number;
+  discountAmount?: number;
+  pointsRedeemed?: number;
+  pointsEarned?: number;
   totalAmount: number;
   paymentMethod: string;
   cashTendered?: number;
@@ -157,15 +165,25 @@ export function generateThermalReceiptBytes(data: ESCPOSReceiptData): Uint8Array
   }
 
   // Total
+  builder.divider();
+  if (data.subtotalAmount && data.discountAmount && data.discountAmount > 0) {
+    builder.row('Subtotal:', `PKR ${data.subtotalAmount}`);
+    builder.row(`Loyalty Points (${data.pointsRedeemed} XP):`, `-PKR ${data.discountAmount}`);
+  }
+
   builder
-    .divider()
     .bold(true)
     .size('double-height')
     .row('TOTAL PAYABLE:', `PKR ${data.totalAmount}`)
     .size('normal')
     .bold(false)
-    .row('Payment Method:', data.paymentMethod.toUpperCase())
-    .divider();
+    .row('Payment Method:', data.paymentMethod.toUpperCase());
+
+  if (data.pointsEarned && data.pointsEarned > 0) {
+    builder.row('Points Earned:', `+${data.pointsEarned} XP`);
+  }
+
+  builder.divider();
 
   // Footer
   builder
@@ -227,14 +245,25 @@ export function generatePostpaidSettlementReceiptBytes(data: PostpaidSettlementR
   }
 
   // Total & Payment
+  builder.divider();
+  if (data.discountAmount && data.discountAmount > 0) {
+    if (data.subtotalAmount) {
+      builder.row('Gross Total:', `PKR ${data.subtotalAmount}`);
+    }
+    builder.row(`Points Used (${data.pointsRedeemed} XP):`, `-PKR ${data.discountAmount}`);
+  }
+
   builder
-    .divider()
     .bold(true)
     .size('double-height')
     .row('TOTAL PAID:', `PKR ${data.totalAmount}`)
     .size('normal')
     .bold(false)
     .row('Payment Method:', data.paymentMethod.toUpperCase());
+
+  if (data.pointsEarned && data.pointsEarned > 0) {
+    builder.row('Points Earned Today:', `+${data.pointsEarned} XP`);
+  }
 
   if (data.cashTendered !== undefined && data.cashTendered > 0) {
     builder.row('Cash Tendered:', `PKR ${data.cashTendered}`);

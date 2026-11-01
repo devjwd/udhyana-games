@@ -534,3 +534,119 @@
     justify-content: space-between;
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   POINTS REWARD REDEMPTION BOX
+   ═══════════════════════════════════════════════════════ */
+
+.rewardRedeemBox {
+  background: linear-gradient(135deg, rgba(214, 255, 1, 0.08) 0%, rgba(20, 24, 32, 0.95) 100%);
+  border: 1px solid rgba(214, 255, 1, 0.35);
+  border-radius: 6px;
+  padding: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+.rewardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.rewardKicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.rewardCostPill {
+  background: var(--accent);
+  color: #000000;
+  font-size: 0.75rem;
+  font-weight: 900;
+  padding: 0.25rem 0.65rem;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+
+.rewardUserStatus {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+}
+
+.rewardProgressBar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-bottom: 0.85rem;
+}
+
+.rewardProgressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #d6ff01, #ffc800);
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.rewardActionBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: var(--accent);
+  color: #000000;
+  border: 1px solid var(--accent);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.85rem 1.25rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rewardActionBtn:hover:not(:disabled) {
+  background: #ffffff;
+  border-color: #ffffff;
+  box-shadow: 0 0 16px rgba(214, 255, 1, 0.4);
+}
+
+.rewardActionBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+.rewardSuccessBanner {
+  background: rgba(88, 187, 67, 0.12);
+  border: 1px solid #58bb43;
+  color: #a3e635;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}

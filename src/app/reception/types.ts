@@ -27,6 +27,8 @@ export interface Session {
     username?: string | null;
     phone?: string | null;
     email?: string | null;
+    loyaltyPoints?: number;
+    rank?: string;
   } | null;
 }
 
@@ -71,6 +73,9 @@ export interface CartItem {
   userId?: string;
   extraControllers?: number;
   billingType?: 'PREPAID' | 'POSTPAID';
+  userLoyaltyPoints?: number;
+  userRank?: string;
+  userName?: string;
 }
 
 export interface ShiftSummary {
@@ -79,15 +84,6 @@ export interface ShiftSummary {
   cashTotal: number;
   cardTotal: number;
   accountTotal?: number;
-}
-
-export interface PendingUser {
-  id: string;
-  fullName?: string | null;
-  username: string;
-  phone?: string | null;
-  email?: string | null;
-  createdAt?: string | Date;
 }
 
 export interface UpcomingBooking {
@@ -108,6 +104,8 @@ export interface UpcomingBooking {
     username?: string | null;
     phone?: string | null;
     email?: string | null;
+    loyaltyPoints?: number;
+    rank?: string;
   } | null;
 }
 

@@ -586,3 +586,157 @@
     flex-shrink: 0;
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   LOYALTY XP REWARD STORE EXTENSIONS
+   ═══════════════════════════════════════════════════════ */
+
+.userPointsBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(90deg, rgba(214, 255, 1, 0.08) 0%, rgba(20, 24, 32, 0.85) 100%);
+  border: 1px solid rgba(214, 255, 1, 0.3);
+  border-radius: 6px;
+  padding: 0.85rem 1.25rem;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.userPointsInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.userPointsIcon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.userPointsText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.userPointsText strong {
+  color: var(--accent);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+.userPointsText p {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.viewPassBtn {
+  background: rgba(214, 255, 1, 0.12);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.viewPassBtn:hover {
+  background: var(--accent);
+  color: #000000;
+  box-shadow: 0 0 12px rgba(214, 255, 1, 0.35);
+}
+
+.xpRewardBadge {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  background: linear-gradient(135deg, #d6ff01 0%, #ffc800 100%);
+  color: #000000;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.65rem;
+  border-radius: 3px;
+  z-index: 3;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.rewardRedeemBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: linear-gradient(135deg, rgba(214, 255, 1, 0.15), rgba(255, 200, 0, 0.1));
+  border: 1px solid rgba(214, 255, 1, 0.4);
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.65rem 0.9rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.rewardRedeemBtn:hover:not(:disabled) {
+  background: var(--accent);
+  color: #000000;
+  border-color: var(--accent);
+  box-shadow: 0 0 16px rgba(214, 255, 1, 0.35);
+}
+
+.rewardRedeemBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.rewardModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.rewardModalBox {
+  background: #0d1117;
+  border: 1px solid rgba(214, 255, 1, 0.35);
+  border-radius: 8px;
+  max-width: 480px;
+  width: 100%;
+  padding: 1.75rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(214, 255, 1, 0.15);
+  animation: rewardModalPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes rewardModalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

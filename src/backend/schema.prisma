@@ -18,8 +18,10 @@ model Product {
   price       Float
   category    String
   imageUrl    String
-  description String?
-  createdAt   DateTime @default(now())
+  description    String?
+  pointsEligible Boolean  @default(false)
+  pointsCost     Int?
+  createdAt      DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
 
   @@index([category])
@@ -106,16 +108,19 @@ model User {
   phone         String?
   status        String    @default("PENDING") // PENDING, APPROVED, REJECTED
   rank          String    @default("Beginner")
-  sessionsCount Int       @default(0)
-  playtimeHours Int       @default(0)
-  loyaltyPoints Int       @default(0)
+  sessionsCount       Int                  @default(0)
+  playtimeHours       Int                  @default(0)
+  loyaltyPoints       Int                  @default(0)
+  lifetimeEarnedXP    Int                  @default(0)
+  lastActivityAt      DateTime             @default(now())
   
   // Relations
-  accounts      Account[]
-  sessions      Session[]
-  bookings      Booking[]
-  gameSessions  GameSession[]
-  orders        Order[]
+  accounts            Account[]
+  sessions            Session[]
+  bookings            Booking[]
+  gameSessions        GameSession[]
+  orders              Order[]
+  loyaltyTransactions LoyaltyTransaction[]
 }
 
 model GameSession {
@@ -160,19 +165,41 @@ model Booking {
 }
 
 model Order {
-  id            String      @id @default(cuid())
-  userId        String?
-  totalAmount   Float
-  paymentMethod String      @default("cash")
-  status        String      @default("COMPLETED")
-  createdAt     DateTime    @default(now())
+  id             String      @id @default(cuid())
+  userId         String?
+  totalAmount    Float       // Net collected cash/card
+  subtotalAmount Float?      // Amount before discount
+  discountAmount Float       @default(0)
+  pointsRedeemed Int         @default(0)
+  pointsEarned   Int         @default(0)
+  paymentMethod  String      @default("cash")
+  status         String      @default("COMPLETED")
+  createdAt      DateTime    @default(now())
   
-  user          User?       @relation(fields: [userId], references: [id])
-  items         OrderItem[]
+  user           User?       @relation(fields: [userId], references: [id])
+  items          OrderItem[]
 
   @@index([userId])
   @@index([createdAt])
   @@index([status])
+}
+
+model LoyaltyTransaction {
+  id           String   @id @default(cuid())
+  userId       String
+  amount       Int      // Positive for earned/added, negative for redeemed/deducted
+  type         String   // 'WELCOME_BONUS', 'EARNED_SPEND', 'EARNED_PLAYTIME', 'REDEEMED_GAMETIME', 'REDEEMED_STORE', 'ADMIN_ADD', 'ADMIN_DEDUCT', 'REFUND_REVOKE'
+  description  String
+  balanceAfter Int
+  orderId      String?
+  adminId      String?
+  reason       String?
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model OrderItem {

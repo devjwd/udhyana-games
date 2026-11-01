@@ -12,6 +12,8 @@ export interface ProductItem {
   rating?: number;
   reviewsCount?: number;
   points?: number;
+  pointsEligible?: boolean;
+  pointsCost?: number | null;
 }
 
 /**
@@ -25,6 +27,8 @@ export function getMergedShopProducts(dbProducts: Array<{
   category: string;
   imageUrl?: string | null;
   description?: string | null;
+  pointsEligible?: boolean | null;
+  pointsCost?: number | null;
 }>): ProductItem[] {
   if (!dbProducts || dbProducts.length === 0) {
     return [];
@@ -49,8 +53,8 @@ export function getMergedShopProducts(dbProducts: Array<{
       category: cat,
       imageUrl: p.imageUrl || '/images/products/headphones.png',
       description: p.description || 'Official merchandise engineered for tournament-level gaming.',
-      tag: 'NEW ARRIVAL',
-      badge: 'In Stock',
+      tag: p.pointsEligible ? 'REWARD STORE' : 'NEW ARRIVAL',
+      badge: p.pointsEligible ? 'XP Redeemable' : 'In Stock',
       specs: {
         'Category': cat,
         'Condition': 'Brand New Factory Sealed',
@@ -61,6 +65,8 @@ export function getMergedShopProducts(dbProducts: Array<{
       rating: 5.0,
       reviewsCount: 1,
       points: Math.max(10, Math.floor(p.price / 10)),
+      pointsEligible: Boolean(p.pointsEligible),
+      pointsCost: p.pointsCost ? Number(p.pointsCost) : null,
     };
   });
 }
@@ -79,6 +85,8 @@ export function getShopProductById(id: string, dbProduct?: ProductItem | null): 
     rating: dbProduct.rating || 5.0,
     reviewsCount: dbProduct.reviewsCount || 1,
     points: dbProduct.points || Math.max(10, Math.floor(dbProduct.price / 10)),
+    pointsEligible: Boolean(dbProduct.pointsEligible),
+    pointsCost: dbProduct.pointsCost ? Number(dbProduct.pointsCost) : null,
     inStock: dbProduct.inStock ?? true,
   };
 }

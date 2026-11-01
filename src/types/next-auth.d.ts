@@ -12,6 +12,7 @@ declare module 'next-auth' {
     sessionsCount?: number;
     playtimeHours?: number;
     loyaltyPoints?: number;
+    lifetimeEarnedXP?: number;
   }
 
   interface Session {
@@ -24,6 +25,7 @@ declare module 'next-auth' {
       sessionsCount?: number;
       playtimeHours?: number;
       loyaltyPoints?: number;
+      lifetimeEarnedXP?: number;
     } & DefaultSession['user'];
   }
 }

@@ -6,11 +6,9 @@ interface StationHeaderProps {
   stationName: string;
   isMuted: boolean;
   isFullscreen: boolean;
-  isPreviewMode: boolean;
   onOpenSwitcher: () => void;
   onToggleMute: () => void;
   onToggleFullscreen: () => void;
-  onTogglePreview: () => void;
 }
 
 /**
@@ -20,23 +18,14 @@ export default function StationHeader({
   stationName,
   isMuted,
   isFullscreen,
-  isPreviewMode,
   onOpenSwitcher,
   onToggleMute,
-  onToggleFullscreen,
-  onTogglePreview
+  onToggleFullscreen
 }: StationHeaderProps) {
   return (
     <>
       {/* DISCREET CORNER UTILITY CONTROLS */}
       <div className={styles.cornerControls}>
-        <button
-          className={styles.iconBtn}
-          onClick={onTogglePreview}
-          title="Toggle preview demo simulator toolbar"
-        >
-          {isPreviewMode ? '✨ Demo ON' : '✨ Demo'}
-        </button>
         <button className={styles.iconBtn} onClick={onToggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
           {isMuted ? '🔇' : '🔊'}
         </button>

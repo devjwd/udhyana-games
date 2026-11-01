@@ -12,7 +12,7 @@ import {
   getAllMasterGames, createMasterGame, updateMasterGame, deleteMasterGame,
   getBaseHourlyRate, setBaseHourlyRate,
   getExtraControllerRate, setExtraControllerRate,
-  getLoyaltyRates, setLoyaltyRates, adjustUserLoyaltyPoints,
+  getLoyaltyRates, setLoyaltyRates, adjustUserLoyaltyPoints, adminAdjustUserPoints,
   getProducts, addProduct, updateProduct, deleteProduct,
   getAnalyticsData,
   searchUsers, promoteUserToStaff, getAllUsersWithRoles, updateUserRole,
@@ -57,6 +57,8 @@ type ProductItem = {
   category: string;
   imageUrl: string;
   description?: string | null;
+  pointsEligible?: boolean;
+  pointsCost?: number | null;
 };
 
 export default function BackendAdmin() {
@@ -78,11 +80,21 @@ export default function BackendAdmin() {
   const [newProductCategory, setNewProductCategory] = useState('peripherals');
   const [newProductImageUrl, setNewProductImageUrl] = useState('');
   const [newProductDesc, setNewProductDesc] = useState('');
+  const [newProductPointsEligible, setNewProductPointsEligible] = useState(false);
+  const [newProductPointsCost, setNewProductPointsCost] = useState('');
   const [isUploadingProduct, setIsUploadingProduct] = useState(false);
 
   // Product Edit Modal State
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
-  const [editProductForm, setEditProductForm] = useState({ name: '', price: '', category: 'peripherals', imageUrl: '', description: '' });
+  const [editProductForm, setEditProductForm] = useState({
+    name: '',
+    price: '',
+    category: 'peripherals',
+    imageUrl: '',
+    description: '',
+    pointsEligible: false,
+    pointsCost: ''
+  });
   const [isUploadingEditProduct, setIsUploadingEditProduct] = useState(false);
 
   // Snacks State & Edit Modal
@@ -148,14 +160,20 @@ export default function BackendAdmin() {
   const [isDossierLoading, setIsDossierLoading] = useState(false);
   const [customerSearchText, setCustomerSearchText] = useState('');
   const [customerRankFilter, setCustomerRankFilter] = useState('ALL');
-  const [dossierActiveTab, setDossierActiveTab] = useState<'OVERVIEW' | 'SESSIONS' | 'ORDERS' | 'BOOKINGS' | 'EDIT'>('OVERVIEW');
+  const [dossierActiveTab, setDossierActiveTab] = useState<'OVERVIEW' | 'LOYALTY_LEDGER' | 'SESSIONS' | 'ORDERS' | 'BOOKINGS' | 'EDIT'>('OVERVIEW');
   const [editCustomerForm, setEditCustomerForm] = useState({ fullName: '', username: '', phone: '', email: '', rank: 'Beginner' });
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
   const [addCustomerForm, setAddCustomerForm] = useState({ username: '', fullName: '', phone: '', email: '', password: '', rank: 'Beginner' });
   const [quickEditCustomer, setQuickEditCustomer] = useState<any | null>(null);
   const [quickEditForm, setQuickEditForm] = useState({ fullName: '', username: '', phone: '', email: '', rank: 'Beginner' });
-  const [userPointsModal, setUserPointsModal] = useState<any | null>(null);
-  const [pointsDeltaInput, setPointsDeltaInput] = useState('');
+  
+  // Dedicated Admin Points Adjustment Modal State
+  const [isAdjustPointsModalOpen, setIsAdjustPointsModalOpen] = useState(false);
+  const [adjustPointsTarget, setAdjustPointsTarget] = useState<any | null>(null);
+  const [adjustPointsType, setAdjustPointsType] = useState<'ADD' | 'DEDUCT'>('ADD');
+  const [adjustPointsAmount, setAdjustPointsAmount] = useState('50');
+  const [adjustPointsReason, setAdjustPointsReason] = useState('Tournament Winner Reward');
+  const [isSubmittingAdjustPoints, setIsSubmittingAdjustPoints] = useState(false);
 
   // Retroactive Past Session & Stats Override State
   const [isAddPastSessionModalOpen, setIsAddPastSessionModalOpen] = useState(false);
@@ -253,10 +271,13 @@ export default function BackendAdmin() {
         price: parseFloat(newProductPrice),
         category: newProductCategory,
         imageUrl: newProductImageUrl,
-        description: newProductDesc
+        description: newProductDesc,
+        pointsEligible: newProductPointsEligible,
+        pointsCost: newProductPointsEligible ? (parseInt(newProductPointsCost, 10) || null) : null
       });
       setProducts([newProduct as any, ...products]);
       setNewProductName(''); setNewProductPrice(''); setNewProductImageUrl(''); setNewProductDesc('');
+      setNewProductPointsEligible(false); setNewProductPointsCost('');
       alert('Product added successfully to inventory!');
     } catch (err: any) {
       alert(err.message || 'Failed to add product');
@@ -270,7 +291,9 @@ export default function BackendAdmin() {
       price: p.price.toString(),
       category: p.category || 'peripherals',
       imageUrl: p.imageUrl || '',
-      description: p.description || ''
+      description: p.description || '',
+      pointsEligible: Boolean(p.pointsEligible),
+      pointsCost: p.pointsCost ? p.pointsCost.toString() : ''
     });
   };
 
@@ -283,7 +306,9 @@ export default function BackendAdmin() {
         price: parseFloat(editProductForm.price),
         category: editProductForm.category,
         imageUrl: editProductForm.imageUrl,
-        description: editProductForm.description
+        description: editProductForm.description,
+        pointsEligible: editProductForm.pointsEligible,
+        pointsCost: editProductForm.pointsEligible ? (parseInt(editProductForm.pointsCost, 10) || null) : null
       });
       setProducts(prev => prev.map(p => p.id === editingProduct.id ? (updated as any) : p));
       setEditingProduct(null);
@@ -751,6 +776,71 @@ export default function BackendAdmin() {
     }
   };
 
+  const handleOpenAdjustPointsModal = (targetUser: any, defaultType: 'ADD' | 'DEDUCT' = 'ADD') => {
+    setAdjustPointsTarget(targetUser);
+    setAdjustPointsType(defaultType);
+    setAdjustPointsAmount('50');
+    setAdjustPointsReason(defaultType === 'ADD' ? 'Tournament Winner Reward' : 'Incorrect Point Deduction Fix');
+    setIsAdjustPointsModalOpen(true);
+  };
+
+  const handleSubmitAdjustPoints = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustPointsTarget?.id) return;
+    const amountVal = parseInt(adjustPointsAmount, 10);
+    if (isNaN(amountVal) || amountVal <= 0) {
+      alert('Points amount must be a positive number.');
+      return;
+    }
+    if (!adjustPointsReason.trim() || adjustPointsReason.trim().length < 3) {
+      alert('A detailed audit reason (at least 3 characters) is required for compliance.');
+      return;
+    }
+
+    const delta = adjustPointsType === 'ADD' ? amountVal : -amountVal;
+    setIsSubmittingAdjustPoints(true);
+    try {
+      const res = await adminAdjustUserPoints(adjustPointsTarget.id, delta, adjustPointsReason.trim());
+
+      setCustomers(prev => prev.map(c => c.id === adjustPointsTarget.id ? {
+        ...c,
+        loyaltyPoints: res.loyaltyPoints,
+        lifetimeEarnedXP: res.lifetimeEarnedXP,
+        rank: res.rank
+      } : c));
+
+      setAllUsers(prev => prev.map(u => u.id === adjustPointsTarget.id ? {
+        ...u,
+        loyaltyPoints: res.loyaltyPoints,
+        lifetimeEarnedXP: res.lifetimeEarnedXP,
+        rank: res.rank
+      } : u));
+
+      if (selectedCustomerDossier?.id === adjustPointsTarget.id) {
+        setSelectedCustomerDossier((prev: any) => {
+          if (!prev) return null;
+          const updatedTransactions = res.transaction
+            ? [res.transaction, ...(prev.loyaltyTransactions || [])]
+            : (prev.loyaltyTransactions || []);
+          return {
+            ...prev,
+            loyaltyPoints: res.loyaltyPoints,
+            lifetimeEarnedXP: res.lifetimeEarnedXP,
+            rank: res.rank,
+            loyaltyTransactions: updatedTransactions
+          };
+        });
+      }
+
+      setIsAdjustPointsModalOpen(false);
+      alert(`Points successfully updated for @${adjustPointsTarget.username || adjustPointsTarget.fullName}! New Balance: ${res.loyaltyPoints} XP (${res.rank})`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to update points.');
+    } finally {
+      setIsSubmittingAdjustPoints(false);
+    }
+  };
+
   const handleAdjustPointsDelta = async (userId: string, delta: number) => {
     try {
       const updated = await adjustUserLoyaltyPoints(userId, delta);
@@ -995,6 +1085,30 @@ export default function BackendAdmin() {
                     onChange={e => setEditProductForm({ ...editProductForm, description: e.target.value })}
                   />
                 </div>
+                <div className={`${styles.field} ${styles.fieldFull}`} style={{ background: 'rgba(214, 255, 1, 0.05)', padding: '0.75rem', borderRadius: '6px', border: '1px solid rgba(214, 255, 1, 0.2)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 800, color: '#d6ff01', fontSize: '0.85rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={editProductForm.pointsEligible}
+                      onChange={e => setEditProductForm({ ...editProductForm, pointsEligible: e.target.checked })}
+                    />
+                    ⚡ Reward Store Redeemable (Redeem with Loyalty Points)
+                  </label>
+                  {editProductForm.pointsEligible && (
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <label className={styles.label}>Points Cost (XP required to redeem)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        className={styles.input}
+                        value={editProductForm.pointsCost}
+                        onChange={e => setEditProductForm({ ...editProductForm, pointsCost: e.target.value })}
+                        placeholder="e.g. 500"
+                        required={editProductForm.pointsEligible}
+                      />
+                    </div>
+                  )}
+                </div>
                 <div className={`${styles.field} ${styles.fieldFull}`} style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
                   <button type="submit" className={styles.btn}>Save Product Changes</button>
                   <button type="button" onClick={() => setEditingProduct(null)} className={styles.actionBtn} style={{ background: '#22272c', color: '#fff' }}>Cancel</button>
@@ -1104,6 +1218,30 @@ export default function BackendAdmin() {
               <label className={styles.label}>Description</label>
               <textarea className={styles.input} rows={3} value={newProductDesc} onChange={e => setNewProductDesc(e.target.value)} placeholder="Product specifications, features..."></textarea>
             </div>
+            <div className={`${styles.field} ${styles.fieldFull}`} style={{ background: 'rgba(214, 255, 1, 0.05)', padding: '0.75rem', borderRadius: '6px', border: '1px solid rgba(214, 255, 1, 0.2)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 800, color: '#d6ff01', fontSize: '0.85rem' }}>
+                <input
+                  type="checkbox"
+                  checked={newProductPointsEligible}
+                  onChange={e => setNewProductPointsEligible(e.target.checked)}
+                />
+                ⚡ Reward Store Redeemable (Redeem with Loyalty Points)
+              </label>
+              {newProductPointsEligible && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <label className={styles.label}>Points Cost (XP required to redeem)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className={styles.input}
+                    value={newProductPointsCost}
+                    onChange={e => setNewProductPointsCost(e.target.value)}
+                    placeholder="e.g. 500"
+                    required={newProductPointsEligible}
+                  />
+                </div>
+              )}
+            </div>
             <div className={`${styles.field} ${styles.fieldFull}`} style={{ alignItems: 'flex-start' }}>
               <button type="submit" className={styles.btn}>+ Add Product to Store</button>
             </div>
@@ -1166,7 +1304,14 @@ export default function BackendAdmin() {
                     <td className={styles.td} style={{ textTransform: 'capitalize' }}>
                       <span style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>{p.category}</span>
                     </td>
-                    <td className={styles.td}><strong style={{ color: '#34d399' }}>PKR {p.price.toLocaleString()}</strong></td>
+                    <td className={styles.td}>
+                      <strong style={{ color: '#34d399' }}>PKR {p.price.toLocaleString()}</strong>
+                      {p.pointsEligible && p.pointsCost && (
+                        <div style={{ color: '#d6ff01', fontSize: '0.72rem', fontWeight: 800, marginTop: '2px' }}>
+                          ⚡ {p.pointsCost} XP (Reward Store)
+                        </div>
+                      )}
+                    </td>
                     <td className={styles.td} style={{ textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
                         <button type="button" className={`${styles.actionBtn} ${styles.actionBtnEdit}`} onClick={() => handleOpenEditProduct(p)}>
@@ -2983,6 +3128,168 @@ export default function BackendAdmin() {
           </div>
         )}
 
+        {/* Admin Points Adjustment Modal */}
+        {isAdjustPointsModalOpen && adjustPointsTarget && (
+          <div className={styles.modalOverlay} style={{ zIndex: 1100 }}>
+            <div className={styles.modalContent} style={{ maxWidth: '520px' }}>
+              <div className={styles.modalHeader}>
+                <div>
+                  <h2 className={styles.modalTitle}>⚡ Admin Loyalty XP Adjustment</h2>
+                  <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginTop: '4px' }}>
+                    Adjust spendable points with mandatory audit logging for @{adjustPointsTarget.username || adjustPointsTarget.fullName}.
+                  </p>
+                </div>
+                <button type="button" className={styles.modalClose} onClick={() => setIsAdjustPointsModalOpen(false)}>✕</button>
+              </div>
+
+              <form onSubmit={handleSubmitAdjustPoints} className={styles.formGrid}>
+                {/* Target gamer info summary */}
+                <div className={`${styles.field} ${styles.fieldFull}`} style={{ background: '#0e1217', padding: '0.75rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                    <span>Customer: <strong>@{adjustPointsTarget.username || adjustPointsTarget.fullName}</strong></span>
+                    <span>Current Balance: <strong style={{ color: '#d6ff01' }}>{adjustPointsTarget.loyaltyPoints || 0} XP</strong></span>
+                  </div>
+                </div>
+
+                {/* Adjustment Mode */}
+                <div className={`${styles.field} ${styles.fieldFull}`}>
+                  <label className={styles.label}>Adjustment Type</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setAdjustPointsType('ADD')}
+                      style={{
+                        flex: 1,
+                        padding: '0.6rem',
+                        background: adjustPointsType === 'ADD' ? '#10b981' : 'rgba(255,255,255,0.05)',
+                        color: adjustPointsType === 'ADD' ? '#000' : '#fff',
+                        fontWeight: 900,
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      + Add Points (Bonus / Reward)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdjustPointsType('DEDUCT')}
+                      style={{
+                        flex: 1,
+                        padding: '0.6rem',
+                        background: adjustPointsType === 'DEDUCT' ? '#ef4444' : 'rgba(255,255,255,0.05)',
+                        color: '#fff',
+                        fontWeight: 900,
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      - Deduct Points (Correction / Revoke)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Amount */}
+                <div className={`${styles.field} ${styles.fieldFull}`}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label className={styles.label}>XP Amount</label>
+                    <div style={{ display: 'flex', gap: '0.3rem' }}>
+                      {['50', '100', '250', '500'].map(amt => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setAdjustPointsAmount(amt)}
+                          style={{
+                            background: adjustPointsAmount === amt ? '#d6ff01' : 'rgba(255,255,255,0.08)',
+                            color: adjustPointsAmount === amt ? '#000' : '#fff',
+                            border: 'none',
+                            borderRadius: '3px',
+                            padding: '0.15rem 0.4rem',
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {amt} XP
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    className={styles.input}
+                    value={adjustPointsAmount}
+                    onChange={e => setAdjustPointsAmount(e.target.value)}
+                    placeholder="Enter points amount (e.g. 100)"
+                    required
+                  />
+                </div>
+
+                {/* Reason (Mandatory) */}
+                <div className={`${styles.field} ${styles.fieldFull}`}>
+                  <label className={styles.label}>Audit Reason (Mandatory - min 3 chars)</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.4rem' }}>
+                    {[
+                      'Tournament Winner Reward',
+                      'Customer Retention Bonus',
+                      'Station Outage Compensation',
+                      'Manual POS Correction'
+                    ].map(r => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setAdjustPointsReason(r)}
+                        style={{
+                          background: adjustPointsReason === r ? 'rgba(214,255,1,0.2)' : 'rgba(255,255,255,0.05)',
+                          color: adjustPointsReason === r ? '#d6ff01' : '#cbd5e1',
+                          border: adjustPointsReason === r ? '1px solid rgba(214,255,1,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: '3px',
+                          padding: '0.2rem 0.5rem',
+                          fontSize: '0.68rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    className={styles.input}
+                    value={adjustPointsReason}
+                    onChange={e => setAdjustPointsReason(e.target.value)}
+                    placeholder="Provide specific reason for compliance audit log..."
+                    required
+                    minLength={3}
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className={`${styles.field} ${styles.fieldFull}`} style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingAdjustPoints}
+                    className={styles.btn}
+                    style={{ flex: 1, background: adjustPointsType === 'ADD' ? '#10b981' : '#ef4444', color: adjustPointsType === 'ADD' ? '#000' : '#fff' }}
+                  >
+                    {isSubmittingAdjustPoints ? 'Logging Transaction...' : `Confirm ${adjustPointsType === 'ADD' ? 'Addition' : 'Deduction'} (${adjustPointsAmount} XP)`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAdjustPointsModalOpen(false)}
+                    className={styles.actionBtn}
+                    style={{ background: '#22272c', color: '#fff' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* Customer Dossier / Full Profile Modal */}
         {selectedCustomerDossier && (
           <div className={styles.modalOverlay}>
@@ -3044,8 +3351,8 @@ export default function BackendAdmin() {
               </div>
 
               {/* Dossier Navigation Sub-Tabs */}
-              <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '1.25rem' }}>
-                {(['OVERVIEW', 'SESSIONS', 'ORDERS', 'BOOKINGS', 'EDIT'] as const).map(tab => (
+              <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '1.25rem', overflowX: 'auto' }}>
+                {(['OVERVIEW', 'LOYALTY_LEDGER', 'SESSIONS', 'ORDERS', 'BOOKINGS', 'EDIT'] as const).map(tab => (
                   <button
                     key={tab}
                     type="button"
@@ -3059,10 +3366,12 @@ export default function BackendAdmin() {
                       fontWeight: 800,
                       fontSize: '0.75rem',
                       cursor: 'pointer',
-                      textTransform: 'uppercase'
+                      textTransform: 'uppercase',
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     {tab === 'OVERVIEW' && '👤 Profile'}
+                    {tab === 'LOYALTY_LEDGER' && `⚡ XP Ledger (${selectedCustomerDossier.loyaltyTransactions?.length || 0})`}
                     {tab === 'SESSIONS' && `🎮 Sessions (${selectedCustomerDossier.gameSessions?.length || 0})`}
                     {tab === 'ORDERS' && `🛍️ Orders (${selectedCustomerDossier.orders?.length || 0})`}
                     {tab === 'BOOKINGS' && `📅 Bookings (${selectedCustomerDossier.bookings?.length || 0})`}
@@ -3086,17 +3395,28 @@ export default function BackendAdmin() {
                     </div>
 
                     <div style={{ background: '#0e1217', padding: '1rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                      <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#00d2ff', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Loyalty & Level</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.82rem' }}>
-                        <div><strong style={{ color: 'rgba(255,255,255,0.5)' }}>Rank Tier:</strong> <span style={{ color: 'var(--primary-accent)', fontWeight: 800 }}>★ {selectedCustomerDossier.rank}</span></div>
-                        <div><strong style={{ color: 'rgba(255,255,255,0.5)' }}>Points:</strong> {selectedCustomerDossier.loyaltyPoints || 0} XP</div>
-                        <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.5rem' }}>
-                          {[50, 100, 250].map(p => (
-                            <button key={p} type="button" onClick={() => handleAdjustPointsDelta(selectedCustomerDossier.id, p)} className={`${styles.actionBtn} ${styles.actionBtnSuccess}`} style={{ fontSize: '0.7rem' }}>+{p} XP</button>
-                          ))}
-                          {[-50, -100].map(p => (
-                            <button key={p} type="button" onClick={() => handleAdjustPointsDelta(selectedCustomerDossier.id, p)} className={`${styles.actionBtn} ${styles.actionBtnDelete}`} style={{ fontSize: '0.7rem' }}>{p} XP</button>
-                          ))}
+                      <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#00d2ff', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Loyalty & VIP Level</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.82rem' }}>
+                        <div><strong style={{ color: 'rgba(255,255,255,0.5)' }}>VIP Tier:</strong> <span style={{ color: 'var(--primary-accent)', fontWeight: 800 }}>★ {selectedCustomerDossier.rank}</span></div>
+                        <div><strong style={{ color: 'rgba(255,255,255,0.5)' }}>Spendable XP:</strong> <span style={{ color: '#d6ff01', fontWeight: 900 }}>{selectedCustomerDossier.loyaltyPoints || 0} XP</span> (= PKR {selectedCustomerDossier.loyaltyPoints || 0})</div>
+                        <div><strong style={{ color: 'rgba(255,255,255,0.5)' }}>Lifetime XP:</strong> <span style={{ color: '#fff', fontWeight: 800 }}>{selectedCustomerDossier.lifetimeEarnedXP || selectedCustomerDossier.loyaltyPoints || 0} XP</span> <small style={{ color: 'rgba(255,255,255,0.4)' }}>(permanent rank)</small></div>
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAdjustPointsModal(selectedCustomerDossier, 'ADD')}
+                            className={`${styles.actionBtn} ${styles.actionBtnSuccess}`}
+                            style={{ fontSize: '0.72rem', padding: '0.35rem 0.65rem' }}
+                          >
+                            + Add Points
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAdjustPointsModal(selectedCustomerDossier, 'DEDUCT')}
+                            className={`${styles.actionBtn} ${styles.actionBtnDelete}`}
+                            style={{ fontSize: '0.72rem', padding: '0.35rem 0.65rem' }}
+                          >
+                            - Deduct Points
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -3119,6 +3439,94 @@ export default function BackendAdmin() {
                         ⚡ Direct Stats Override (Hours, XP, Visits)
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {dossierActiveTab === 'LOYALTY_LEDGER' && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+                        Audited Loyalty Ledger: <strong>{selectedCustomerDossier.loyaltyTransactions?.length || 0} Records</strong>
+                      </span>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAdjustPointsModal(selectedCustomerDossier, 'ADD')}
+                          className={styles.btn}
+                          style={{ background: '#10b981', color: '#000', fontSize: '0.72rem', padding: '0.35rem 0.75rem', fontWeight: 800 }}
+                        >
+                          + Add Points (Logged)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAdjustPointsModal(selectedCustomerDossier, 'DEDUCT')}
+                          className={styles.btn}
+                          style={{ background: '#ef4444', color: '#fff', fontSize: '0.72rem', padding: '0.35rem 0.75rem', fontWeight: 800 }}
+                        >
+                          - Deduct Points (Logged)
+                        </button>
+                      </div>
+                    </div>
+                    {(!selectedCustomerDossier.loyaltyTransactions || selectedCustomerDossier.loyaltyTransactions.length === 0) ? (
+                      <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.5)', background: '#0e1217', borderRadius: '6px' }}>
+                        No loyalty point transactions recorded for this customer yet.
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table className={styles.table}>
+                          <thead>
+                            <tr>
+                              <th className={styles.th}>Date & Time</th>
+                              <th className={styles.th}>Action Type</th>
+                              <th className={styles.th}>Amount</th>
+                              <th className={styles.th}>Balance After</th>
+                              <th className={styles.th}>Description / Reason</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedCustomerDossier.loyaltyTransactions.map((tx: any) => {
+                              const isAdd = tx.amount > 0;
+                              return (
+                                <tr key={tx.id} className={styles.tr}>
+                                  <td className={styles.td} style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)' }}>
+                                    {new Date(tx.createdAt).toLocaleString()}
+                                  </td>
+                                  <td className={styles.td}>
+                                    <span style={{
+                                      background: isAdd ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                      color: isAdd ? '#34d399' : '#f87171',
+                                      border: isAdd ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                                      borderRadius: '4px',
+                                      padding: '2px 6px',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 800
+                                    }}>
+                                      {tx.type}
+                                    </span>
+                                  </td>
+                                  <td className={styles.td}>
+                                    <strong style={{ color: isAdd ? '#34d399' : '#f87171', fontSize: '0.85rem' }}>
+                                      {isAdd ? `+${tx.amount}` : tx.amount} XP
+                                    </strong>
+                                  </td>
+                                  <td className={styles.td} style={{ fontSize: '0.8rem', color: 'var(--primary-accent)', fontWeight: 700 }}>
+                                    {tx.balanceAfter} XP
+                                  </td>
+                                  <td className={styles.td} style={{ fontSize: '0.78rem' }}>
+                                    <div>{tx.description}</div>
+                                    {tx.reason && tx.reason !== tx.description && (
+                                      <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic', marginTop: '2px' }}>
+                                        Reason: {tx.reason}
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 )}
 

@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache';
 import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -126,29 +127,164 @@ export async function setLoyaltyRates(pointsPerHour: number, spendPerPoint: numb
   revalidatePath('/admin');
 }
 
-export async function adjustUserLoyaltyPoints(userId: string, pointsDelta: number) {
-  await requireAdminAuth();
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) throw new Error('User not found');
+export type LoyaltyTransactionType =
+  | 'WELCOME_BONUS'
+  | 'EARNED_SPEND'
+  | 'EARNED_PLAYTIME'
+  | 'REDEEMED_GAMETIME'
+  | 'REDEEMED_STORE'
+  | 'ADMIN_ADD'
+  | 'ADMIN_DEDUCT'
+  | 'REFUND_REVOKE';
 
-  const newPoints = Math.max(0, (user.loyaltyPoints || 0) + pointsDelta);
+/**
+ * Atomic helper to record a loyalty transaction, adjust spendable points, update lifetime XP,
+ * and recalculate rank tier inside a Prisma transaction.
+ */
+export async function recordLoyaltyTransaction(
+  tx: Prisma.TransactionClient,
+  params: {
+    userId: string;
+    amount: number;
+    type: LoyaltyTransactionType;
+    description: string;
+    orderId?: string | null;
+    adminId?: string | null;
+    reason?: string | null;
+  }
+) {
+  const user = await tx.user.findUnique({
+    where: { id: params.userId },
+    select: { id: true, loyaltyPoints: true, lifetimeEarnedXP: true, rank: true }
+  });
 
-  let newRank = user.rank;
-  if (newPoints >= 1000) newRank = 'Elite';
-  else if (newPoints >= 500) newRank = 'Pro';
-  else if (newPoints >= 100) newRank = 'Regular';
+  if (!user) throw new Error('User not found for loyalty transaction');
+
+  const currentPoints = user.loyaltyPoints || 0;
+  const currentLifetime = user.lifetimeEarnedXP || currentPoints;
+  const newBalance = Math.max(0, currentPoints + params.amount);
+  const newLifetime = params.amount > 0 ? currentLifetime + params.amount : currentLifetime;
+
+  // Permanent Rank: calculated strictly from lifetime accumulated XP (never demoted when points are redeemed)
+  let newRank = user.rank || 'Beginner';
+  if (newLifetime >= 1000) newRank = 'Elite';
+  else if (newLifetime >= 500) newRank = 'Pro';
+  else if (newLifetime >= 100) newRank = 'Regular';
   else newRank = 'Rookie';
 
-  const updatedUser = await prisma.user.update({
-    where: { id: userId },
+  const updatedUser = await tx.user.update({
+    where: { id: params.userId },
     data: {
-      loyaltyPoints: newPoints,
-      rank: newRank
+      loyaltyPoints: newBalance,
+      lifetimeEarnedXP: newLifetime,
+      rank: newRank,
+      lastActivityAt: new Date(),
     }
   });
 
+  const transaction = await tx.loyaltyTransaction.create({
+    data: {
+      userId: params.userId,
+      amount: params.amount,
+      type: params.type,
+      description: params.description,
+      balanceAfter: newBalance,
+      orderId: params.orderId || null,
+      adminId: params.adminId || null,
+      reason: params.reason || null,
+    }
+  });
+
+  return { newBalance, newLifetime, newRank, transaction, user: updatedUser };
+}
+
+/**
+ * Audited admin action to grant bonus points or deduct points with mandatory reason.
+ */
+export async function adminAdjustUserPoints(
+  userId: string,
+  amount: number,
+  reason: string
+) {
+  const session = await requireAdminAuth();
+  if (!reason || reason.trim().length < 3) {
+    throw new Error('A detailed reason (at least 3 characters) is required for loyalty adjustments.');
+  }
+  if (!amount || amount === 0) {
+    throw new Error('Adjustment amount cannot be zero.');
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    return await recordLoyaltyTransaction(tx, {
+      userId,
+      amount,
+      type: amount > 0 ? 'ADMIN_ADD' : 'ADMIN_DEDUCT',
+      description: `Admin: ${reason.trim()}`,
+      adminId: session.user.id,
+      reason: reason.trim(),
+    });
+  });
+
   revalidatePath('/admin');
-  return updatedUser;
+  revalidatePath('/profile');
+  return {
+    success: true,
+    loyaltyPoints: result.newBalance,
+    lifetimeEarnedXP: result.newLifetime,
+    rank: result.newRank,
+    transaction: result.transaction
+  };
+}
+
+/**
+ * Backward-compatible wrapper for admin loyalty adjustments.
+ */
+export async function adjustUserLoyaltyPoints(userId: string, pointsDelta: number, reason: string = 'Admin Manual Adjustment') {
+  return await adminAdjustUserPoints(userId, pointsDelta, reason);
+}
+
+/**
+ * Fetch customer profile data and chronological loyalty transaction history.
+ */
+export async function getUserLoyaltyHistory(userId: string) {
+  await requireUserOrStaff(userId);
+
+  const [user, transactions] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        fullName: true,
+        rank: true,
+        loyaltyPoints: true,
+        lifetimeEarnedXP: true,
+        lastActivityAt: true,
+      }
+    }),
+    prisma.loyaltyTransaction.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        amount: true,
+        type: true,
+        description: true,
+        balanceAfter: true,
+        reason: true,
+        createdAt: true,
+      }
+    })
+  ]);
+
+  return {
+    user: user ? {
+      ...user,
+      lifetimeEarnedXP: user.lifetimeEarnedXP || user.loyaltyPoints || 0
+    } : null,
+    transactions
+  };
 }
 
 // ========================
@@ -187,7 +323,15 @@ export const getProducts = unstable_cache(
   { tags: ['products'] }
 );
 
-export async function addProduct(data: { name: string; price: number; category: string; imageUrl: string; description?: string }) {
+export async function addProduct(data: {
+  name: string;
+  price: number;
+  category: string;
+  imageUrl: string;
+  description?: string;
+  pointsEligible?: boolean;
+  pointsCost?: number | null;
+}) {
   await requireAdminAuth();
   const newProduct = await prisma.product.create({ data });
   revalidateTag('products', 'default');
@@ -204,7 +348,15 @@ export async function deleteProduct(id: string) {
   revalidatePath('/shop');
 }
 
-export async function updateProduct(id: string, data: { name?: string; price?: number; category?: string; imageUrl?: string; description?: string }) {
+export async function updateProduct(id: string, data: {
+  name?: string;
+  price?: number;
+  category?: string;
+  imageUrl?: string;
+  description?: string;
+  pointsEligible?: boolean;
+  pointsCost?: number | null;
+}) {
   await requireAdminAuth();
   const updated = await prisma.product.update({
     where: { id },
@@ -223,6 +375,102 @@ export const getProductById = unstable_cache(
   ['product-by-id'],
   { tags: ['products'] }
 );
+
+/**
+ * Customer / Staff action to redeem an eligible store product using Loyalty XP points.
+ * Points cost is strictly 1 XP = 1 PKR, or product.pointsCost if explicitly defined.
+ * Excludes food / snack inventory (wholesale isolation).
+ * Creates a zero-cash completed order and records a REDEEMED_STORE loyalty transaction.
+ */
+export async function redeemStoreProductWithPoints(userId: string, productId: string) {
+  await requireUserOrStaff(userId);
+
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+  });
+
+  if (!product) {
+    throw new Error('Product not found in the shop catalog.');
+  }
+
+  if (!product.pointsEligible) {
+    throw new Error('This item is not marked eligible for Points Store redemption.');
+  }
+
+  const pointsCost = product.pointsCost && product.pointsCost > 0
+    ? product.pointsCost
+    : Math.round(product.price);
+
+  if (pointsCost <= 0) {
+    throw new Error('Invalid points cost for this item.');
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { id: true, loyaltyPoints: true, name: true, username: true }
+    });
+
+    if (!user) throw new Error('User not found.');
+
+    const currentPoints = user.loyaltyPoints || 0;
+    if (currentPoints < pointsCost) {
+      throw new Error(`Insufficient XP: You currently have ${currentPoints} XP, but this reward requires ${pointsCost} XP.`);
+    }
+
+    // Create completed Order record for storefront reward collection
+    const order = await tx.order.create({
+      data: {
+        userId,
+        totalAmount: 0,
+        subtotalAmount: product.price,
+        discountAmount: product.price,
+        pointsRedeemed: pointsCost,
+        pointsEarned: 0, // No point recycling
+        paymentMethod: 'LOYALTY_XP',
+        status: 'COMPLETED',
+        items: {
+          create: [{
+            name: `${product.name} (XP Reward)`,
+            price: product.price,
+            quantity: 1,
+            type: 'product',
+          }],
+        },
+      },
+    });
+
+    // Record audited LoyaltyTransaction
+    const loyaltyResult = await recordLoyaltyTransaction(tx, {
+      userId,
+      amount: -pointsCost,
+      type: 'REDEEMED_STORE',
+      description: `Redeemed Reward: ${product.name} (-${pointsCost} XP)`,
+      orderId: order.id,
+    });
+
+    return {
+      order,
+      loyaltyResult,
+      product,
+    };
+  });
+
+  revalidateTag('products', 'default');
+  revalidateTag('loyalty', 'default');
+  revalidatePath('/shop');
+  revalidatePath(`/shop/${productId}`);
+  revalidatePath('/admin');
+  revalidatePath('/profile');
+
+  return {
+    success: true,
+    orderId: result.order.id,
+    productName: result.product.name,
+    pointsDeducted: pointsCost,
+    newBalance: result.loyaltyResult.newBalance,
+  };
+}
 
 // ========================
 // SNACKS
@@ -389,33 +637,6 @@ export async function updateMasterGame(id: string, newName: string) {
   return updated;
 }
 
-export async function assignGameToConsole(consoleId: string, gameId: string) {
-  await requireReceptionAuth();
-  const mapping = await prisma.consoleGames.upsert({
-    where: { consoleId_gameId: { consoleId, gameId } },
-    update: {},
-    create: { consoleId, gameId }
-  });
-
-  revalidateTag('consoles', 'default');
-  revalidatePath('/admin');
-  revalidatePath('/reception');
-  revalidatePath('/consoles');
-  return mapping;
-}
-
-export async function removeGameFromConsole(consoleId: string, gameId: string) {
-  await requireReceptionAuth();
-  await prisma.consoleGames.deleteMany({
-    where: { consoleId, gameId }
-  });
-
-  revalidateTag('consoles', 'default');
-  revalidatePath('/admin');
-  revalidatePath('/reception');
-  revalidatePath('/consoles');
-}
-
 export async function toggleConsoleGame(consoleId: string, gameName: string) {
   await requireReceptionAuth();
   let game = await prisma.game.findUnique({ where: { name: gameName } });
@@ -446,75 +667,6 @@ export async function toggleConsoleGame(consoleId: string, gameName: string) {
 }
 
 // ========================
-// SEEDING
-// ========================
-
-export async function seedAdminUser() {
-  const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
-  if (adminCount > 0) {
-    await requireAdminAuth();
-  }
-
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@udhyanagames.com';
-  const rawPassword = process.env.ADMIN_INITIAL_PASSWORD || 'Admin#Initial2026';
-  const hashedPassword = await bcrypt.hash(rawPassword, 12);
-
-  const existingAdmin = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { email: adminEmail },
-        { username: 'admin' }
-      ]
-    }
-  });
-
-  if (!existingAdmin) {
-    await prisma.user.create({
-      data: {
-        email: adminEmail,
-        username: 'admin',
-        fullName: 'Admin',
-        name: 'Admin',
-        password: hashedPassword,
-        role: 'ADMIN',
-        status: 'APPROVED',
-        rank: 'Elite'
-      }
-    });
-  }
-}
-
-export async function seedInitialData() {
-  await seedAdminUser();
-
-  const snacks = await prisma.snack.count();
-  if (snacks === 0) {
-    await prisma.snack.createMany({
-      data: [
-        { name: 'Energy Drink', icon: '⚡', price: 500 },
-        { name: 'Soda Can', icon: '🥤', price: 150 },
-        { name: 'Chips / Lays', icon: '🍿', price: 200 },
-        { name: 'Chocolate', icon: '🍫', price: 300 },
-      ]
-    });
-  }
-
-  const consoles = await prisma.console.count();
-  if (consoles === 0) {
-    await prisma.console.createMany({
-      data: [
-        { id: 'ps5-1', hardwareTitle: 'PS5 Pro - Station 1' },
-        { id: 'ps5-2', hardwareTitle: 'PS5 Pro - Station 2' },
-        { id: 'ps5-3', hardwareTitle: 'PS5 Pro - Station 3' },
-        { id: 'pc-1', hardwareTitle: 'Esports PC - Station 4' },
-        { id: 'pc-2', hardwareTitle: 'Esports PC - Station 5' },
-        { id: 'xbox-1', hardwareTitle: 'Xbox Series X - Station 6' },
-      ]
-    });
-  }
-}
-
-// ========================
 // USER REGISTRATION & APPROVAL
 // ========================
 
@@ -534,19 +686,38 @@ export async function registerOnlineUser(data: {
   if (!fullName.trim()) throw new Error('Full name is required.');
 
   const hashedPassword = await bcrypt.hash(password, 12);
-  
+
   try {
-    const user = await prisma.user.create({
-      data: {
-        username: username.trim(),
-        password: hashedPassword,
-        email: email.trim().toLowerCase(),
-        phone: phone.trim(),
-        fullName: fullName.trim(),
-        name: fullName.trim(),
-        status: 'APPROVED',
-      }
+    const user = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          username: username.trim(),
+          password: hashedPassword,
+          email: email.trim().toLowerCase(),
+          phone: phone.trim(),
+          fullName: fullName.trim(),
+          name: fullName.trim(),
+          status: 'APPROVED',
+          loyaltyPoints: 50,
+          lifetimeEarnedXP: 50,
+          rank: 'Rookie',
+          lastActivityAt: new Date(),
+        }
+      });
+
+      await tx.loyaltyTransaction.create({
+        data: {
+          userId: newUser.id,
+          amount: 50,
+          type: 'WELCOME_BONUS',
+          description: '🎉 Welcome Starter Gift: Gamer Tag Registered',
+          balanceAfter: 50,
+        }
+      });
+
+      return newUser;
     });
+
     return { success: true, userId: user.id };
   } catch (err: unknown) {
     if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'P2002') {
@@ -624,6 +795,8 @@ export async function getAllCustomersWithStats() {
       status: true,
       rank: true,
       loyaltyPoints: true,
+      lifetimeEarnedXP: true,
+      lastActivityAt: true,
       sessionsCount: true,
       playtimeHours: true,
       _count: {
@@ -658,6 +831,8 @@ export async function getAllCustomersWithStats() {
       status: u.status,
       rank: u.rank,
       loyaltyPoints: u.loyaltyPoints,
+      lifetimeEarnedXP: u.lifetimeEarnedXP || u.loyaltyPoints || 0,
+      lastActivityAt: u.lastActivityAt,
       sessionsCount: u.sessionsCount,
       playtimeHours: u.playtimeHours,
       ordersCount: u._count.orders,
@@ -693,6 +868,10 @@ export async function getCustomerFullDossier(userId: string) {
         include: {
           console: { select: { hardwareTitle: true } }
         }
+      },
+      loyaltyTransactions: {
+        take: 30,
+        orderBy: { createdAt: 'desc' }
       }
     }
   });
@@ -1058,7 +1237,7 @@ export async function getActiveSessions() {
   return await prisma.gameSession.findMany({
     where: { status: { in: ['ACTIVE', 'PAUSED'] } },
     include: {
-      user: { select: { id: true, username: true, fullName: true, phone: true } },
+      user: { select: { id: true, username: true, fullName: true, phone: true, loyaltyPoints: true, rank: true } },
       console: { select: { id: true, hardwareTitle: true } }
     },
     orderBy: { endTime: 'asc' }
@@ -1156,7 +1335,8 @@ export async function settleAndEndPostpaidSession(
   sessionId: string,
   paymentMethod: string = 'cash',
   customAmount?: number,
-  additionalItems?: { name: string; price: number; quantity?: number; type?: string }[]
+  additionalItems?: { name: string; price: number; quantity?: number; type?: string }[],
+  pointsToRedeem: number = 0
 ) {
   try {
     await requireReceptionAuth();
@@ -1174,7 +1354,7 @@ export async function settleAndEndPostpaidSession(
 
     const now = new Date();
     const startTime = session.startTime;
-    
+
     // Calculate total elapsed seconds
     const totalElapsedSeconds = Math.max(60, Math.floor((now.getTime() - startTime.getTime()) / 1000));
     const totalMinutes = Math.ceil(totalElapsedSeconds / 60);
@@ -1187,14 +1367,14 @@ export async function settleAndEndPostpaidSession(
     const billableMinutes = Math.max(15, totalMinutes);
     const timeCharge = Math.round((billableMinutes / 60) * baseRate);
     const controllerCharge = (session.extraControllers || 0) * extraControllerRate;
-    
+
     const calculatedGamingTotal = timeCharge + controllerCharge;
     const finalGamingAmount = (customAmount !== undefined && customAmount >= 0) ? customAmount : calculatedGamingTotal;
 
     const formattedHours = Math.floor(totalMinutes / 60);
     const formattedMins = totalMinutes % 60;
-    const durationLabel = formattedHours > 0 
-      ? `${formattedHours}h ${formattedMins}m` 
+    const durationLabel = formattedHours > 0
+      ? `${formattedHours}h ${formattedMins}m`
       : `${formattedMins} mins`;
 
     const playerName = session.guestName || session.user?.fullName || session.user?.username || 'Player';
@@ -1232,11 +1412,78 @@ export async function settleAndEndPostpaidSession(
         }
       });
 
-      // 2. Create Order & Items
+      // 2. Validate & apply Points Redemption on Game Time fee only
+      let actualPointsRedeemed = 0;
+      let discountAmount = 0;
+
+      if (pointsToRedeem > 0 && session.userId) {
+        const freshUser = await tx.user.findUnique({
+          where: { id: session.userId },
+          select: { loyaltyPoints: true }
+        });
+        const currentPoints = freshUser?.loyaltyPoints || 0;
+        const maxRedeemable = Math.min(currentPoints, Math.floor(finalGamingAmount));
+        actualPointsRedeemed = Math.min(Math.floor(pointsToRedeem), maxRedeemable);
+        discountAmount = actualPointsRedeemed; // 1 XP = 1 PKR
+      }
+
+      const finalCashTotal = Math.max(0, grandTotal - discountAmount);
+
+      // Deduct redeemed points from customer account
+      if (actualPointsRedeemed > 0 && session.userId) {
+        await recordLoyaltyTransaction(tx, {
+          userId: session.userId,
+          amount: -actualPointsRedeemed,
+          type: 'REDEEMED_GAMETIME',
+          description: `Game Time Loyalty Discount: ${session.console.hardwareTitle} (-${actualPointsRedeemed} PKR)`
+        });
+      }
+
+      // 3. Award Member Loyalty Points on Playtime and Net Cash Paid
+      let pointsEarned = 0;
+      if (session.userId) {
+        const hoursPlayed = Math.max(1, Math.ceil(totalHours));
+        const { pointsPerHour } = await getLoyaltyRates();
+        const loyaltyFromPlay = hoursPlayed * pointsPerHour;
+        const loyaltyFromSpend = Math.floor(finalCashTotal / 10);
+        pointsEarned = loyaltyFromPlay + loyaltyFromSpend;
+
+        if (loyaltyFromPlay > 0) {
+          await recordLoyaltyTransaction(tx, {
+            userId: session.userId,
+            amount: loyaltyFromPlay,
+            type: 'EARNED_PLAYTIME',
+            description: `Playtime Reward: ${hoursPlayed}h on ${session.console.hardwareTitle} (+${loyaltyFromPlay} XP)`
+          });
+        }
+
+        if (loyaltyFromSpend > 0) {
+          await recordLoyaltyTransaction(tx, {
+            userId: session.userId,
+            amount: loyaltyFromSpend,
+            type: 'EARNED_SPEND',
+            description: `Earned on Cash Payment (+${loyaltyFromSpend} XP)`
+          });
+        }
+
+        await tx.user.update({
+          where: { id: session.userId },
+          data: {
+            sessionsCount: { increment: 1 },
+            playtimeHours: { increment: hoursPlayed }
+          }
+        });
+      }
+
+      // 4. Create Order with points auditing fields
       const order = await tx.order.create({
         data: {
           userId: session.userId || null,
-          totalAmount: grandTotal,
+          totalAmount: finalCashTotal,
+          subtotalAmount: grandTotal,
+          discountAmount,
+          pointsRedeemed: actualPointsRedeemed,
+          pointsEarned,
           paymentMethod,
           status: 'COMPLETED',
           items: {
@@ -1250,42 +1497,18 @@ export async function settleAndEndPostpaidSession(
         }
       });
 
-      // 3. Member loyalty points
-      if (session.userId) {
-        const hoursPlayed = Math.max(1, Math.ceil(totalHours));
-        const { pointsPerHour } = await getLoyaltyRates();
-        const loyaltyFromPlay = hoursPlayed * pointsPerHour;
-        const loyaltyFromSpend = Math.floor(grandTotal / 10);
-        const totalPointsEarned = Math.max(1, loyaltyFromPlay + loyaltyFromSpend);
-
-        const user = await tx.user.update({
-          where: { id: session.userId },
-          data: {
-            sessionsCount: { increment: 1 },
-            playtimeHours: { increment: hoursPlayed },
-            loyaltyPoints: { increment: totalPointsEarned }
-          }
-        });
-
-        let newRank = user.rank;
-        if (user.loyaltyPoints >= 1000) newRank = 'Elite';
-        else if (user.loyaltyPoints >= 500) newRank = 'Pro';
-        else if (user.loyaltyPoints >= 100) newRank = 'Regular';
-        else newRank = 'Rookie';
-
-        if (newRank !== user.rank) {
-          await tx.user.update({
-            where: { id: user.id },
-            data: { rank: newRank }
-          });
-        }
-      }
-
-      return { session: updatedSession, order };
+      return { session: updatedSession, order, finalCashTotal, discountAmount, actualPointsRedeemed };
     });
 
     revalidatePath('/reception');
-    return { success: true, orderId: result.order.id, totalAmount: grandTotal };
+    return {
+      success: true,
+      orderId: result.order.id,
+      totalAmount: result.finalCashTotal,
+      subtotalAmount: grandTotal,
+      discountAmount: result.discountAmount,
+      pointsRedeemed: result.actualPointsRedeemed
+    };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to settle session.';
     return { error: message };
@@ -1441,16 +1664,6 @@ export async function removeWaitlistEntry(id: string) {
   return entry;
 }
 
-export async function assignWaitlistEntry(id: string) {
-  await requireReceptionAuth();
-  const entry = await prisma.waitlist.update({
-    where: { id },
-    data: { status: 'ASSIGNED' }
-  });
-  revalidatePath('/reception');
-  return entry;
-}
-
 // ========================
 // POINT OF SALE (POS)
 // ========================
@@ -1469,7 +1682,8 @@ export async function processPosCheckout(
   walkInName?: string,
   walkInPhone?: string,
   existingUserId?: string,
-  waitlistItems?: { guestName: string; requestedConsoleName: string; durationSeconds: number; phone?: string; userId?: string }[]
+  waitlistItems?: { guestName: string; requestedConsoleName: string; durationSeconds: number; phone?: string; userId?: string }[],
+  pointsToRedeem: number = 0
 ) {
   try {
     await requireReceptionAuth();
@@ -1561,15 +1775,65 @@ export async function processPosCheckout(
         await cleanupPromise;
       }
 
-      // 3. Create Order & Game Sessions & Waitlist entries in parallel
+      // 3. Points Redemption Calculation (Restricted STRICTLY to Game Time items)
       const calculatedSum = orderItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
-      const verifiedTotal = (totalAmount >= 0 && totalAmount <= calculatedSum) ? totalAmount : calculatedSum;
+      const gameTimeTotal = orderItems
+        .filter(item => item.type === 'session')
+        .reduce((sum, item) => sum + (Number(item.price) || 0), 0);
 
-      const orderPromise = tx.order.create({
+      let actualPointsRedeemed = 0;
+      let discountAmount = 0;
+
+      if (pointsToRedeem > 0 && userId) {
+        const freshUser = await tx.user.findUnique({
+          where: { id: userId },
+          select: { loyaltyPoints: true }
+        });
+        const currentPoints = freshUser?.loyaltyPoints || 0;
+
+        // Points can only cover the Game Time portion of the bill
+        const maxRedeemableOnGameTime = Math.min(currentPoints, Math.floor(gameTimeTotal));
+        actualPointsRedeemed = Math.min(Math.floor(pointsToRedeem), maxRedeemableOnGameTime);
+        discountAmount = actualPointsRedeemed; // 1 XP = 1 PKR
+      }
+
+      const finalCashTotal = Math.max(0, calculatedSum - discountAmount);
+
+      // Deduct redeemed points from customer account
+      if (actualPointsRedeemed > 0 && userId) {
+        await recordLoyaltyTransaction(tx, {
+          userId,
+          amount: -actualPointsRedeemed,
+          type: 'REDEEMED_GAMETIME',
+          description: `Game Time Loyalty Discount (-${actualPointsRedeemed} PKR)`
+        });
+      }
+
+      // Calculate newly earned points STRICTLY on Net Cash Collected (Zero point recycling)
+      let pointsEarned = 0;
+      if (userId && finalCashTotal > 0) {
+        pointsEarned = Math.floor(finalCashTotal / 10);
+        if (pointsEarned > 0) {
+          await recordLoyaltyTransaction(tx, {
+            userId,
+            amount: pointsEarned,
+            type: 'EARNED_SPEND',
+            description: `Earned on Cash Payment (+${pointsEarned} XP)`
+          });
+        }
+      }
+
+      // 4. Create Order & Items with audit breakdown
+      const order = await tx.order.create({
         data: {
           userId: userId || null,
-          totalAmount: verifiedTotal,
+          totalAmount: finalCashTotal,
+          subtotalAmount: calculatedSum,
+          discountAmount,
+          pointsRedeemed: actualPointsRedeemed,
+          pointsEarned,
           paymentMethod,
+          status: 'COMPLETED',
           items: {
             create: orderItems.map(item => ({
               name: item.name,
@@ -1581,72 +1845,52 @@ export async function processPosCheckout(
         }
       });
 
-      const sessionsPromise = sessionItems.length > 0
-        ? tx.gameSession.createMany({
-            data: sessionItems.map(item => {
-              const isPostpaid = item.billingType === 'POSTPAID';
-              const endTime = isPostpaid
-                ? new Date(now.getTime() + 24 * 3600 * 1000)
-                : new Date(now.getTime() + (item.durationSeconds || 3600) * 1000);
+      // 5. Create Game Sessions
+      if (sessionItems.length > 0) {
+        await tx.gameSession.createMany({
+          data: sessionItems.map(item => {
+            const isPostpaid = item.billingType === 'POSTPAID';
+            const endTime = isPostpaid
+              ? new Date(now.getTime() + 24 * 3600 * 1000)
+              : new Date(now.getTime() + (item.durationSeconds || 3600) * 1000);
 
-              return {
-                userId: userId || null,
-                guestName: item.guestName,
-                consoleId: item.consoleId,
-                startTime: now,
-                endTime: endTime,
-                status: 'ACTIVE' as const,
-                billingType: isPostpaid ? 'POSTPAID' : 'PREPAID',
-                extraControllers: item.extraControllers || 0
-              };
-            })
+            return {
+              userId: userId || null,
+              guestName: item.guestName,
+              consoleId: item.consoleId,
+              startTime: now,
+              endTime: endTime,
+              status: 'ACTIVE' as const,
+              billingType: isPostpaid ? 'POSTPAID' : 'PREPAID',
+              extraControllers: item.extraControllers || 0
+            };
           })
-        : Promise.resolve();
+        });
+      }
 
-      // Create paid Waitlist queue entries
-      const waitlistPromise = (waitlistItems && waitlistItems.length > 0)
-        ? tx.waitlist.createMany({
-            data: waitlistItems.map(w => {
-              const durationHrs = Math.round((w.durationSeconds / 3600) * 10) / 10;
-              return {
-                name: w.guestName,
-                requested: `${w.requestedConsoleName} • ${durationHrs}h (PAID)`,
-                status: 'WAITING'
-              };
-            })
+      // 6. Create paid Waitlist queue entries
+      if (waitlistItems && waitlistItems.length > 0) {
+        await tx.waitlist.createMany({
+          data: waitlistItems.map(w => {
+            const durationHrs = Math.round((w.durationSeconds / 3600) * 10) / 10;
+            return {
+              name: w.guestName,
+              requested: `${w.requestedConsoleName} • ${durationHrs}h (PAID)`,
+              status: 'WAITING'
+            };
           })
-        : Promise.resolve();
+        });
+      }
 
-      // 4. Calculate loyalty & rank update in a single pass if member is attached
-      const loyaltyPromise = userId
-        ? (async () => {
-            const user = await tx.user.findUnique({
-              where: { id: userId },
-              select: { id: true, loyaltyPoints: true, rank: true }
-            });
-            if (user) {
-              const pointsEarned = Math.floor(totalAmount / 10);
-              const newPoints = (user.loyaltyPoints || 0) + pointsEarned;
-              let newRank = user.rank;
-              if (newPoints >= 1000) newRank = 'Elite';
-              else if (newPoints >= 500) newRank = 'Pro';
-              else if (newPoints >= 100) newRank = 'Regular';
-              else newRank = 'Rookie';
-
-              await tx.user.update({
-                where: { id: userId },
-                data: {
-                  loyaltyPoints: newPoints,
-                  rank: newRank
-                }
-              });
-            }
-          })()
-        : Promise.resolve();
-
-      const [order] = await Promise.all([orderPromise, sessionsPromise, waitlistPromise, loyaltyPromise]);
-
-      return { success: true, orderId: order.id };
+      return {
+        success: true,
+        orderId: order.id,
+        totalAmount: finalCashTotal,
+        subtotalAmount: calculatedSum,
+        discountAmount,
+        pointsRedeemed: actualPointsRedeemed,
+        pointsEarned
+      };
     });
 
     revalidatePath('/reception');
@@ -1856,13 +2100,13 @@ export async function createOnlineShopOrder(
         });
       }
 
-      return { 
-        success: true, 
-        orderId: order.id, 
+      return {
+        success: true,
+        orderId: order.id,
         totalAmount: serverTotalAmount,
-        pointsEarned, 
-        totalPoints: updatedUser.loyaltyPoints, 
-        rank: newRank 
+        pointsEarned,
+        totalPoints: updatedUser.loyaltyPoints,
+        rank: newRank
       };
     });
 
@@ -1887,11 +2131,11 @@ export async function getRecentSales() {
 export async function getUpcomingBookings() {
   await requireReceptionAuth();
   return await prisma.booking.findMany({
-    where: { 
+    where: {
       status: { in: ['CONFIRMED', 'PENDING'] },
       endTime: { gte: new Date() }
     },
-    include: { 
+    include: {
       user: { select: { fullName: true, username: true, phone: true } },
       console: { select: { hardwareTitle: true } }
     },
@@ -2283,7 +2527,7 @@ export async function getAnalyticsData(timeframe: '7d' | '30d' | 'all' = '7d') {
 
 export async function checkInOnlineBooking(bookingId: string, paymentMethod: string = 'card') {
   await requireReceptionAuth();
-  
+
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
     include: { user: true, console: true }
@@ -2468,7 +2712,7 @@ export async function pauseGameSession(sessionId: string, remainingSeconds: numb
 
   const updated = await prisma.gameSession.update({
     where: { id: sessionId },
-    data: { 
+    data: {
       status: 'PAUSED',
       pausedRemainingSeconds: validRemaining
     }
@@ -2724,7 +2968,7 @@ export async function addRetroactiveOrder(data: {
 
 export async function getPublicConsoleOccupiedIds() {
   const now = new Date();
-  
+
   // Walk-in sessions that are active
   const activeSessions = await prisma.gameSession.findMany({
     where: {

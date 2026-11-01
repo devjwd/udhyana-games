@@ -15,6 +15,7 @@ interface ReceiptSlipModalProps {
   isSubmitting: boolean;
   onConfirmPayment: () => void;
   staffName?: string;
+  pointsToRedeem?: number;
 }
 
 interface ElectronPrinter {
@@ -42,7 +43,8 @@ export default function ReceiptSlipModal({
   paymentMethod,
   isSubmitting,
   onConfirmPayment,
-  staffName = 'Staff'
+  staffName = 'Staff',
+  pointsToRedeem = 0
 }: ReceiptSlipModalProps) {
   const [printers, setPrinters] = useState<ElectronPrinter[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState<string>(() => {
@@ -89,8 +91,12 @@ export default function ReceiptSlipModal({
 
   if (!isOpen) return null;
 
-  const totalAmount = cart.reduce((sum, item) => sum + item.price, 0);
+  const grossTotal = cart.reduce((sum, item) => sum + item.price, 0);
+  const discountAmount = pointsToRedeem || 0;
+  const netTotalAmount = Math.max(0, grossTotal - discountAmount);
+  const totalAmount = netTotalAmount;
   const hasPostpaid = cart.some(item => item.billingType === 'POSTPAID');
+  const pointsEarned = Math.floor(netTotalAmount / 100);
   const now = new Date();
   const dateStr = now.toLocaleDateString();
   const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -145,8 +151,12 @@ export default function ReceiptSlipModal({
           sub: i.consoleName,
           priceStr: i.billingType === 'POSTPAID' ? 'PAY ON EXIT' : undefined
         })),
-        totalAmount,
-        paymentMethod: hasPostpaid && totalAmount === 0 ? 'POSTPAID (PAY ON EXIT)' : paymentMethod,
+        subtotalAmount: grossTotal,
+        discountAmount,
+        pointsRedeemed: pointsToRedeem,
+        pointsEarned,
+        totalAmount: netTotalAmount,
+        paymentMethod: hasPostpaid && netTotalAmount === 0 ? 'POSTPAID (PAY ON EXIT)' : paymentMethod,
         footerNote: hasPostpaid ? 'OPEN SESSION: Please retain slip and pay at exit.' : undefined
       });
       await printDirectWebSerial(receiptBytes);
@@ -212,14 +222,33 @@ export default function ReceiptSlipModal({
 
         <div className={styles.printDivider} />
 
+        {discountAmount > 0 && (
+          <>
+            <div className={styles.printTotalRow} style={{ fontSize: '0.85em', fontWeight: 'normal' }}>
+              <span>Subtotal:</span>
+              <span>PKR {grossTotal}</span>
+            </div>
+            <div className={styles.printTotalRow} style={{ fontSize: '0.85em', fontWeight: 'normal' }}>
+              <span>Points Redeemed ({pointsToRedeem} XP):</span>
+              <span>-PKR {discountAmount}</span>
+            </div>
+          </>
+        )}
+
         <div className={styles.printTotalRow}>
-          <span>{hasPostpaid && totalAmount === 0 ? 'TOTAL DUE NOW' : 'TOTAL AMOUNT'}</span>
-          <span>{hasPostpaid && totalAmount === 0 ? 'PAY ON EXIT' : `PKR ${totalAmount}`}</span>
+          <span>{hasPostpaid && netTotalAmount === 0 ? 'TOTAL DUE NOW' : 'NET TOTAL PAID'}</span>
+          <span>{hasPostpaid && netTotalAmount === 0 ? 'PAY ON EXIT' : `PKR ${netTotalAmount}`}</span>
         </div>
         <div className={styles.printMethodRow}>
           <span>Payment Method:</span>
-          <span>{hasPostpaid && totalAmount === 0 ? 'POSTPAID (PAY ON EXIT)' : paymentMethod.toUpperCase()}</span>
+          <span>{hasPostpaid && netTotalAmount === 0 ? 'POSTPAID (PAY ON EXIT)' : paymentMethod.toUpperCase()}</span>
         </div>
+        {pointsEarned > 0 && (
+          <div className={styles.printMethodRow} style={{ fontSize: '0.8em' }}>
+            <span>Points Earned Today:</span>
+            <span>+{pointsEarned} XP</span>
+          </div>
+        )}
 
         <div className={styles.printDivider} />
 
@@ -271,19 +300,32 @@ export default function ReceiptSlipModal({
             })}
           </div>
 
+          {discountAmount > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '0.5rem', padding: '0.5rem', background: 'rgba(214, 255, 1, 0.05)', borderRadius: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#94a3b8' }}>
+                <span>Subtotal:</span>
+                <span>PKR {grossTotal}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#4ade80', fontWeight: 700 }}>
+                <span>⚡ Loyalty Discount ({pointsToRedeem} XP):</span>
+                <span>-PKR {discountAmount}</span>
+              </div>
+            </div>
+          )}
+
           <div className={styles.slipTotalRow}>
-            <span>{hasPostpaid && totalAmount === 0 ? 'Billing Status:' : 'Total Payable Now:'}</span>
+            <span>{hasPostpaid && netTotalAmount === 0 ? 'Billing Status:' : 'Total Payable Now:'}</span>
             <span className={styles.slipTotalAmount}>
-              {hasPostpaid && totalAmount === 0
+              {hasPostpaid && netTotalAmount === 0
                 ? 'Pay on Checkout'
                 : hasPostpaid
-                  ? `PKR ${totalAmount} (+ Open Session)`
-                  : `PKR ${totalAmount}`}
+                  ? `PKR ${netTotalAmount} (+ Open Session)`
+                  : `PKR ${netTotalAmount}`}
             </span>
           </div>
 
           <div className={styles.slipMethodBanner}>
-            {hasPostpaid && totalAmount === 0 ? (
+            {hasPostpaid && netTotalAmount === 0 ? (
               <span>Billing Mode: <strong>POSTPAID (PAY ON EXIT)</strong></span>
             ) : (
               <span>Payment Method: <strong>{paymentMethod.toUpperCase()}</strong></span>
