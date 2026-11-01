@@ -532,12 +532,12 @@ function BookPageContent() {
                     />
                   </div>
                 </div>
-                <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', marginTop: '0.5rem' }}>
+                <p style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.35)', marginTop: '0.25rem' }}>
                   Reception will contact you to confirm your slot. No account required.
                 </p>
               </div>
 
-              <div style={{ marginTop: '1.5rem', width: '100%' }}>
+              <div style={{ marginTop: '0.65rem', width: '100%' }}>
                 <CyberButton
                   type="submit"
                   disabled={isSubmitting || !isSelectionValid() || !time}
