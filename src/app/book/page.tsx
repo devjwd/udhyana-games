@@ -43,6 +43,22 @@ function getConsoleGamesList(consoleObj: { hardwareTitle?: string; games?: { gam
   return DEFAULT_GAMES_BY_TYPE.ps5;
 }
 
+interface LiveStationQuickItem {
+  id: string;
+  hardwareTitle: string;
+  status: 'AVAILABLE' | 'ACTIVE' | 'PAUSED' | 'ENDING_SOON' | 'EXPIRED';
+  isOccupied: boolean;
+}
+
+const DEFAULT_LIVE_STATIONS: LiveStationQuickItem[] = [
+  { id: 'station-1', hardwareTitle: 'station 1 ( ps5 )', status: 'AVAILABLE', isOccupied: false },
+  { id: 'station-2', hardwareTitle: 'station 2 ( xbox series X )', status: 'AVAILABLE', isOccupied: false },
+  { id: 'station-3', hardwareTitle: 'Station 3 ( xbox series X )', status: 'AVAILABLE', isOccupied: false },
+  { id: 'station-4', hardwareTitle: 'station 4 ( steering wheel )', status: 'AVAILABLE', isOccupied: false },
+];
+
+const STATIONS_CACHE_KEY = 'udhyana_live_stations_v2';
+
 function BookPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,12 +67,21 @@ function BookPageContent() {
   const [consoles, setConsoles] = useState<{ id: string; hardwareTitle: string; hourlyRate?: number | null; games?: { game?: { name: string } }[] }[]>([]);
   const [baseRate, setBaseRate] = useState<number>(1000);
   const [selectedConsole, setSelectedConsole] = useState(consoleParam);
-  const [liveStations, setLiveStations] = useState<Array<{
-    id: string;
-    hardwareTitle: string;
-    status: 'AVAILABLE' | 'ACTIVE' | 'PAUSED' | 'ENDING_SOON' | 'EXPIRED';
-    isOccupied: boolean;
-  }>>([]);
+  // Instant SWR cache initialization: renders in 0ms without pop-in or layout shift
+  const [liveStations, setLiveStations] = useState<LiveStationQuickItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = sessionStorage.getItem(STATIONS_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {
+        // Fallback to default
+      }
+    }
+    return DEFAULT_LIVE_STATIONS;
+  });
 
   // Game Selection & Dropdown State
   const [gameSearch, setGameSearch] = useState('');
@@ -126,7 +151,19 @@ function BookPageContent() {
     fetchBookedSlots();
   }, [selectedConsole, date]);
 
-  // Fetch real-time live station status
+  // Dynamically map station IDs to genuine DB IDs so selection always works
+  const displayStations = useMemo(() => {
+    return liveStations.map((item) => {
+      const match = consoles.find(
+        (c) =>
+          c.id === item.id ||
+          c.hardwareTitle.toLowerCase().trim() === item.hardwareTitle.toLowerCase().trim()
+      );
+      return match ? { ...item, id: match.id, hardwareTitle: match.hardwareTitle } : item;
+    });
+  }, [liveStations, consoles]);
+
+  // Fetch real-time live station status in background with SWR session caching
   useEffect(() => {
     let isMounted = true;
     async function fetchLiveStatus() {
@@ -134,15 +171,21 @@ function BookPageContent() {
         const res = await fetch('/api/stations/live', { cache: 'no-store' });
         const data = await res.json();
         if (isMounted && data.success && Array.isArray(data.stations)) {
-          setLiveStations(data.stations.map((s: { id: string; hardwareTitle: string; status: string; isOccupied: boolean }) => ({
+          const formatted: LiveStationQuickItem[] = data.stations.map((s: { id: string; hardwareTitle: string; status: string; isOccupied: boolean }) => ({
             id: s.id,
             hardwareTitle: s.hardwareTitle,
-            status: s.status as 'AVAILABLE' | 'ACTIVE' | 'PAUSED' | 'ENDING_SOON' | 'EXPIRED',
+            status: s.status as LiveStationQuickItem['status'],
             isOccupied: s.isOccupied,
-          })));
+          }));
+          setLiveStations(formatted);
+          try {
+            sessionStorage.setItem(STATIONS_CACHE_KEY, JSON.stringify(formatted));
+          } catch {
+            // Ignore storage quota
+          }
         }
       } catch {
-        // Silently keep previous state
+        // Silently retain cached state
       }
     }
 
@@ -551,52 +594,50 @@ function BookPageContent() {
           </div>
 
           {/* ─── LIVE STATIONS AVAILABILITY STRIP (BELOW BOOKING) ─── */}
-          {liveStations.length > 0 && (
-            <div className={styles.liveStationsWrapper}>
-              <div className={styles.liveStationsHeader}>
-                <div className={styles.liveIndicatorRow}>
-                  <span className={styles.livePulseDot} />
-                  <span className={styles.liveTitle}>Live Station Status</span>
-                </div>
-                <span className={styles.liveSubtitle}>Real-time lounge availability</span>
+          <div className={styles.liveStationsWrapper}>
+            <div className={styles.liveStationsHeader}>
+              <div className={styles.liveIndicatorRow}>
+                <span className={styles.livePulseDot} />
+                <span className={styles.liveTitle}>Live Station Status</span>
               </div>
-
-              <div className={styles.liveStationsGrid}>
-                {liveStations.map((st) => {
-                  const isAvail = st.status === 'AVAILABLE';
-                  const isEnding = st.status === 'ENDING_SOON';
-                  const statusLabel = isAvail
-                    ? 'Available'
-                    : isEnding
-                    ? 'Ending Soon'
-                    : 'In Play';
-
-                  const statusClass = isAvail
-                    ? styles.statusAvailable
-                    : isEnding
-                    ? styles.statusEnding
-                    : styles.statusOccupied;
-
-                  const isSelected = effectiveSelectedConsole === st.id;
-
-                  return (
-                    <div
-                      key={st.id}
-                      className={`${styles.liveStationPill} ${isSelected ? styles.liveStationSelected : ''}`}
-                      onClick={() => setSelectedConsole(st.id)}
-                      title={`Click to select ${st.hardwareTitle}`}
-                    >
-                      <span className={styles.stationNameText}>{st.hardwareTitle}</span>
-                      <span className={`${styles.statusBadge} ${statusClass}`}>
-                        <span className={styles.statusDot} />
-                        {statusLabel}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+              <span className={styles.liveSubtitle}>Real-time lounge availability</span>
             </div>
-          )}
+
+            <div className={styles.liveStationsGrid}>
+              {displayStations.map((st) => {
+                const isAvail = st.status === 'AVAILABLE';
+                const isEnding = st.status === 'ENDING_SOON';
+                const statusLabel = isAvail
+                  ? 'Available'
+                  : isEnding
+                  ? 'Ending Soon'
+                  : 'In Play';
+
+                const statusClass = isAvail
+                  ? styles.statusAvailable
+                  : isEnding
+                  ? styles.statusEnding
+                  : styles.statusOccupied;
+
+                const isSelected = effectiveSelectedConsole === st.id;
+
+                return (
+                  <div
+                    key={st.id}
+                    className={`${styles.liveStationPill} ${isSelected ? styles.liveStationSelected : ''}`}
+                    onClick={() => setSelectedConsole(st.id)}
+                    title={`Click to select ${st.hardwareTitle}`}
+                  >
+                    <span className={styles.stationNameText}>{st.hardwareTitle}</span>
+                    <span className={`${styles.statusBadge} ${statusClass}`}>
+                      <span className={styles.statusDot} />
+                      {statusLabel}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
       </main>
