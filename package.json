@@ -14,6 +14,7 @@
     "db:push": "npx prisma db push --schema=./src/backend/schema.prisma",
     "db:inspect": "node scripts/inspect-db.mjs",
     "db:test": "node scripts/test-db.mjs",
+    "admin:make": "node scripts/make-admin.mjs",
     "icons:generate": "node scripts/generate_icons.js"
   },
   "dependencies": {
