@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Udhyana Games — Arena TV Display</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #08090d;
+      color: #f8fafc;
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+    .tv-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 36px;
+      background: rgba(17, 20, 28, 0.85);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+    }
+    .tv-brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .tv-logo {
+      height: 44px;
+      object-fit: contain;
+    }
+    .tv-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: rgba(193, 255, 28, 0.15);
+      color: #c1ff1c;
+      border: 1px solid rgba(193, 255, 28, 0.4);
+    }
+    .tv-pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #c1ff1c;
+      box-shadow: 0 0 10px #c1ff1c;
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    .tv-stats-bar {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+    .stat-val { color: #c1ff1c; font-family: 'JetBrains Mono', monospace; }
+    .tv-clock {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #ffffff;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 8px 18px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .tv-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-gap: 22px;
+      padding: 26px 36px;
+      flex: 1;
+    }
+    .station-tv-card {
+      background: #11141c;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 26px 30px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.25s ease;
+    }
+    .station-tv-card.avail {
+      border-color: rgba(193, 255, 28, 0.35);
+      box-shadow: 0 0 30px rgba(193, 255, 28, 0.04);
+    }
+    .station-tv-card.in-play {
+      border-color: rgba(56, 189, 248, 0.35);
+      box-shadow: 0 0 30px rgba(56, 189, 248, 0.04);
+    }
+    .station-tv-card.ending-soon {
+      border-color: rgba(251, 191, 36, 0.4);
+      box-shadow: 0 0 30px rgba(251, 191, 36, 0.08);
+    }
+    .stn-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+    .stn-name {
+      font-size: 1.4rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      color: #ffffff;
+    }
+    .stn-type {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      margin-top: 3px;
+      font-weight: 600;
+    }
+    .stn-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .stn-status-badge.avail {
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.4);
+    }
+    .stn-status-badge.in-play {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+    .stn-status-badge.ending-soon {
+      background: rgba(251, 191, 36, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(251, 191, 36, 0.4);
+    }
+    .stn-timer-box {
+      background: #080a0f;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      margin: 14px 0;
+    }
+    .stn-timer-lbl {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #94a3b8;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+    .stn-timer-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: 0.04em;
+    }
+    .stn-timer-val.active-timer {
+      color: #38bdf8;
+    }
+    .stn-timer-val.ending-timer {
+      color: #fbbf24;
+      animation: blink 1s infinite alternate;
+    }
+    @keyframes blink {
+      0% { opacity: 1; }
+      100% { opacity: 0.55; }
+    }
+    .stn-games-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .game-chip {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      font-weight: 500;
+    }
+    .tv-footer {
+      padding: 12px 36px;
+      background: #06070a;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+    .fullscreen-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #f8fafc;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+    .fullscreen-btn:hover {
+      background: #c1ff1c;
+      color: #08090d;
+    }
+  </style>
+</head>
+<body>
+  <header class="tv-header">
+    <div class="tv-brand">
+      <img src="logo_clean.png" alt="Udhyana Games" class="tv-logo">
+      <div class="tv-badge">
+        <span class="tv-pulse-dot"></span>
+        <span>Live Arena Status</span>
+      </div>
+    </div>
+    <div class="tv-stats-bar">
+      <div class="stat-pill">
+        <span>Available Now:</span>
+        <span class="stat-val" id="stat-avail">4</span>
+      </div>
+      <div class="stat-pill">
+        <span>In Play:</span>
+        <span class="stat-val" id="stat-playing">0</span>
+      </div>
+      <div class="tv-clock" id="tv-clock">00:00:00</div>
+    </div>
+  </header>
+
+  <main class="tv-grid" id="tv-stations-grid">
+    <!-- Rendered dynamically -->
+  </main>
+
+  <footer class="tv-footer">
+    <div>⚡ Udhyana Games Arena — Rates: PKR 300 / hr</div>
+    <button class="fullscreen-btn" onclick="toggleFullScreen()">⛶ Toggle Fullscreen</button>
+  </footer>
+
+  <script>
+    const STATIONS = [
+      {
+        id: 'PS5',
+        name: 'station 1 ( ps5 )',
+        type: 'PlayStation 5',
+        games: ['EA Sports FC 25', 'Tekken 8', 'Mortal Kombat 1', 'Spider-Man 2', 'GTA V', 'God of War']
+      },
+      {
+        id: 'Xbox series X',
+        name: 'station 2 ( xbox series X )',
+        type: 'Xbox Series X',
+        games: ['EA Sports FC 25', 'Tekken 8', 'Mortal Kombat 1', 'Forza Horizon 5', 'GTA V', 'Warzone']
+      },
+      {
+        id: 'Xbox series X(2)',
+        name: 'Station 3 ( xbox series X )',
+        type: 'Xbox Series X',
+        games: ['EA Sports FC 25', 'Tekken 8', 'Mortal Kombat 1', 'Forza Horizon 5', 'GTA V', 'Warzone']
+      },
+      {
+        id: 'steerin wheel + ps4',
+        name: 'station 4 ( steering wheel )',
+        type: 'Racing Rig Cockpit',
+        games: ['Forza Horizon 5', 'Gran Turismo 7', 'Need for Speed Unbound', 'Assetto Corsa', 'F1 24']
+      }
+    ];
+
+    function updateClock() {
+      const now = new Date();
+      const clockEl = document.getElementById('tv-clock');
+      if (clockEl) {
+        clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    function renderBoard() {
+      let state = {};
+      try {
+        const saved = localStorage.getItem('udhyana_terminal_v5');
+        if (saved) state = JSON.parse(saved);
+      } catch (e) {
+        console.warn('Error reading terminal state:', e);
+      }
+
+      const activeSessions = state.activeSessions || {};
+      const container = document.getElementById('tv-stations-grid');
+      if (!container) return;
+
+      const now = Date.now();
+      let availCount = 0;
+      let playCount = 0;
+
+      const html = STATIONS.map(stn => {
+        const session = activeSessions[stn.id];
+        let isOccupied = false;
+        let isEndingSoon = false;
+        let timerText = 'READY TO PLAY';
+        let statusBadge = '<span class="stn-status-badge avail">🟢 Available</span>';
+        let cardClass = 'avail';
+        let timerClass = '';
+
+        if (session && session.endTime) {
+          const remMs = session.isPaused ? (session.pausedRemainingMs || 0) : (session.endTime - now);
+          const remSec = Math.floor(remMs / 1000);
+
+          if (remSec > 0 || session.isPaused) {
+            isOccupied = true;
+            playCount++;
+            isEndingSoon = remSec <= 900; // < 15 mins
+            cardClass = isEndingSoon ? 'ending-soon' : 'in-play';
+            timerClass = isEndingSoon ? 'ending-timer' : 'active-timer';
+
+            const hrs = Math.floor(remSec / 3600);
+            const mins = Math.floor((remSec % 3600) / 60);
+            const secs = remSec % 60;
+            const pad = n => String(n).padStart(2, '0');
+            timerText = hrs > 0 ? `${hrs}:${pad(mins)}:${pad(secs)}` : `${pad(mins)}:${pad(secs)}`;
+
+            statusBadge = isEndingSoon 
+              ? '<span class="stn-status-badge ending-soon">⏳ Ending Soon</span>'
+              : '<span class="stn-status-badge in-play">🎮 In Play</span>';
+          } else {
+            availCount++;
+          }
+        } else {
+          availCount++;
+        }
+
+        const gamesHtml = stn.games.slice(0, 5).map(g => `<span class="game-chip">${g}</span>`).join('');
+
+        return `
+          <div class="station-tv-card ${cardClass}">
+            <div>
+              <div class="stn-top">
+                <div>
+                  <div class="stn-name">${stn.name}</div>
+                  <div class="stn-type">${stn.type}</div>
+                </div>
+                <div>${statusBadge}</div>
+              </div>
+
+              <div class="stn-timer-box">
+                <div class="stn-timer-lbl">${isOccupied ? 'Time Remaining' : 'Station Status'}</div>
+                <div class="stn-timer-val ${timerClass}">${timerText}</div>
+              </div>
+            </div>
+
+            <div>
+              <div style="font-size: 0.72rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Featured Games Installed:</div>
+              <div class="stn-games-list">${gamesHtml}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = html;
+      document.getElementById('stat-avail').textContent = availCount;
+      document.getElementById('stat-playing').textContent = playCount;
+    }
+
+    renderBoard();
+    setInterval(renderBoard, 1000);
+    window.addEventListener('storage', renderBoard);
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
+  </script>
+</body>
+</html>
+

@@ -1835,8 +1835,8 @@ function switchTab(tabId) {
   if (tabId === 'admin') renderAdminView();
   if (tabId === 'tv-display') {
     const frame = document.getElementById('tv-frame');
-    if (frame && (!frame.src || frame.src === 'about:blank')) {
-      frame.src = 'http://localhost:3000/stations';
+    if (frame && (!frame.src || frame.src.includes('localhost'))) {
+      frame.src = 'tv.html';
     }
   }
 }
@@ -1850,7 +1850,7 @@ const launchTvScreen = async (mode = 'visitor') => {
   if (window.electronAPI?.openTvScreen) {
     await window.electronAPI.openTvScreen({ mode });
   } else {
-    window.open(`http://localhost:3000/stations?mode=${mode}`, '_blank');
+    window.open('tv.html', '_blank');
   }
 };
 

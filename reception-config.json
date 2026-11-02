@@ -1,7 +1,7 @@
 {
-  "loadRemoteUrl": true,
-  "serverUrl": "http://localhost:3000/reception",
-  "apiBaseUrl": "http://localhost:3000",
-  "terminalSecret": "",
-  "notes": "Set terminalSecret to match TERMINAL_SECRET or NEXTAUTH_SECRET from .env for authenticated API bridging."
+  "loadRemoteUrl": false,
+  "offlineFirst": true,
+  "serverUrl": "",
+  "apiBaseUrl": "",
+  "notes": "Offline-first reception desktop app. Loads local standalone terminal instantly without network dependency."
 }

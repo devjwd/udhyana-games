@@ -25,79 +25,14 @@ function loadConfig() {
       if (fs.existsSync(p)) {
         const raw = fs.readFileSync(p, 'utf8');
         const parsed = JSON.parse(raw);
-        if (parsed.serverUrl) return parsed;
+        if (parsed) return parsed;
       }
     } catch (err) {
       console.warn('[Config] Failed to read candidate config path:', p, err);
     }
   }
 
-  return { loadRemoteUrl: false, serverUrl: 'http://localhost:3000/reception' };
-}
-
-function getErrorHtml(targetUrl) {
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Connection Error — Udhyana Games</title>
-  <style>
-    body {
-      background: #08090d;
-      color: #f8fafc;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-      text-align: center;
-      padding: 20px;
-      box-sizing: border-box;
-    }
-    .card {
-      background: #11141c;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 16px;
-      padding: 40px;
-      max-width: 520px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-    }
-    .icon { font-size: 48px; margin-bottom: 16px; }
-    h1 { font-size: 1.4rem; margin: 0 0 10px; color: #f43f5e; }
-    p { font-size: 0.95rem; color: #94a3b8; line-height: 1.5; margin: 0 0 24px; }
-    .url { font-family: monospace; background: rgba(0,0,0,0.4); padding: 4px 8px; border-radius: 4px; color: #38bdf8; word-break: break-all; }
-    .btn {
-      background: #3b82f6;
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      font-size: 0.95rem;
-      font-weight: 600;
-      border-radius: 8px;
-      cursor: pointer;
-      margin: 6px;
-      transition: background 0.2s;
-    }
-    .btn:hover { background: #2563eb; }
-    .btn-secondary { background: #1e293b; color: #94a3b8; }
-    .btn-secondary:hover { background: #334155; color: #f8fafc; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="icon">🔌</div>
-    <h1>Cannot Connect to Server</h1>
-    <p>Could not reach the live reception portal at:<br><span class="url">${targetUrl}</span></p>
-    <p style="font-size: 0.85rem;">Make sure the Next.js server is started on the local computer, or check your internet connection.</p>
-    <div>
-      <button class="btn" onclick="location.reload()">Retry Connection</button>
-      <button class="btn btn-secondary" onclick="window.location.href='file://${path.join(__dirname, 'app', 'index.html').replace(/\\/g, '/')}'">Open Emergency Offline Terminal</button>
-    </div>
-  </div>
-</body>
-</html>`;
+  return { loadRemoteUrl: false, offlineFirst: true };
 }
 
 function createWindow() {
@@ -123,7 +58,7 @@ function createWindow() {
     show: false,
   });
 
-  // Load dedicated standalone Reception POS Terminal by default
+  // Offline-First: Load dedicated standalone Reception POS Terminal directly
   if (config.loadRemoteUrl && config.serverUrl) {
     currentTargetUrl = config.serverUrl;
     mainWindow.loadURL(currentTargetUrl);
@@ -136,11 +71,11 @@ function createWindow() {
     mainWindow.focus();
   });
 
-  // If remote server connection fails
+  // If remote server connection fails, seamlessly fall back to local offline terminal
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
     if (validatedURL && validatedURL.startsWith('http')) {
-      console.warn(`[Electron] Failed to load ${validatedURL} (${errorCode}: ${errorDescription})`);
-      mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(getErrorHtml(validatedURL))}`);
+      console.warn(`[Electron] Remote server unreachable (${errorCode}: ${errorDescription}). Switching to offline-first terminal.`);
+      mainWindow.loadFile(htmlPath);
     }
   });
 
@@ -209,15 +144,12 @@ ipcMain.handle('print-receipt', async (event, options) => {
 });
 
 let tvWindow = null;
-ipcMain.handle('open-tv-screen', async (event, options) => {
+ipcMain.handle('open-tv-screen', async () => {
   if (tvWindow && !tvWindow.isDestroyed()) {
     tvWindow.focus();
     return true;
   }
-  const config = loadConfig();
-  const baseUrl = config.apiBaseUrl || 'http://localhost:3000';
-  const mode = options?.mode || 'visitor';
-  const targetUrl = `${baseUrl}/stations?mode=${mode}`;
+  const tvHtmlPath = path.join(__dirname, 'app', 'tv.html');
 
   tvWindow = new BrowserWindow({
     width: 1920,
@@ -225,11 +157,11 @@ ipcMain.handle('open-tv-screen', async (event, options) => {
     minWidth: 1024,
     minHeight: 600,
     title: 'Udhyana Games — Live Station Arena & Entrance Display',
-    backgroundColor: '#080c14',
+    backgroundColor: '#08090d',
     autoHideMenuBar: true,
   });
 
-  tvWindow.loadURL(targetUrl);
+  tvWindow.loadFile(tvHtmlPath);
   tvWindow.on('closed', () => {
     tvWindow = null;
   });
