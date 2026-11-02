@@ -6,6 +6,7 @@
   },
   "files": [
     "electron/**/*",
+    "local_database/**/*",
     "package.json",
     "reception-config.json",
     "node_modules/pg/**/*",

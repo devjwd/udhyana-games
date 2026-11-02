@@ -1,12 +1,75 @@
 // Udhyana Games - Ultimate Reception & Admin Engine
 
 const DEFAULT_CONSOLES = [
-  { id: 'ps5-1', name: 'PS5 Pro - Station 1', type: 'PS5 Pro', rate: null },
-  { id: 'ps5-2', name: 'PS5 Pro - Station 2', type: 'PS5 Pro', rate: null },
-  { id: 'ps5-3', name: 'PS5 Pro - Station 3', type: 'PS5 Pro', rate: null },
-  { id: 'pc-1', name: 'Esports PC - Station 4', type: 'Esports PC', rate: null },
-  { id: 'pc-2', name: 'Esports PC - Station 5', type: 'Esports PC', rate: null },
-  { id: 'xbox-1', name: 'Xbox Series X - Station 6', type: 'Xbox Series X', rate: null },
+  {
+    id: 'PS5',
+    name: 'station 1 ( ps5 )',
+    type: 'PS5',
+    rate: 300,
+    games: [
+      'EA Sports FC 25',
+      'Tekken 8',
+      'Mortal Kombat 1',
+      'Marvel’s Spider-Man 2',
+      'God of War Ragnarök',
+      'Call of Duty: Warzone',
+      'GTA V',
+      'Fortnite',
+      'Rocket League',
+      'Gran Turismo 7'
+    ]
+  },
+  {
+    id: 'Xbox series X',
+    name: 'station 2 ( xbox series X )',
+    type: 'Xbox Series X',
+    rate: 300,
+    games: [
+      'EA Sports FC 25',
+      'Tekken 8',
+      'Mortal Kombat 1',
+      'Forza Horizon 5',
+      'Call of Duty: Warzone',
+      'GTA V',
+      'Halo Infinite',
+      'Fortnite',
+      'Rocket League',
+      'Need for Speed Unbound'
+    ]
+  },
+  {
+    id: 'Xbox series X(2)',
+    name: 'Station 3 ( xbox series X )',
+    type: 'Xbox Series X',
+    rate: 300,
+    games: [
+      'EA Sports FC 25',
+      'Tekken 8',
+      'Mortal Kombat 1',
+      'Forza Horizon 5',
+      'Call of Duty: Warzone',
+      'GTA V',
+      'Halo Infinite',
+      'Fortnite',
+      'Rocket League',
+      'Need for Speed Unbound'
+    ]
+  },
+  {
+    id: 'steerin wheel + ps4',
+    name: 'station 4 ( steering wheel )',
+    type: 'Racing Rig',
+    rate: 300,
+    games: [
+      'Forza Horizon 5',
+      'Gran Turismo 7',
+      'Need for Speed Unbound',
+      'Assetto Corsa',
+      'F1 24',
+      'Dirt Rally 2.0',
+      'GTA V'
+    ]
+  }
 ];
 
 const DEFAULT_SNACKS = [
@@ -84,16 +147,10 @@ function loadState() {
     }
   }
 
-  // Purge any legacy stations or placeholders
+  // Ensure state uses the correct 4 stations
   if (state.consoles && Array.isArray(state.consoles)) {
-    state.consoles = state.consoles.filter(c => {
-      const name = (c.name || '').toLowerCase();
-      return !name.includes('( ps5 )') &&
-             !name.includes('( steering wheel )') &&
-             !name.includes('( xbox series x )') &&
-             !name.includes('steering');
-    });
-    if (state.consoles.length === 0) {
+    const hasLegacy = state.consoles.some(c => (c.id || '').startsWith('ps5-') || (c.id || '').startsWith('pc-'));
+    if (hasLegacy || state.consoles.length !== 4) {
       state.consoles = [...DEFAULT_CONSOLES];
     }
   }
