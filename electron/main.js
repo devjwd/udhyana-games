@@ -1,7 +1,14 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
+delete process.env.ELECTRON_RUN_AS_NODE;
+
 const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+// Catch any unhandled errors
+process.on('uncaughtException', (err) => {
+  console.error('[Electron Uncaught Exception]:', err);
+});
 
 // Single Instance Lock: Ensure only one reception desk terminal is running at a time
 const gotTheLock = app.requestSingleInstanceLock();
