@@ -11,7 +11,7 @@
     "desktop:dev": "electron .",
     "package:exe": "electron-builder --win",
     "sync:offline": "node scripts/sync-offline-data.mjs",
-    "build:desktop": "node scripts/sync-offline-data.mjs && electron-builder --win",
+    "build:desktop": "node scripts/sync-offline-data.mjs && electron-builder --win && node scripts/post-build-copy.mjs",
     "db:generate": "npx prisma generate --schema=./src/backend/schema.prisma",
     "db:push": "npx prisma db push --schema=./src/backend/schema.prisma",
     "db:inspect": "node scripts/inspect-db.mjs",
