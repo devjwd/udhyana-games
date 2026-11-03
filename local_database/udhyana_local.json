@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-03T11:47:41.387Z",
+  "updatedAt": "2026-11-03T12:01:06.876Z",
   "cloudConnected": true,
   "consoles": [
     {
@@ -115,6 +115,24 @@
     "extraControllerRate": 100
   },
   "users": [],
-  "sessions": [],
-  "orders": []
+  "sessions": [
+    {
+      "id": "sess_off_1793706990937_8ad9o",
+      "consoleId": "PS5",
+      "guestName": "jawad",
+      "status": "ACTIVE",
+      "billingType": "PREPAID",
+      "startTime": "2026-11-03T11:56:30.937Z",
+      "endTime": "2026-11-03T12:56:30.937Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "off_1793706990937_8ad9o",
+      "totalAmount": 300,
+      "paymentMethod": "cash",
+      "walkInName": "jawad",
+      "createdAt": "2026-11-03T11:56:30.937Z"
+    }
+  ]
 }

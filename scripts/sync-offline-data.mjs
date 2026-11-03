@@ -102,6 +102,56 @@ if (fs.existsSync(localDbPath)) {
   } catch {}
 }
 
+// Check offline sync queue to merge any offline sessions or orders
+const offlineQueuePath = path.join(rootDir, 'local_database', 'offline_sync_queue.json');
+let queuedOrders = [];
+let queuedSessions = [];
+if (fs.existsSync(offlineQueuePath)) {
+  try {
+    const rawQueue = JSON.parse(fs.readFileSync(offlineQueuePath, 'utf8') || '[]');
+    for (const qItem of rawQueue) {
+      if (qItem.type === 'CHECKOUT' && qItem.payload) {
+        queuedOrders.push({
+          id: qItem.id,
+          totalAmount: qItem.payload.totalAmount,
+          paymentMethod: qItem.payload.paymentMethod || 'cash',
+          walkInName: qItem.payload.walkInName,
+          createdAt: qItem.timestamp || new Date().toISOString()
+        });
+        if (qItem.payload.sessionData && Array.isArray(qItem.payload.sessionData)) {
+          for (const s of qItem.payload.sessionData) {
+            const start = new Date(qItem.timestamp || Date.now());
+            const end = new Date(start.getTime() + (s.durationSeconds || 3600) * 1000);
+            queuedSessions.push({
+              id: 'sess_' + qItem.id,
+              consoleId: s.consoleId,
+              guestName: s.playerName,
+              status: end.getTime() > Date.now() ? 'ACTIVE' : 'COMPLETED',
+              billingType: 'PREPAID',
+              startTime: start.toISOString(),
+              endTime: end.toISOString()
+            });
+          }
+        }
+      }
+    }
+  } catch {}
+}
+
+const mergedOrders = [...(existingLocalDb.orders || [])];
+for (const qo of queuedOrders) {
+  if (!mergedOrders.some(o => o.id === qo.id)) {
+    mergedOrders.push(qo);
+  }
+}
+
+const mergedSessions = [...(existingLocalDb.sessions || [])];
+for (const qs of queuedSessions) {
+  if (!mergedSessions.some(s => s.id === qs.id)) {
+    mergedSessions.push(qs);
+  }
+}
+
 const updatedLocalDb = {
   ...existingLocalDb,
   updatedAt: new Date().toISOString(),
@@ -110,8 +160,8 @@ const updatedLocalDb = {
   snacks: SNACKS,
   pricing: PRICING,
   users: existingLocalDb.users || [],
-  sessions: existingLocalDb.sessions || [],
-  orders: existingLocalDb.orders || []
+  sessions: mergedSessions,
+  orders: mergedOrders
 };
 
 fs.writeFileSync(localDbPath, JSON.stringify(updatedLocalDb, null, 2), 'utf8');

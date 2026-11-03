@@ -1,1 +1,32 @@
-[]
+[
+  {
+    "id": "off_1793706990937_8ad9o",
+    "type": "CHECKOUT",
+    "payload": {
+      "cartItems": [
+        {
+          "name": "station 1 ( ps5 ) (jawad)",
+          "price": 300,
+          "type": "session",
+          "quantity": 1
+        }
+      ],
+      "totalAmount": 300,
+      "paymentMethod": "cash",
+      "sessionData": [
+        {
+          "consoleId": "PS5",
+          "playerName": "jawad",
+          "phone": "sad23",
+          "userId": null,
+          "durationHours": 1,
+          "durationSeconds": 3600
+        }
+      ],
+      "walkInName": "jawad",
+      "walkInPhone": "sad23",
+      "userId": null
+    },
+    "timestamp": "2026-11-03T11:56:30.937Z"
+  }
+]
