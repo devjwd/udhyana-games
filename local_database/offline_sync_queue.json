@@ -28,5 +28,13 @@
       "userId": null
     },
     "timestamp": "2026-11-03T11:56:30.937Z"
+  },
+  {
+    "id": "off_1794222067194_xz50u",
+    "type": "session_end",
+    "payload": {
+      "consoleId": "PS5"
+    },
+    "timestamp": "2026-11-09T11:01:07.195Z"
   }
 ]

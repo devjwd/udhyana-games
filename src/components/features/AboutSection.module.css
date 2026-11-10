@@ -1,10 +1,12 @@
 /* ══════════════════════════════════
-   ABOUT PAGE — MINIMAL & CLEAN
+   ABOUT SECTION — EMBEDDED HOMEPAGE
    ══════════════════════════════════ */
 
-.main {
+.aboutSection {
   background-color: var(--page-bg);
-  min-height: 100vh;
+  width: 100%;
+  position: relative;
+  border-top: 1px solid var(--border);
 }
 
 .container {
@@ -13,9 +15,9 @@
   padding: 0 clamp(1.5rem, 5vw, 4rem);
 }
 
-/* ── Hero ── */
-.hero {
-  padding: clamp(4rem, 8vw, 7rem) 0 clamp(3rem, 5vw, 5rem);
+/* ── Hero / Intro ── */
+.intro {
+  padding: clamp(4rem, 8vw, 6rem) 0 clamp(2.5rem, 4vw, 4rem);
   border-bottom: 1px solid var(--border);
 }
 
@@ -30,7 +32,7 @@
 }
 
 .title {
-  font-size: clamp(2.25rem, 5vw, 4rem);
+  font-size: clamp(2.25rem, 5vw, 3.75rem);
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -0.02em;
@@ -221,3 +223,4 @@
     gap: 3rem;
   }
 }
+

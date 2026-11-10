@@ -1,5 +1,6 @@
-import Image from 'next/image';
 import CyberButton from '@/components/ui/CyberButton';
+import IconPlaceholder from '@/components/ui/IconPlaceholder';
+import { getGamingIconType } from '@/components/ui/GamingIcon';
 import styles from './ConsoleCard.module.css';
 
 interface LocationCardProps {
@@ -7,18 +8,20 @@ interface LocationCardProps {
   title: string;
   specs: string;
   description: string;
-  image: string;
+  image?: string;
   status: string;
   statusColor: string;
   features: string[];
   onClick: () => void;
 }
 
-export default function LocationCard({ title, specs, description, image, status, statusColor, features, onClick }: LocationCardProps) {
+export default function LocationCard({ title, specs, description, status, statusColor, features, onClick }: LocationCardProps) {
+  const iconType = getGamingIconType(`${title} ${specs}`);
+
   return (
     <div className={styles.card}>
       <div className={styles.imageWrapper}>
-        <Image src={image} alt={title} fill className={styles.image} />
+        <IconPlaceholder icon={iconType} title={title} size={72} />
         <div className={styles.statusBadge} style={{ color: statusColor }}>
           <span className={styles.statusDot} style={{ backgroundColor: statusColor }} />
           {status}
@@ -47,4 +50,3 @@ export default function LocationCard({ title, specs, description, image, status,
     </div>
   );
 }
-

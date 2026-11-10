@@ -1,6 +1,7 @@
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import HeroSection from '@/components/features/HeroSection';
+import AboutSection from '@/components/features/AboutSection';
 import { getHeroTrending, getHeroGallery } from '@/backend/actions';
 import styles from './page.module.css';
 
@@ -20,6 +21,7 @@ export default async function Home() {
           initialTrending={initialTrending}
           initialGallery={initialGallery}
         />
+        <AboutSection />
       </main>
       <Footer />
     </>

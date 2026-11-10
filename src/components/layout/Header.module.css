@@ -19,6 +19,27 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  text-decoration: none;
+}
+
+.brandLogo {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  text-decoration: none;
+}
+
+.brandTitle {
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #ffffff;
+  text-transform: uppercase;
+  font-family: inherit;
+}
+
+.brandAccent {
+  color: var(--accent);
 }
 
 /* ── Desktop Nav ── */

@@ -47,6 +47,11 @@ function TransferDialog({
   };
 
   const playerName = session.guestName || session.user?.fullName || session.user?.username || 'Player';
+  const remainingSeconds = session.status === 'PAUSED'
+    ? (session.pausedRemainingSeconds && session.pausedRemainingSeconds > 0 ? session.pausedRemainingSeconds : 1800)
+    : session.billingType === 'POSTPAID'
+    ? 3600
+    : Math.max(900, Math.floor((new Date(session.endTime).getTime() - Date.now()) / 1000));
 
   return (
     <div className={styles.modalOverlay} onClick={e => { if (e.target === e.currentTarget && !isSubmitting) onClose(); }} role="dialog" aria-modal="true">
@@ -72,7 +77,7 @@ function TransferDialog({
             {consoles
               .filter(c => c.id !== session.consoleId)
               .map(c => {
-                const avail = checkAvailability(c.id, 1800);
+                const avail = checkAvailability(c.id, remainingSeconds);
                 return (
                   <option key={c.id} value={c.id} disabled={!avail.available}>
                     {c.name} {!avail.available ? `(${avail.reason})` : '(Available)'}

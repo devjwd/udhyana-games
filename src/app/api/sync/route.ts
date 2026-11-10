@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { recordLoyaltyTransaction, getLoyaltyRates } from '@/backend/actions';
 
 export async function GET() {
   try {
@@ -110,13 +111,15 @@ export async function POST(req: NextRequest) {
         });
 
         // Create billing order if amount > 0
+        let createdOrder = null;
         if (totalAmount && totalAmount > 0) {
-          await prisma.order.create({
+          createdOrder = await prisma.order.create({
             data: {
               userId: userId || null,
               totalAmount: parseFloat(totalAmount),
               paymentMethod: paymentMethod || 'cash',
               status: 'COMPLETED',
+              pointsRedeemed: payload.pointsRedeemed ? Number(payload.pointsRedeemed) : 0,
               items: {
                 create: (orderItems || []).map((item: { name: string; price: string | number; quantity?: number; type?: string }) => ({
                   name: item.name,
@@ -127,6 +130,36 @@ export async function POST(req: NextRequest) {
               },
             },
           });
+        }
+
+        // Award loyalty points for prepaid session start
+        if (userId && totalAmount && totalAmount > 0) {
+          try {
+            const { spendPerPoint } = await getLoyaltyRates();
+            const pointsEarned = Math.floor(parseFloat(totalAmount) / spendPerPoint);
+            await prisma.$transaction(async (tx) => {
+              if (payload.pointsRedeemed && Number(payload.pointsRedeemed) > 0) {
+                await recordLoyaltyTransaction(tx, {
+                  userId,
+                  amount: -Number(payload.pointsRedeemed),
+                  type: 'REDEEMED_GAMETIME',
+                  description: `Offline Session Loyalty Discount (-${payload.pointsRedeemed} XP)`,
+                  orderId: createdOrder?.id,
+                });
+              }
+              if (pointsEarned > 0) {
+                await recordLoyaltyTransaction(tx, {
+                  userId,
+                  amount: pointsEarned,
+                  type: 'EARNED_SPEND',
+                  description: `Offline Session Prepayment (+${pointsEarned} XP)`,
+                  orderId: createdOrder?.id,
+                });
+              }
+            });
+          } catch (syncLoyaltyErr) {
+            console.error('[Sync] Failed to process loyalty points for START_SESSION:', syncLoyaltyErr);
+          }
         }
 
         return NextResponse.json({ success: true, mutationId, session: newSession });
@@ -154,7 +187,7 @@ export async function POST(req: NextRequest) {
       }
 
       case 'SETTLE_POSTPAID_SESSION': {
-        const { sessionId, totalAmount, paymentMethod, orderItems } = payload;
+        const { sessionId, totalAmount, paymentMethod, orderItems, pointsToRedeem } = payload;
         const now = new Date();
 
         const updatedSession = await prisma.gameSession.update({
@@ -162,13 +195,17 @@ export async function POST(req: NextRequest) {
           data: { status: 'COMPLETED', checkedOutAt: now, endTime: now },
         });
 
-        if (totalAmount && Number(totalAmount) > 0) {
-          await prisma.order.create({
+        const parsedAmount = totalAmount ? parseFloat(String(totalAmount)) : 0;
+        let createdOrder = null;
+
+        if (parsedAmount > 0 || (orderItems && orderItems.length > 0)) {
+          createdOrder = await prisma.order.create({
             data: {
               userId: updatedSession.userId,
-              totalAmount: parseFloat(String(totalAmount)),
+              totalAmount: parsedAmount,
               paymentMethod: paymentMethod || 'cash',
               status: 'COMPLETED',
+              pointsRedeemed: pointsToRedeem ? Number(pointsToRedeem) : 0,
               items: {
                 create: (orderItems || []).map((item: { name: string; price: string | number; quantity?: number; type?: string }) => ({
                   name: item.name,
@@ -179,6 +216,60 @@ export async function POST(req: NextRequest) {
               },
             },
           });
+        }
+
+        // Process loyalty points and playtime sync
+        if (updatedSession.userId) {
+          try {
+            const { spendPerPoint, pointsPerHour } = await getLoyaltyRates();
+            const startMs = updatedSession.startTime.getTime();
+            const durationHours = Math.max(1, Math.ceil((now.getTime() - startMs) / (1000 * 3600)));
+
+            await prisma.$transaction(async (tx) => {
+              if (pointsToRedeem && Number(pointsToRedeem) > 0) {
+                await recordLoyaltyTransaction(tx, {
+                  userId: updatedSession.userId!,
+                  amount: -Number(pointsToRedeem),
+                  type: 'REDEEMED_GAMETIME',
+                  description: `Offline Settle Discount (-${pointsToRedeem} XP)`,
+                  orderId: createdOrder?.id,
+                });
+              }
+
+              const spendPts = parsedAmount > 0 ? Math.floor(parsedAmount / spendPerPoint) : 0;
+              const playPts = durationHours * pointsPerHour;
+
+              if (playPts > 0) {
+                await recordLoyaltyTransaction(tx, {
+                  userId: updatedSession.userId!,
+                  amount: playPts,
+                  type: 'EARNED_PLAYTIME',
+                  description: `Offline Playtime Reward: ${durationHours}h (+${playPts} XP)`,
+                  orderId: createdOrder?.id,
+                });
+              }
+
+              if (spendPts > 0) {
+                await recordLoyaltyTransaction(tx, {
+                  userId: updatedSession.userId!,
+                  amount: spendPts,
+                  type: 'EARNED_SPEND',
+                  description: `Offline Payment Reward (+${spendPts} XP)`,
+                  orderId: createdOrder?.id,
+                });
+              }
+
+              await tx.user.update({
+                where: { id: updatedSession.userId! },
+                data: {
+                  sessionsCount: { increment: 1 },
+                  playtimeHours: { increment: durationHours },
+                }
+              });
+            });
+          } catch (syncLoyaltyErr) {
+            console.error('[Sync] Failed to process loyalty points for SETTLE_POSTPAID_SESSION:', syncLoyaltyErr);
+          }
         }
 
         return NextResponse.json({ success: true, mutationId, session: updatedSession });

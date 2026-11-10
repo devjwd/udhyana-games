@@ -1,0 +1,388 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(18, 20, 29, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+}
+
+.titleArea h2 {
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin: 0 0 0.35rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #fff;
+  letter-spacing: 0.03em;
+}
+
+.titleArea p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  color: #00f0ff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 0.35rem 0.85rem;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #00f0ff;
+  box-shadow: 0 0 8px #00f0ff;
+  animation: pulse 2s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.7; }
+}
+
+.stationGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 1.5rem;
+}
+
+.stationCard {
+  background: #0f111a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.stationCard:hover {
+  border-color: rgba(214, 255, 1, 0.3);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 1rem;
+}
+
+.stationTitle {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 0.3rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.brandBadge {
+  font-size: 0.7rem;
+  font-weight: 900;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.brandLg {
+  background: rgba(235, 16, 74, 0.15);
+  color: #ff3366;
+  border: 1px solid rgba(235, 16, 74, 0.3);
+}
+
+.brandSony {
+  background: rgba(0, 150, 255, 0.15);
+  color: #33aaff;
+  border: 1px solid rgba(0, 150, 255, 0.3);
+}
+
+.specsList {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.specItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.specLabel {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.specValue {
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: #d6ff01;
+  font-weight: 600;
+}
+
+.actionGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+.btnAction {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.btnAction:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.2);
+}
+
+.btnAction:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btnWake {
+  background: rgba(0, 255, 136, 0.12);
+  border-color: rgba(0, 255, 136, 0.3);
+  color: #00ff88;
+}
+.btnWake:hover:not(:disabled) {
+  background: rgba(0, 255, 136, 0.2);
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.25);
+}
+
+.btnOff {
+  background: rgba(255, 0, 85, 0.12);
+  border-color: rgba(255, 0, 85, 0.3);
+  color: #ff3366;
+}
+.btnOff:hover:not(:disabled) {
+  background: rgba(255, 0, 85, 0.2);
+  box-shadow: 0 0 15px rgba(255, 0, 85, 0.25);
+}
+
+.btnHdmi {
+  background: rgba(0, 180, 255, 0.12);
+  border-color: rgba(0, 180, 255, 0.3);
+  color: #38bdf8;
+}
+
+.btnToast {
+  background: rgba(214, 255, 1, 0.12);
+  border-color: rgba(214, 255, 1, 0.3);
+  color: #d6ff01;
+}
+
+.btnWarning {
+  background: rgba(255, 170, 0, 0.12);
+  border-color: rgba(255, 170, 0, 0.3);
+  color: #fbbf24;
+}
+
+.customToastRow {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.toastInput {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  color: #fff;
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.toastInput:focus {
+  border-color: #d6ff01;
+}
+
+.consoleBox {
+  background: #08090d;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.consoleHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 0.5rem;
+}
+
+.consoleTitle {
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.consoleLogs {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-right: 0.5rem;
+}
+
+.logLine {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.logTime {
+  color: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+}
+
+.logSuccess {
+  color: #00ff88;
+}
+
+.logError {
+  color: #ff3366;
+}
+
+.logInfo {
+  color: #00f0ff;
+}
+
+.logWarning {
+  color: #fbbf24;
+}
+
+.firstTimeNotice {
+  background: rgba(255, 170, 0, 0.08);
+  border: 1px solid rgba(255, 170, 0, 0.25);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.78rem;
+  color: #fde68a;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* Editable Network Configuration */
+.specInput {
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  color: #d6ff01;
+  font-family: monospace;
+  font-size: 0.85rem;
+  padding: 5px 8px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.specInput:focus {
+  border-color: #d6ff01;
+  background: rgba(0, 0, 0, 0.8);
+  box-shadow: 0 0 8px rgba(214, 255, 1, 0.25);
+}
+
+.specSelect {
+  background: #0f111a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  color: #fff;
+  font-size: 0.82rem;
+  padding: 5px 8px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.saveConfigBar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.btnSaveSpecs {
+  background: rgba(214, 255, 1, 0.15);
+  border: 1px solid rgba(214, 255, 1, 0.4);
+  color: #d6ff01;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 6px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+}
+
+.btnSaveSpecs:hover {
+  background: rgba(214, 255, 1, 0.3);
+  box-shadow: 0 0 12px rgba(214, 255, 1, 0.35);
+}
+
+

@@ -1,8 +1,8 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import Image from 'next/image';
 import QRCode from 'qrcode';
 import { getUserLoyaltyHistory } from '@/backend/actions';
 import styles from './DigitalMemberPassModal.module.css';
@@ -296,13 +296,12 @@ export default function DigitalMemberPassModal({ isOpen, onClose }: DigitalMembe
               <div className={styles.qrCard}>
                 <div className={styles.qrContainer}>
                   {qrCodeUrl ? (
-                    <Image
+                    <img
                       src={qrCodeUrl}
                       alt="Gamer QR Code"
                       width={110}
                       height={110}
                       className={styles.qrImage}
-                      unoptimized
                     />
                   ) : (
                     <div style={{ width: 110, height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666' }}>

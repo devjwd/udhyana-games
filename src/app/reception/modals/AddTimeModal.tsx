@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import styles from '../page.module.css';
 import { Session } from '../types';
+import toast from 'react-hot-toast';
 
 interface AddTimeModalProps {
   session: Session | null;
@@ -42,10 +43,18 @@ function AddTimeModalDialog({
     { label: '+3 Hours', hours: 3, seconds: 10800, cost: baseRate * 3 },
   ];
 
-  const currentSeconds = customMinutes ? Math.max(0, parseInt(customMinutes, 10) * 60) : selectedHours * 3600;
+  const parsedCustomMins = customMinutes.trim() !== '' ? parseInt(customMinutes, 10) : NaN;
+  const isCustomValid = isNaN(parsedCustomMins) || parsedCustomMins >= 5;
+  const currentSeconds = !isNaN(parsedCustomMins)
+    ? Math.max(0, parsedCustomMins * 60)
+    : selectedHours * 3600;
   const currentCost = Math.round((currentSeconds / 3600) * baseRate);
 
   const handleSubmit = async () => {
+    if (!isNaN(parsedCustomMins) && parsedCustomMins < 5) {
+      toast.error('Minimum 5 minutes required for custom duration.');
+      return;
+    }
     if (currentSeconds <= 0) return;
     setIsSubmitting(true);
     try {
@@ -106,7 +115,13 @@ function AddTimeModalDialog({
             value={customMinutes}
             onChange={e => setCustomMinutes(e.target.value)}
             className={styles.input}
+            style={!isCustomValid ? { borderColor: '#ef4444' } : {}}
           />
+          {!isCustomValid && (
+            <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+              Minimum 5 minutes required.
+            </span>
+          )}
         </div>
 
         <div className={styles.field} style={{ marginBottom: '1.25rem' }}>
@@ -145,7 +160,7 @@ function AddTimeModalDialog({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={currentSeconds <= 0 || isSubmitting}
+            disabled={!isCustomValid || currentSeconds <= 0 || isSubmitting}
             className={styles.submitBtn}
           >
             {isSubmitting ? 'Recording Payment & Adding Time...' : `Mark as Paid & Add +${Math.round(currentSeconds / 60)} Mins`}

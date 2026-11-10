@@ -70,6 +70,8 @@ export interface CartItem {
   consoleName?: string;
   durationSeconds?: number;
   phone?: string;
+  cnic?: string;
+  isUnder18?: boolean;
   userId?: string;
   extraControllers?: number;
   billingType?: 'PREPAID' | 'POSTPAID';
@@ -114,4 +116,12 @@ export interface DurationOption {
   name: string;
   seconds: number;
   price: number;
+}
+
+export interface PrefilledCustomer {
+  id: string;
+  name: string;
+  phone?: string | null;
+  loyaltyPoints?: number;
+  rank?: string;
 }

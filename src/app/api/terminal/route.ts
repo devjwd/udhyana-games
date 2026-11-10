@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { recordLoyaltyTransaction, getLoyaltyRates } from '@/backend/actions';
 
 // Validate terminal authorization: either via pre-shared secret or authenticated staff session
 async function isAuthorized(req: NextRequest): Promise<boolean> {
@@ -241,38 +242,38 @@ export async function POST(req: NextRequest) {
         // 3. Award Loyalty Points & Update Player Profile in Real-Time
         let updatedProfile: { loyaltyPoints: number; rank: string; playtimeHours: number } | null = null;
         if (userId) {
-          const user = await tx.user.findUnique({
+          const { spendPerPoint } = await getLoyaltyRates();
+          const pointsEarned = Math.floor(finalAmount / spendPerPoint);
+          const hoursAdded = Math.max(1, Math.round(sessionData.reduce((acc: number, s: { durationHours?: number; durationSeconds?: number }) => acc + (s.durationHours || (s.durationSeconds ? s.durationSeconds / 3600 : 1)), 0)));
+
+          const updatedUser = await tx.user.update({
             where: { id: userId },
-            select: { id: true, loyaltyPoints: true, rank: true, sessionsCount: true, playtimeHours: true },
+            data: {
+              sessionsCount: { increment: sessionData.length },
+              playtimeHours: { increment: hoursAdded },
+            },
           });
 
-          if (user) {
-            const pointsEarned = Math.floor(finalAmount / 10);
-            const newPoints = (user.loyaltyPoints || 0) + pointsEarned;
-            const hoursAdded = Math.max(1, Math.round(sessionData.reduce((acc: number, s: { durationHours?: number; durationSeconds?: number }) => acc + (s.durationHours || (s.durationSeconds ? s.durationSeconds / 3600 : 1)), 0)));
+          let newBalance = updatedUser.loyaltyPoints || 0;
+          let newRank = updatedUser.rank || 'Rookie';
 
-            let newRank = user.rank;
-            if (newPoints >= 1000) newRank = 'Elite';
-            else if (newPoints >= 500) newRank = 'Pro';
-            else if (newPoints >= 100) newRank = 'Regular';
-            else newRank = 'Rookie';
-
-            const updated = await tx.user.update({
-              where: { id: userId },
-              data: {
-                loyaltyPoints: newPoints,
-                rank: newRank,
-                sessionsCount: { increment: sessionData.length },
-                playtimeHours: { increment: hoursAdded },
-              },
+          if (pointsEarned > 0) {
+            const loyaltyRes = await recordLoyaltyTransaction(tx, {
+              userId,
+              amount: pointsEarned,
+              type: 'EARNED_SPEND',
+              description: `Terminal Checkout (+${pointsEarned} XP)`,
+              orderId: order.id,
             });
-
-            updatedProfile = {
-              loyaltyPoints: updated.loyaltyPoints,
-              rank: updated.rank,
-              playtimeHours: updated.playtimeHours,
-            };
+            newBalance = loyaltyRes.newBalance;
+            newRank = loyaltyRes.newRank;
           }
+
+          updatedProfile = {
+            loyaltyPoints: newBalance,
+            rank: newRank,
+            playtimeHours: updatedUser.playtimeHours,
+          };
         }
 
         return {
@@ -348,11 +349,15 @@ export async function POST(req: NextRequest) {
 
           // Award loyalty points if registered member
           if (session.userId) {
-            const pointsEarned = Math.floor(addedPrice / 10);
+            const { spendPerPoint } = await getLoyaltyRates();
+            const pointsEarned = Math.floor(addedPrice / spendPerPoint);
             if (pointsEarned > 0) {
-              await tx.user.update({
-                where: { id: session.userId },
-                data: { loyaltyPoints: { increment: pointsEarned } },
+              await recordLoyaltyTransaction(tx, {
+                userId: session.userId,
+                amount: pointsEarned,
+                type: 'EARNED_SPEND',
+                description: `Terminal Extension (+${pointsEarned} XP)`,
+                orderId: order.id,
               });
             }
           }
@@ -507,14 +512,21 @@ export async function POST(req: NextRequest) {
 
         // 3. Award Points
         if (session.userId) {
-          const pointsEarned = Math.floor(grandTotal / 10);
+          const { spendPerPoint } = await getLoyaltyRates();
+          const pointsEarned = Math.floor(grandTotal / spendPerPoint);
+          await tx.user.update({
+            where: { id: session.userId },
+            data: {
+              sessionsCount: { increment: 1 },
+            },
+          });
           if (pointsEarned > 0) {
-            await tx.user.update({
-              where: { id: session.userId },
-              data: {
-                loyaltyPoints: { increment: pointsEarned },
-                sessionsCount: { increment: 1 },
-              },
+            await recordLoyaltyTransaction(tx, {
+              userId: session.userId,
+              amount: pointsEarned,
+              type: 'EARNED_SPEND',
+              description: `Terminal Session Settle (+${pointsEarned} XP)`,
+              orderId: order.id,
             });
           }
         }

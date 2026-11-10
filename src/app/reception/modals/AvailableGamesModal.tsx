@@ -29,6 +29,7 @@ export default function AvailableGamesModal({
   const [search, setSearch] = useState('');
   const [newGameTitle, setNewGameTitle] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const loadGames = useCallback(async () => {
     try {
@@ -72,23 +73,32 @@ export default function AvailableGamesModal({
   };
 
   const handleToggleStationGame = async (consoleId: string, gameName: string) => {
+    const actionKey = `toggle-${consoleId}-${gameName}`;
+    if (actionLoadingId) return;
+    setActionLoadingId(actionKey);
     try {
       await toggleConsoleGame(consoleId, gameName);
       toast.success('Station games updated!');
       await loadGames();
     } catch {
       toast.error('Failed to update station game.');
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
   const handleDeleteGame = async (gameId: string, gameName: string) => {
+    if (actionLoadingId) return;
     if (confirm(`Delete "${gameName}" from lounge library?`)) {
+      setActionLoadingId(`delete-${gameId}`);
       try {
         await deleteMasterGame(gameId);
         toast.success(`"${gameName}" removed.`);
         await loadGames();
       } catch {
         toast.error('Failed to delete game.');
+      } finally {
+        setActionLoadingId(null);
       }
     }
   };
@@ -182,17 +192,18 @@ export default function AvailableGamesModal({
                     <button
                       type="button"
                       onClick={() => handleDeleteGame(g.id, g.name)}
+                      disabled={Boolean(actionLoadingId)}
                       style={{
                         background: 'transparent',
                         border: 'none',
-                        color: 'rgba(255, 107, 107, 0.6)',
-                        cursor: 'pointer',
+                        color: actionLoadingId === `delete-${g.id}` ? 'rgba(255, 107, 107, 0.3)' : 'rgba(255, 107, 107, 0.6)',
+                        cursor: actionLoadingId ? 'not-allowed' : 'pointer',
                         fontSize: '0.8rem',
                         padding: '0.2rem'
                       }}
                       title="Delete game from lounge catalog"
                     >
-                      🗑️
+                      {actionLoadingId === `delete-${g.id}` ? '⌛' : '🗑️'}
                     </button>
                   </div>
                 </div>
@@ -202,10 +213,12 @@ export default function AvailableGamesModal({
                   <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', marginRight: '0.25rem' }}>Installed on:</span>
                   {consoles.map(con => {
                     const isInstalled = installedConsoleIds.includes(con.id);
+                    const isStationToggling = actionLoadingId === `toggle-${con.id}-${g.name}`;
                     return (
                       <button
                         key={con.id}
                         type="button"
+                        disabled={Boolean(actionLoadingId)}
                         onClick={() => {
                           if (isInstalled && onSelectStation) {
                             onSelectStation(con.id);
@@ -223,12 +236,13 @@ export default function AvailableGamesModal({
                           fontWeight: 700,
                           padding: '0.2rem 0.5rem',
                           borderRadius: '4px',
-                          cursor: 'pointer',
+                          cursor: actionLoadingId ? 'not-allowed' : 'pointer',
+                          opacity: actionLoadingId && !isStationToggling ? 0.6 : 1,
                           transition: 'all 0.15s ease'
                         }}
                         title={isInstalled ? `Click to assign ${con.name}` : `Click to install on ${con.name}`}
                       >
-                        {isInstalled ? `✓ ${con.name}` : `+ ${con.name}`}
+                        {isStationToggling ? '...' : isInstalled ? `✓ ${con.name}` : `+ ${con.name}`}
                       </button>
                     );
                   })}

@@ -76,7 +76,15 @@ function AssignWaitlistDialog({
   }, [isSubmitting, onClose]);
 
   const isPrepaid = waiter.requested.toUpperCase().includes('PAID');
+  const initialDurationId = parseInitialDuration(waiter.requested);
+  const initialDurationObj = durations.find(d => d.id === initialDurationId) || durations[1] || durations[0];
+  const initialPaidPrice = isPrepaid ? initialDurationObj.price : 0;
+
   const currentDuration = durations.find(d => d.id === selectedDurationId) || durations[1] || durations[0];
+  const amountDue = isPrepaid
+    ? Math.max(0, currentDuration.price - initialPaidPrice)
+    : currentDuration.price;
+
   const availability = selectedConsoleId
     ? checkAvailability(selectedConsoleId, currentDuration.seconds)
     : { available: false, reason: 'Select a station', isOccupied: false, isReserved: false };
@@ -98,9 +106,9 @@ function AssignWaitlistDialog({
         selectedConsoleId,
         currentDuration.seconds,
         waiter.name,
-        isPrepaid,
+        amountDue === 0,
         paymentMethod,
-        isPrepaid ? 0 : currentDuration.price
+        amountDue
       );
     } finally {
       setIsSubmitting(false);
@@ -149,7 +157,7 @@ function AssignWaitlistDialog({
             <span>Payment Status:</span>
             <span
               style={{
-                color: isPrepaid ? '#34d399' : '#ffb400',
+                color: amountDue === 0 ? '#34d399' : '#ffb400',
                 fontSize: '0.9rem',
                 fontWeight: 900,
                 display: 'flex',
@@ -157,7 +165,11 @@ function AssignWaitlistDialog({
                 gap: '0.35rem'
               }}
             >
-              {isPrepaid ? '✓ PRE-PAID AT ORDER (0 PKR Due)' : `Pay at Desk: PKR ${currentDuration.price}`}
+              {amountDue === 0
+                ? '✓ PRE-PAID AT ORDER (0 PKR Due)'
+                : isPrepaid
+                ? `⚡ Upgrade Due: PKR ${amountDue} (Prepaid ${initialDurationObj.name.split(' (')[0]})`
+                : `Pay at Desk: PKR ${amountDue}`}
             </span>
           </div>
         </div>
@@ -188,7 +200,7 @@ function AssignWaitlistDialog({
         </div>
 
         {/* Duration Selector */}
-        <div className={styles.field} style={{ marginBottom: isPrepaid ? '1.5rem' : '1.25rem' }}>
+        <div className={styles.field} style={{ marginBottom: amountDue === 0 ? '1.5rem' : '1.25rem' }}>
           <label className={styles.label}>Confirmed Duration</label>
           <div className={styles.gridOptions} style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
             {durations.map(d => (
@@ -201,17 +213,21 @@ function AssignWaitlistDialog({
               >
                 <span className={styles.optionMainText}>{d.name.split(' (')[0]}</span>
                 <span className={styles.optionSubText}>
-                  {isPrepaid ? 'PAID' : `PKR ${d.price}`}
+                  {isPrepaid
+                    ? d.price <= initialPaidPrice
+                      ? 'PAID'
+                      : `+PKR ${d.price - initialPaidPrice}`
+                    : `PKR ${d.price}`}
                 </span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Collect Payment selector if NOT prepaid */}
-        {!isPrepaid && (
+        {/* Collect Payment selector if amount is due */}
+        {amountDue > 0 && (
           <div className={styles.field} style={{ marginBottom: '1.5rem' }}>
-            <label className={styles.label}>Collect Payment (PKR {currentDuration.price})</label>
+            <label className={styles.label}>Collect Payment (PKR {amountDue})</label>
             <div className={styles.paymentOptions}>
               <button
                 type="button"
@@ -255,9 +271,9 @@ function AssignWaitlistDialog({
             ? 'Starting Session...'
             : !availability.available
               ? 'Station Occupied — Pick Another Station'
-              : isPrepaid
+              : amountDue === 0
                 ? '🚀 Seat Player & Start Session'
-                : `Mark as Paid (PKR ${currentDuration.price}) & Start Session`}
+                : `Mark as Paid (PKR ${amountDue}) & Start Session`}
         </button>
       </div>
     </div>

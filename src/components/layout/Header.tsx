@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
 import CartDrawer from '../features/CartDrawer';
 import MobileNav from './MobileNav';
 import AuthModal from '../features/AuthModal';
 import DigitalMemberPassModal from '../profile/DigitalMemberPassModal';
+import GamingIcon from '@/components/ui/GamingIcon';
 import { useCart } from '@/context/CartContext';
 import styles from './Header.module.css';
 
@@ -41,12 +41,17 @@ export default function Header() {
     <>
       <header className={styles.header}>
         <Link href="/" className={styles.logo}>
-          <Image src="/images/logo.png" alt="Udhyana Games" width={160} height={48} style={{ objectFit: 'contain' }} priority />
+          <div className={styles.brandLogo}>
+            <GamingIcon name="logo" size={32} />
+            <span className={styles.brandTitle}>
+              UDHYANA <span className={styles.brandAccent}>GAMES</span>
+            </span>
+          </div>
         </Link>
 
         <nav className={styles.nav}>
           <Link href="/" className={styles.navLink}>HOME</Link>
-          <Link href="/about" className={styles.navLink}>ABOUT</Link>
+          <Link href="/#about" className={styles.navLink}>ABOUT</Link>
           <Link href="/consoles" className={styles.navLink}>LOUNGES</Link>
           <Link href="/book" className={styles.navLink}>BOOK</Link>
           <Link href="/events" className={styles.navLink}>EVENTS</Link>

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useCart } from '@/context/CartContext';
@@ -9,6 +8,8 @@ import { ProductItem } from '@/data/shopCatalog';
 import { redeemStoreProductWithPoints, getUserLoyaltyHistory } from '@/backend/actions';
 import AuthModal from '@/components/features/AuthModal';
 import DigitalMemberPassModal from '@/components/profile/DigitalMemberPassModal';
+import IconPlaceholder from '@/components/ui/IconPlaceholder';
+import { getGamingIconType } from '@/components/ui/GamingIcon';
 import styles from '@/app/shop/page.module.css';
 
 interface ShopClientViewProps {
@@ -345,13 +346,10 @@ export default function ShopClientView({ initialProducts }: ShopClientViewProps)
                     </span>
 
                     <Link href={`/shop/${product.id}`} style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                      <Image
-                        src={product.imageUrl || '/images/products/headphones.png'}
-                        alt={product.name}
-                        fill
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                        className={styles.cardImage}
-                        priority={false}
+                      <IconPlaceholder
+                        icon={getGamingIconType(`${product.name} ${product.category}`)}
+                        title={product.name}
+                        size={76}
                       />
                     </Link>
                   </div>

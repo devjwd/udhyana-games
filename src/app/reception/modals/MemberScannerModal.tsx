@@ -36,6 +36,11 @@ export default function MemberScannerModal({
   const streamRef = useRef<MediaStream | null>(null);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const manualInputRef = useRef<HTMLInputElement>(null);
+  const isOpenRef = useRef(isOpen);
+
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
 
   // Stop camera helper
   const stopCamera = useCallback(() => {
@@ -81,6 +86,10 @@ export default function MemberScannerModal({
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
     }).then(async (stream) => {
+      if (!isOpenRef.current) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;

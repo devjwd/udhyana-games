@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
+import GamingIcon from '@/components/ui/GamingIcon';
 import styles from '../page.module.css';
 import { signIn, signOut } from 'next-auth/react';
 import toast from 'react-hot-toast';
@@ -47,15 +47,11 @@ export default function ReceptionAuth({ sessionUser, onLoginSuccess }: Reception
     <div className={styles.loginContainer}>
       <div className={styles.loginCard}>
         <div className={styles.loginHeader}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
-            <Image
-              src="/images/logo.png"
-              alt="Udhyana Games"
-              width={180}
-              height={54}
-              style={{ objectFit: 'contain' }}
-              priority
-            />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.65rem', marginBottom: '1.25rem' }}>
+            <GamingIcon name="logo" size={38} />
+            <span style={{ fontSize: '1.25rem', fontWeight: 900, letterSpacing: '0.08em', color: '#fff' }}>
+              UDHYANA <span style={{ color: 'var(--accent, #d6ff01)' }}>GAMES</span>
+            </span>
           </div>
           <h1 className={styles.loginBrand}>UDHYANA RECEPTION</h1>
           <p className={styles.loginSubtitle}>Staff & Admin Portal Authentication</p>

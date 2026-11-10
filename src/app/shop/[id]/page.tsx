@@ -1,12 +1,13 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useState, useEffect, use } from 'react';
 import { useSession } from 'next-auth/react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import CyberButton from '@/components/ui/CyberButton';
+import IconPlaceholder from '@/components/ui/IconPlaceholder';
+import { getGamingIconType } from '@/components/ui/GamingIcon';
 import { useCart } from '@/context/CartContext';
 import { getProductById, getProducts, redeemStoreProductWithPoints, getUserLoyaltyHistory } from '@/backend/actions';
 import { getShopProductById, ProductItem } from '@/data/shopCatalog';
@@ -208,13 +209,11 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
                 <span className={styles.tagBadge}>{product.tag}</span>
               ) : null}
               <div className={styles.imageCanvas}>
-                <Image
-                  src={product.imageUrl || '/images/products/headphones.png'}
-                  alt={product.name}
-                  fill
-                  priority
-                  sizes="(max-width: 900px) 100vw, 50vw"
-                  className={styles.mainImage}
+                <IconPlaceholder
+                  icon={getGamingIconType(`${product.name} ${product.category}`)}
+                  title={product.name}
+                  size={120}
+                  isHero
                 />
               </div>
             </div>
@@ -452,12 +451,10 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
                 {relatedProducts.map((rel) => (
                   <Link key={rel.id} href={`/shop/${rel.id}`} className={styles.relatedCard}>
                     <div className={styles.relatedImageWrap}>
-                      <Image
-                        src={rel.imageUrl || '/images/products/headphones.png'}
-                        alt={rel.name}
-                        fill
-                        sizes="(max-width: 768px) 100vw, 33vw"
-                        className={styles.relatedImage}
+                      <IconPlaceholder
+                        icon={getGamingIconType(`${rel.name} ${rel.category}`)}
+                        title={rel.name}
+                        size={48}
                       />
                     </div>
                     <div className={styles.relatedInfo}>

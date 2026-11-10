@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import Image from 'next/image';
 import toast from 'react-hot-toast';
 import styles from '../page.module.css';
+import GamingIcon from '@/components/ui/GamingIcon';
 import { Session, SnackItem } from '../types';
 import { generatePostpaidSettlementReceiptBytes, printDirectWebSerial } from '../utils/escpos';
 
@@ -80,26 +80,35 @@ function PostpaidCheckoutDialog({
 
   // Printer support
   const [printers, setPrinters] = useState<ElectronPrinter[]>([]);
-  const [selectedPrinter, setSelectedPrinter] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('pos_thermal_printer_name') || '';
-    }
-    return '';
-  });
-  const [silentPrint, setSilentPrint] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('pos_thermal_silent_print') !== 'false';
-    }
-    return true;
-  });
+  const [selectedPrinter, setSelectedPrinter] = useState<string>('');
+  const [silentPrint, setSilentPrint] = useState<boolean>(true);
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
 
   const electronApi = getElectronApi();
   const isDesktop = Boolean(electronApi?.isDesktop);
 
+  useEffect(() => {
+    try {
+      const savedPrinter = localStorage.getItem('pos_thermal_printer_name');
+      if (savedPrinter) setSelectedPrinter(savedPrinter);
+      const savedSilent = localStorage.getItem('pos_thermal_silent_print');
+      if (savedSilent !== null) setSilentPrint(savedSilent !== 'false');
+    } catch {
+      // ignore storage access errors
+    }
+  }, []);
+
   // Calculate elapsed time from session start
   const startTime = useMemo(() => new Date(session.startTime), [session.startTime]);
-  const [nowTime] = useState<Date>(() => new Date());
+  const [nowTime, setNowTime] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    if (isSettled) return; // Freeze timestamp once session is settled
+    const interval = setInterval(() => {
+      setNowTime(new Date());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isSettled]);
 
   const elapsedSeconds = useMemo(() => {
     return Math.max(60, Math.floor((nowTime.getTime() - startTime.getTime()) / 1000));
@@ -128,7 +137,10 @@ function PostpaidCheckoutDialog({
   const maxPointsRedeemable = Math.min(userLoyaltyPoints, finalGamingAmount);
   const activePointsRedeemed = Math.min(pointsToRedeem, maxPointsRedeemable);
   const netGrandTotal = Math.max(0, grandTotal - activePointsRedeemed);
-  const pointsEarned = Math.floor(netGrandTotal / 100);
+  const hoursPlayed = Math.max(1, Math.ceil(totalMinutes / 60));
+  const pointsEarned = session.user?.id
+    ? (hoursPlayed * 50) + Math.floor(netGrandTotal / 10)
+    : 0;
 
   const changeDue = useMemo(() => {
     const tendered = parseFloat(cashTendered);
@@ -289,15 +301,8 @@ function PostpaidCheckoutDialog({
       {/* Printable Thermal Receipt Slip (Visible Only In @media print) */}
       <div className={styles.printableReceipt}>
         <div className={styles.printHeader}>
-          <div className={styles.printLogo}>
-            <Image
-              src="/images/logo.png"
-              alt="Udhyana Games"
-              width={140}
-              height={42}
-              style={{ objectFit: 'contain' }}
-              priority
-            />
+          <div className={styles.printLogo} style={{ display: 'flex', justifyContent: 'center' }}>
+            <GamingIcon name="logo" size={36} color="#000" accentColor="#000" />
           </div>
           <div className={styles.printBrand}>UDHYANA GAMES</div>
           <div className={styles.printSub}>Open Session Final Receipt</div>

@@ -135,7 +135,19 @@ export type LoyaltyTransactionType =
   | 'REDEEMED_STORE'
   | 'ADMIN_ADD'
   | 'ADMIN_DEDUCT'
-  | 'REFUND_REVOKE';
+  | 'REFUND_REVOKE'
+  | 'EXPIRED_INACTIVITY';
+
+/**
+ * Unified calculation of VIP rank tier based strictly on Lifetime Accumulated XP.
+ * This tier is permanent and never demotes when spendable loyalty points are redeemed.
+ */
+function calculateRank(lifetimeXP: number): string {
+  if (lifetimeXP >= 1000) return 'Elite';
+  if (lifetimeXP >= 500) return 'Pro';
+  if (lifetimeXP >= 100) return 'Regular';
+  return 'Rookie';
+}
 
 /**
  * Atomic helper to record a loyalty transaction, adjust spendable points, update lifetime XP,
@@ -162,15 +174,17 @@ export async function recordLoyaltyTransaction(
 
   const currentPoints = user.loyaltyPoints || 0;
   const currentLifetime = user.lifetimeEarnedXP || currentPoints;
+
+  // Prevent race conditions and negative balances on redemption / deductions
+  if (params.amount < 0 && currentPoints + params.amount < 0) {
+    throw new Error(`Insufficient loyalty points: customer balance is ${currentPoints} XP, cannot deduct ${Math.abs(params.amount)} XP.`);
+  }
+
   const newBalance = Math.max(0, currentPoints + params.amount);
   const newLifetime = params.amount > 0 ? currentLifetime + params.amount : currentLifetime;
 
   // Permanent Rank: calculated strictly from lifetime accumulated XP (never demoted when points are redeemed)
-  let newRank = user.rank || 'Beginner';
-  if (newLifetime >= 1000) newRank = 'Elite';
-  else if (newLifetime >= 500) newRank = 'Pro';
-  else if (newLifetime >= 100) newRank = 'Regular';
-  else newRank = 'Rookie';
+  const newRank = calculateRank(newLifetime);
 
   const updatedUser = await tx.user.update({
     where: { id: params.userId },
@@ -241,6 +255,46 @@ export async function adminAdjustUserPoints(
  */
 export async function adjustUserLoyaltyPoints(userId: string, pointsDelta: number, reason: string = 'Admin Manual Adjustment') {
   return await adminAdjustUserPoints(userId, pointsDelta, reason);
+}
+
+/**
+ * Sweeper action to expire points for inactive accounts (180+ days with no session activity).
+ * Preserves lifetime accumulated XP and VIP rank, only forfeiting spendable wallet points.
+ */
+export async function expireInactiveLoyaltyPoints(dryRun: boolean = false) {
+  await requireAdminAuth();
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - 180);
+
+  const inactiveUsers = await prisma.user.findMany({
+    where: {
+      loyaltyPoints: { gt: 0 },
+      lastActivityAt: { lt: cutoffDate },
+    },
+    select: { id: true, username: true, fullName: true, loyaltyPoints: true, lastActivityAt: true }
+  });
+
+  if (dryRun) {
+    return { dryRun: true, count: inactiveUsers.length, users: inactiveUsers };
+  }
+
+  let expiredCount = 0;
+  for (const user of inactiveUsers) {
+    if (!user.loyaltyPoints) continue;
+    await prisma.$transaction(async (tx) => {
+      await recordLoyaltyTransaction(tx, {
+        userId: user.id,
+        amount: -user.loyaltyPoints!,
+        type: 'EXPIRED_INACTIVITY',
+        description: `Expired 180-day inactivity points (-${user.loyaltyPoints} XP)`,
+        reason: '180 days of account inactivity with no lounge sessions'
+      });
+    });
+    expiredCount++;
+  }
+
+  revalidatePath('/admin');
+  return { success: true, expiredCount };
 }
 
 /**
@@ -813,6 +867,7 @@ export async function getAllCustomersWithStats() {
       }
     },
     orderBy: [
+      { lifetimeEarnedXP: 'desc' },
       { loyaltyPoints: 'desc' },
       { username: 'asc' }
     ]
@@ -1183,27 +1238,25 @@ async function internalCompleteSessionRecord(session: {
     try {
       const { pointsPerHour } = await getLoyaltyRates();
       const pointsEarned = Math.max(1, hoursPlayed * pointsPerHour);
-      const user = await prisma.user.update({
-        where: { id: session.userId },
-        data: {
-          sessionsCount: { increment: 1 },
-          playtimeHours: { increment: hoursPlayed },
-          loyaltyPoints: { increment: pointsEarned }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: session.userId! },
+          data: {
+            sessionsCount: { increment: 1 },
+            playtimeHours: { increment: hoursPlayed },
+          }
+        });
+
+        if (pointsEarned > 0) {
+          await recordLoyaltyTransaction(tx, {
+            userId: session.userId!,
+            amount: pointsEarned,
+            type: 'EARNED_PLAYTIME',
+            description: `Playtime Reward: ${hoursPlayed}h completed (+${pointsEarned} XP)`,
+          });
         }
       });
-
-      let newRank = user.rank;
-      if (user.loyaltyPoints >= 1000) newRank = 'Elite';
-      else if (user.loyaltyPoints >= 500) newRank = 'Pro';
-      else if (user.loyaltyPoints >= 100) newRank = 'Regular';
-      else newRank = 'Rookie';
-
-      if (newRank !== user.rank) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { rank: newRank }
-        });
-      }
     } catch (loyaltyErr) {
       console.error('Failed to update loyalty during session completion:', loyaltyErr);
     }
@@ -1443,9 +1496,9 @@ export async function settleAndEndPostpaidSession(
       let pointsEarned = 0;
       if (session.userId) {
         const hoursPlayed = Math.max(1, Math.ceil(totalHours));
-        const { pointsPerHour } = await getLoyaltyRates();
+        const { pointsPerHour, spendPerPoint } = await getLoyaltyRates();
         const loyaltyFromPlay = hoursPlayed * pointsPerHour;
-        const loyaltyFromSpend = Math.floor(finalCashTotal / 10);
+        const loyaltyFromSpend = Math.floor(finalCashTotal / spendPerPoint);
         pointsEarned = loyaltyFromPlay + loyaltyFromSpend;
 
         if (loyaltyFromPlay > 0) {
@@ -1570,24 +1623,16 @@ export async function addTimeToSession(
 
       // 3. Award loyalty points if registered user
       if (session.userId) {
-        const pointsEarned = Math.floor(calculatedAmount / 10);
+        const { spendPerPoint } = await getLoyaltyRates();
+        const pointsEarned = Math.floor(calculatedAmount / spendPerPoint);
         if (pointsEarned > 0) {
-          const user = await tx.user.update({
-            where: { id: session.userId },
-            data: { loyaltyPoints: { increment: pointsEarned } }
+          await recordLoyaltyTransaction(tx, {
+            userId: session.userId,
+            amount: pointsEarned,
+            type: 'EARNED_SPEND',
+            description: `Session Extension (+${durationMinutes}m) (+${pointsEarned} XP)`,
+            orderId: order.id,
           });
-          let newRank = user.rank;
-          if (user.loyaltyPoints >= 1000) newRank = 'Elite';
-          else if (user.loyaltyPoints >= 500) newRank = 'Pro';
-          else if (user.loyaltyPoints >= 100) newRank = 'Regular';
-          else newRank = 'Rookie';
-
-          if (newRank !== user.rank) {
-            await tx.user.update({
-              where: { id: user.id },
-              data: { rank: newRank }
-            });
-          }
         }
       }
 
@@ -1812,7 +1857,8 @@ export async function processPosCheckout(
       // Calculate newly earned points STRICTLY on Net Cash Collected (Zero point recycling)
       let pointsEarned = 0;
       if (userId && finalCashTotal > 0) {
-        pointsEarned = Math.floor(finalCashTotal / 10);
+        const { spendPerPoint } = await getLoyaltyRates();
+        pointsEarned = Math.floor(finalCashTotal / spendPerPoint);
         if (pointsEarned > 0) {
           await recordLoyaltyTransaction(tx, {
             userId,
@@ -1972,11 +2018,15 @@ export async function startSessionFromWaitlist(
         orderId = order.id;
 
         if (userId) {
-          const pointsEarned = Math.floor(calculatedAmount / 10);
+          const { spendPerPoint } = await getLoyaltyRates();
+          const pointsEarned = Math.floor(calculatedAmount / spendPerPoint);
           if (pointsEarned > 0) {
-            await tx.user.update({
-              where: { id: userId },
-              data: { loyaltyPoints: { increment: pointsEarned } }
+            await recordLoyaltyTransaction(tx, {
+              userId,
+              amount: pointsEarned,
+              type: 'EARNED_SPEND',
+              description: `Waitlist Session Start: ${durationHours}h (+${pointsEarned} XP)`,
+              orderId,
             });
           }
         }
@@ -2076,28 +2126,29 @@ export async function createOnlineShopOrder(
       });
 
       // 3. Award loyalty points based on server-verified total
-      const spendPerPointSetting = await tx.settings.findUnique({ where: { key: 'spendPerPoint' } });
-      const spendPerPoint = spendPerPointSetting ? Math.max(1, parseInt(spendPerPointSetting.value, 10)) : 10;
+      const { spendPerPoint } = await getLoyaltyRates();
       const pointsEarned = Math.max(1, Math.floor(serverTotalAmount / spendPerPoint));
 
-      const updatedUser = await tx.user.update({
-        where: { id: userId },
-        data: {
-          loyaltyPoints: { increment: pointsEarned }
-        }
-      });
+      let totalPoints = 0;
+      let finalRank = 'Rookie';
 
-      let newRank = updatedUser.rank;
-      if (updatedUser.loyaltyPoints >= 1000) newRank = 'Elite';
-      else if (updatedUser.loyaltyPoints >= 500) newRank = 'Pro';
-      else if (updatedUser.loyaltyPoints >= 100) newRank = 'Regular';
-      else newRank = 'Rookie';
-
-      if (newRank !== updatedUser.rank) {
-        await tx.user.update({
-          where: { id: userId },
-          data: { rank: newRank }
+      if (pointsEarned > 0) {
+        const loyaltyRes = await recordLoyaltyTransaction(tx, {
+          userId,
+          amount: pointsEarned,
+          type: 'EARNED_SPEND',
+          description: `Online Shop Purchase (+${pointsEarned} XP)`,
+          orderId: order.id,
         });
+        totalPoints = loyaltyRes.newBalance;
+        finalRank = loyaltyRes.newRank;
+      } else {
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: { loyaltyPoints: true, rank: true }
+        });
+        totalPoints = user?.loyaltyPoints || 0;
+        finalRank = user?.rank || 'Rookie';
       }
 
       return {
@@ -2105,8 +2156,8 @@ export async function createOnlineShopOrder(
         orderId: order.id,
         totalAmount: serverTotalAmount,
         pointsEarned,
-        totalPoints: updatedUser.loyaltyPoints,
-        rank: newRank
+        totalPoints,
+        rank: finalRank
       };
     });
 
@@ -2623,12 +2674,18 @@ export async function checkInOnlineBooking(bookingId: string, paymentMethod: str
       data: { status: 'COMPLETED' }
     });
 
-    if (booking.userId) {
-      const pointsEarned = Math.floor(totalAmount / 10);
-      await tx.user.update({
-        where: { id: booking.userId },
-        data: { loyaltyPoints: { increment: pointsEarned } }
-      });
+    if (booking.userId && totalAmount > 0) {
+      const { spendPerPoint } = await getLoyaltyRates();
+      const pointsEarned = Math.floor(totalAmount / spendPerPoint);
+      if (pointsEarned > 0) {
+        await recordLoyaltyTransaction(tx, {
+          userId: booking.userId,
+          amount: pointsEarned,
+          type: 'EARNED_SPEND',
+          description: `Booking Check-In (${customerName}) (+${pointsEarned} XP)`,
+          orderId: order.id,
+        });
+      }
     }
 
     return { success: true, sessionId: session.id, orderId: order.id };
@@ -2854,30 +2911,32 @@ export async function addRetroactiveSession(data: {
     if (data.userId) {
       const user = await tx.user.findUnique({ where: { id: data.userId } });
       if (user) {
+        const { spendPerPoint, pointsPerHour } = await getLoyaltyRates();
         const pointsToAdd = data.loyaltyPointsAwarded !== undefined
           ? Math.max(0, data.loyaltyPointsAwarded)
-          : Math.floor(totalPaid / 10) + Math.floor(durationHours * 50);
+          : Math.floor(totalPaid / spendPerPoint) + Math.floor(durationHours * pointsPerHour);
 
-        const newPoints = (user.loyaltyPoints || 0) + pointsToAdd;
         const newPlaytime = Math.round(((user.playtimeHours || 0) + durationHours) * 10) / 10;
         const newSessionsCount = (user.sessionsCount || 0) + 1;
-
-        // Auto-calculate rank based on new total points
-        let newRank = user.rank || 'Beginner';
-        if (newPoints >= 2000) newRank = 'Elite';
-        else if (newPoints >= 1000) newRank = 'Pro';
-        else if (newPoints >= 500) newRank = 'Regular';
-        else if (newPoints >= 200) newRank = 'Rookie';
 
         await tx.user.update({
           where: { id: data.userId },
           data: {
-            loyaltyPoints: newPoints,
             playtimeHours: newPlaytime,
             sessionsCount: newSessionsCount,
-            rank: newRank,
           }
         });
+
+        if (pointsToAdd > 0) {
+          await recordLoyaltyTransaction(tx, {
+            userId: data.userId,
+            amount: pointsToAdd,
+            type: 'EARNED_PLAYTIME',
+            description: `Historical Session Log: ${durationHours}h (+${pointsToAdd} XP)`,
+            orderId: order.id,
+            reason: data.notes || 'Historical Session Entry'
+          });
+        }
       }
     }
 
@@ -2901,12 +2960,23 @@ export async function adjustUserStats(userId: string, stats: {
     playtimeHours?: number;
     sessionsCount?: number;
     loyaltyPoints?: number;
+    lifetimeEarnedXP?: number;
     rank?: string;
   } = {};
 
   if (stats.playtimeHours !== undefined) updateData.playtimeHours = Math.max(0, Number(stats.playtimeHours));
   if (stats.sessionsCount !== undefined) updateData.sessionsCount = Math.max(0, Number(stats.sessionsCount));
-  if (stats.loyaltyPoints !== undefined) updateData.loyaltyPoints = Math.max(0, Number(stats.loyaltyPoints));
+  if (stats.loyaltyPoints !== undefined) {
+    const val = Math.max(0, Number(stats.loyaltyPoints));
+    updateData.loyaltyPoints = val;
+    const currentUser = await prisma.user.findUnique({ where: { id: userId }, select: { lifetimeEarnedXP: true } });
+    if ((currentUser?.lifetimeEarnedXP || 0) < val) {
+      updateData.lifetimeEarnedXP = val;
+      if (!stats.rank) {
+        updateData.rank = calculateRank(val);
+      }
+    }
+  }
   if (stats.rank) updateData.rank = stats.rank;
 
   const updatedUser = await prisma.user.update({
@@ -2934,36 +3004,44 @@ export async function addRetroactiveOrder(data: {
     throw new Error('Invalid order date provided.');
   }
 
-  const order = await prisma.order.create({
-    data: {
-      userId: data.userId || null,
-      totalAmount: data.totalAmount,
-      paymentMethod: data.paymentMethod || 'cash',
-      createdAt: orderDate,
-      items: {
-        create: data.items.map(it => ({
-          name: it.name,
-          price: it.price,
-          quantity: it.quantity || 1,
-          type: it.type || 'snack'
-        }))
+  const result = await prisma.$transaction(async (tx) => {
+    const order = await tx.order.create({
+      data: {
+        userId: data.userId || null,
+        totalAmount: data.totalAmount,
+        paymentMethod: data.paymentMethod || 'cash',
+        createdAt: orderDate,
+        items: {
+          create: data.items.map(it => ({
+            name: it.name,
+            price: it.price,
+            quantity: it.quantity || 1,
+            type: it.type || 'snack'
+          }))
+        }
+      }
+    });
+
+    if (data.userId && data.totalAmount > 0) {
+      const { spendPerPoint } = await getLoyaltyRates();
+      const pointsEarned = Math.floor(data.totalAmount / spendPerPoint);
+      if (pointsEarned > 0) {
+        await recordLoyaltyTransaction(tx, {
+          userId: data.userId,
+          amount: pointsEarned,
+          type: 'EARNED_SPEND',
+          description: `Historical Order Log (+${pointsEarned} XP)`,
+          orderId: order.id,
+        });
       }
     }
-  });
 
-  if (data.userId && data.totalAmount > 0) {
-    const pointsEarned = Math.floor(data.totalAmount / 10);
-    if (pointsEarned > 0) {
-      await prisma.user.update({
-        where: { id: data.userId },
-        data: { loyaltyPoints: { increment: pointsEarned } }
-      });
-    }
-  }
+    return order;
+  });
 
   revalidatePath('/admin');
   revalidatePath('/reception');
-  return { success: true, order };
+  return { success: true, order: result };
 }
 
 export async function getPublicConsoleOccupiedIds() {

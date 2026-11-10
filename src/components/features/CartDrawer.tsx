@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { createOnlineShopOrder } from '@/backend/actions';
 import CyberButton from '@/components/ui/CyberButton';
+import IconPlaceholder from '@/components/ui/IconPlaceholder';
+import { getGamingIconType } from '@/components/ui/GamingIcon';
 import styles from './CartDrawer.module.css';
 
 interface CartDrawerProps {
@@ -97,12 +98,10 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
               {items.map((item) => (
                 <div key={item.id} className={styles.cartItem}>
                   <div className={styles.itemImageWrap}>
-                    <Image
-                      src={item.image || '/images/products/headphones.png'}
-                      alt={item.name}
-                      fill
-                      sizes="64px"
-                      className={styles.itemImage}
+                    <IconPlaceholder
+                      icon={getGamingIconType(item.name)}
+                      title={item.name}
+                      size={32}
                     />
                   </div>
 

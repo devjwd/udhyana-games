@@ -292,7 +292,7 @@ async function flushOfflineQueueIfOnline() {
           const { cartItems, totalAmount, paymentMethod = 'cash', sessionData = [], walkInName, userId } = item.payload || {};
           const orderId = 'ord_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
           const orderCreated = item.payload?.createdAt ? new Date(item.payload.createdAt) : new Date(item.timestamp || Date.now());
-          
+
           await pool.query(
             'INSERT INTO "Order" (id, "userId", "totalAmount", "paymentMethod", status, "createdAt") VALUES ($1, $2, $3, $4, $5, $6)',
             [orderId, userId || null, Number(totalAmount) || 0, paymentMethod, 'COMPLETED', orderCreated]
@@ -531,11 +531,32 @@ ipcMain.handle('terminal:checkout', async (event, orderPayload) => {
         let updatedProfile = null;
         if (userId) {
           const pts = Math.floor(totalAmount / 10);
+          const totalDurationHours = sessionData.length > 0
+            ? Math.max(1, Math.round(sessionData.reduce((acc, s) => acc + (Number(s.durationHours) || (Number(s.durationSeconds) ? Number(s.durationSeconds) / 3600 : 1)), 0)))
+            : 0;
+
+          const curUserRes = await client.query('SELECT "lifetimeEarnedXP", "loyaltyPoints" FROM "User" WHERE id = $1', [userId]);
+          const currentLifetime = curUserRes.rows[0] ? (curUserRes.rows[0].lifetimeEarnedXP || curUserRes.rows[0].loyaltyPoints || 0) : 0;
+          const newLifetime = currentLifetime + pts;
+
+          let newRank = 'Rookie';
+          if (newLifetime >= 1000) newRank = 'Elite';
+          else if (newLifetime >= 500) newRank = 'Pro';
+          else if (newLifetime >= 100) newRank = 'Regular';
+
           const uRes = await client.query(
-            'UPDATE "User" SET "loyaltyPoints" = COALESCE("loyaltyPoints", 0) + $1, "sessionsCount" = COALESCE("sessionsCount", 0) + $2, "playtimeHours" = COALESCE("playtimeHours", 0) + $3 WHERE id = $4 RETURNING "loyaltyPoints", rank, "playtimeHours"',
-            [pts, sessionData.length, Math.max(1, sessionData.length), userId]
+            'UPDATE "User" SET "loyaltyPoints" = COALESCE("loyaltyPoints", 0) + $1, "lifetimeEarnedXP" = $2, rank = $3, "sessionsCount" = COALESCE("sessionsCount", 0) + $4, "playtimeHours" = COALESCE("playtimeHours", 0) + $5, "lastActivityAt" = NOW() WHERE id = $6 RETURNING "loyaltyPoints", "lifetimeEarnedXP", rank, "playtimeHours"',
+            [pts, newLifetime, newRank, sessionData.length, totalDurationHours, userId]
           );
           if (uRes.rows[0]) updatedProfile = uRes.rows[0];
+
+          if (pts > 0) {
+            const txId = 'lt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+            await client.query(
+              'INSERT INTO "LoyaltyTransaction" (id, "userId", amount, type, description, "balanceAfter", "orderId", "createdAt") VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())',
+              [txId, userId, pts, 'EARNED_SPEND', `Desk Terminal Checkout (+${pts} XP)`, uRes.rows[0]?.loyaltyPoints || pts, orderId]
+            );
+          }
         }
 
         await client.query('COMMIT');
@@ -604,6 +625,207 @@ ipcMain.handle('terminal:session-action', async (event, { action, payload }) => 
       return { success: true, isOffline: true, queuedInLocalDb: true };
     }
   }
+});
+
+// =========================================================
+// SMART TV CONTROLLER (OFFLINE LAN / WI-FI)
+// =========================================================
+const TV_CONFIG_PATH = path.join(LOCAL_DB_DIR, 'tv_config.json');
+const LG_KEYS_PATH = path.join(LOCAL_DB_DIR, 'lg_tv_keys.json');
+
+function getLocalTvConfigs() {
+  try {
+    if (fs.existsSync(TV_CONFIG_PATH)) {
+      return JSON.parse(fs.readFileSync(TV_CONFIG_PATH, 'utf8'));
+    }
+  } catch (err) {
+    console.warn('[TV Controller] Failed to read tv_config.json:', err.message);
+  }
+  return [];
+}
+
+function wakeTvDevice(mac) {
+  return new Promise((resolve) => {
+    if (!mac || !mac.trim()) return resolve({ success: false, message: 'Missing MAC address.' });
+    try {
+      const wol = require('wake_on_lan');
+      wol.wake(mac.trim(), (err) => {
+        if (err) resolve({ success: false, message: `WoL failed: ${err.message}` });
+        else resolve({ success: true, message: `Wake-on-LAN magic packet sent to ${mac}` });
+      });
+    } catch (e) {
+      resolve({ success: false, message: `WoL error: ${e.message}` });
+    }
+  });
+}
+
+function sendLocalLgCommand(ip, uri, payload = {}, timeoutMs = 7000) {
+  return new Promise((resolve) => {
+    try {
+      const LGTV = require('lgtv2');
+      let finished = false;
+      let pairingPrompted = false;
+
+      const timer = setTimeout(() => {
+        if (!finished) {
+          finished = true;
+          try { lgtv.disconnect(); } catch {}
+          resolve({
+            success: false,
+            message: pairingPrompted
+              ? `Pairing prompt sent to LG TV (${ip}). Timed out waiting for [Accept].`
+              : `Connection timed out after ${timeoutMs / 1000}s. Ensure TV is ON and on same Wi-Fi (${ip}).`
+          });
+        }
+      }, timeoutMs);
+
+      const lgtv = LGTV({
+        url: `ws://${ip}:3000`,
+        timeout: timeoutMs,
+        reconnect: false,
+        keyFile: LG_KEYS_PATH
+      });
+
+      lgtv.on('error', (err) => {
+        if (!finished) {
+          finished = true;
+          clearTimeout(timer);
+          try { lgtv.disconnect(); } catch {}
+          resolve({ success: false, message: `LG TV error: ${err?.message || err}` });
+        }
+      });
+
+      lgtv.on('prompt', () => {
+        pairingPrompted = true;
+      });
+
+      lgtv.on('connect', () => {
+        lgtv.request(uri, payload, (err, res) => {
+          if (!finished) {
+            finished = true;
+            clearTimeout(timer);
+            try { lgtv.disconnect(); } catch {}
+            if (err) {
+              resolve({ success: false, message: `Command failed: ${err?.message || err}` });
+            } else {
+              resolve({ success: true, message: `Command [${uri.replace('ssap://', '')}] executed!`, data: res });
+            }
+          }
+        });
+      });
+    } catch (e) {
+      resolve({ success: false, message: `LGTV error: ${e.message}` });
+    }
+  });
+}
+
+ipcMain.handle('tv:get-configs', () => {
+  return getLocalTvConfigs();
+});
+
+ipcMain.handle('tv:save-configs', (event, newConfigs) => {
+  try {
+    fs.writeFileSync(TV_CONFIG_PATH, JSON.stringify(newConfigs, null, 2), 'utf8');
+    return { success: true, configs: newConfigs };
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
+});
+
+ipcMain.handle('tv:save-station', (event, { stationId, ip, mac, tvBrand, hdmiInput, psk }) => {
+  try {
+    const configs = getLocalTvConfigs();
+    let matched = false;
+    const updated = configs.map((tv) => {
+      if (tv.stationId.toLowerCase() === stationId.toLowerCase()) {
+        matched = true;
+        return {
+          ...tv,
+          ip: ip !== undefined ? String(ip).trim() : tv.ip,
+          mac: mac !== undefined ? String(mac).trim() : tv.mac,
+          tvBrand: tvBrand || tv.tvBrand,
+          hdmiInput: hdmiInput || tv.hdmiInput,
+          psk: psk !== undefined ? String(psk) : tv.psk,
+        };
+      }
+      return tv;
+    });
+    if (!matched) {
+      updated.push({
+        stationId,
+        stationName: `Station ${stationId}`,
+        tvBrand: tvBrand || 'LG',
+        ip: ip ? String(ip).trim() : '',
+        mac: mac ? String(mac).trim() : '',
+        hdmiInput: hdmiInput || 'HDMI_1',
+        psk: psk ? String(psk) : '',
+        enabled: true,
+      });
+    }
+    fs.writeFileSync(TV_CONFIG_PATH, JSON.stringify(updated, null, 2), 'utf8');
+    return { success: true, message: `Network settings saved for ${stationId}`, configs: updated };
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
+});
+
+ipcMain.handle('tv:control', async (event, { stationId, action, message, hdmiPort }) => {
+  const configs = getLocalTvConfigs();
+  const tv = configs.find(
+    (c) =>
+      c.stationId.toLowerCase() === stationId.toLowerCase() ||
+      c.stationName.toLowerCase().includes(stationId.toLowerCase())
+  );
+  if (!tv) return { success: false, message: `No TV found for station "${stationId}"` };
+
+  if (action === 'wake') {
+    return await wakeTvDevice(tv.mac);
+  }
+  if (action === 'toast') {
+    const msg = message || `🎮 Station ${tv.stationName}: Lounge Alert`;
+    return await sendLocalLgCommand(tv.ip, 'ssap://system.notifications/createToast', { message: msg });
+  }
+  if (action === 'warning5Min') {
+    const msg = message || `⚠️ 5 Minutes remaining on ${tv.stationName}! Please extend at reception.`;
+    return await sendLocalLgCommand(tv.ip, 'ssap://system.notifications/createToast', { message: msg });
+  }
+  if (action === 'turnOff') {
+    return await sendLocalLgCommand(tv.ip, 'ssap://system/turnOff');
+  }
+  if (action === 'screenOff') {
+    const res1 = await sendLocalLgCommand(tv.ip, 'ssap://com.webos.service.tvpower/power/turnOffScreen', {
+      standbyMode: 'active'
+    });
+    if (res1.success) return res1;
+    return await sendLocalLgCommand(tv.ip, 'ssap://settings/setSystemSettings', {
+      category: 'picture',
+      settings: { energySaving: 'screen_off', energySavingModified: 'true' }
+    });
+  }
+  if (action === 'screenOn') {
+    const res1 = await sendLocalLgCommand(tv.ip, 'ssap://com.webos.service.tvpower/power/turnOnScreen', {});
+    if (res1.success) return res1;
+    return await sendLocalLgCommand(tv.ip, 'ssap://settings/setSystemSettings', {
+      category: 'picture',
+      settings: { energySaving: 'off', energySavingModified: 'true' }
+    });
+  }
+  if (action === 'switchHdmi') {
+    const port = (hdmiPort || tv.hdmiInput || '1').replace(/[^0-9]/g, '') || '1';
+    return await sendLocalLgCommand(tv.ip, 'ssap://com.webos.applicationManager/launch', {
+      id: `com.webos.app.hdmi${port}`
+    });
+  }
+  if (action === 'showPhoto') {
+    const url = message || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1920';
+    return await sendLocalLgCommand(tv.ip, 'ssap://system.launcher/open', { target: url });
+  }
+  if (action === 'gallery') {
+    const res = await sendLocalLgCommand(tv.ip, 'ssap://com.webos.applicationManager/launch', { id: 'com.webos.app.igallery' });
+    if (res.success) return res;
+    return await sendLocalLgCommand(tv.ip, 'ssap://com.webos.applicationManager/launch', { id: 'com.webos.app.photovideo' });
+  }
+  return { success: false, message: `Action "${action}" unknown.` };
 });
 
 // App Lifecycle

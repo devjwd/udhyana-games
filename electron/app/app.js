@@ -1821,6 +1821,7 @@ function switchTab(tabId) {
     waitlist: ['Waitlist Queue', 'Player queue management and station assignments'],
     history: ['Daily History', 'Today\'s player sessions and order activity log'],
     'tv-display': ['TV Entrance Screen & Standalone Timers', 'Live arena board for walk-in players and standalone staff timer monitor'],
+    'tv-control': ['Smart TV Network Control & Diagnostics', 'Direct offline LAN control for LG webOS and Sony Bravia station screens'],
     admin: ['Admin Controls & Analytics', 'Lounge revenue, station hardware, pricing rates & security'],
   };
 
@@ -1833,6 +1834,7 @@ function switchTab(tabId) {
   if (tabId === 'waitlist') renderWaitlist();
   if (tabId === 'history') renderHistory();
   if (tabId === 'admin') renderAdminView();
+  if (tabId === 'tv-control') renderTvControlView();
   if (tabId === 'tv-display') {
     const frame = document.getElementById('tv-frame');
     if (frame && (!frame.src || frame.src.includes('localhost'))) {
@@ -2048,3 +2050,217 @@ renderHistory();
 // Background Cloud Synchronization
 syncWithCloudDatabase();
 setInterval(syncWithCloudDatabase, 10000);
+
+// =========================================================
+// SMART TV TEST & CONTROLLER (OFFLINE DESKTOP)
+// =========================================================
+function addTvLog(type, text) {
+  const container = document.getElementById('tv-console-logs');
+  if (!container) return;
+  const time = new Date().toLocaleTimeString();
+  const line = document.createElement('div');
+  line.className = `tv-log-entry tv-log-${type}`;
+  line.innerHTML = `<span class="tv-log-time">[${time}]</span><span>${text}</span>`;
+  container.prepend(line);
+}
+
+document.getElementById('tv-clear-log-btn')?.addEventListener('click', () => {
+  const container = document.getElementById('tv-console-logs');
+  if (container) container.innerHTML = '';
+});
+
+async function triggerDesktopTvAction(stationId, action, message) {
+  addTvLog('info', `[${stationId}] Sending action: "${action}"...`);
+  try {
+    let res;
+    if (window.tvAPI?.controlTv) {
+      res = await window.tvAPI.controlTv({ stationId, action, message });
+    } else {
+      const resp = await fetch('/api/tv/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stationId, action, message })
+      });
+      res = await resp.json();
+    }
+
+    if (res?.success) {
+      addTvLog('success', `[${stationId}] ✅ ${res.message || 'Action executed successfully!'}`);
+      showNotification(res.message || 'Command sent successfully', 'success');
+    } else {
+      addTvLog('error', `[${stationId}] ❌ ${res?.message || 'Action failed'}`);
+      showNotification(res?.message || 'Command failed', 'error');
+    }
+  } catch (err) {
+    addTvLog('error', `[${stationId}] Network error: ${err.message}`);
+    showNotification(err.message, 'error');
+  }
+}
+
+// Expose globally so onclick attributes work
+window.triggerDesktopTvAction = triggerDesktopTvAction;
+
+async function saveStationTvSettings(stationId) {
+  const ipInput = document.getElementById(`tv-ip-${stationId}`);
+  const macInput = document.getElementById(`tv-mac-${stationId}`);
+  const hdmiInput = document.getElementById(`tv-hdmi-${stationId}`);
+  const brandSelect = document.getElementById(`tv-brand-${stationId}`);
+
+  const ip = ipInput ? ipInput.value.trim() : '';
+  const mac = macInput ? macInput.value.trim() : '';
+  const hdmi = hdmiInput ? hdmiInput.value.trim() : 'HDMI_1';
+  const brand = brandSelect ? brandSelect.value : 'LG';
+
+  addTvLog('info', `[${stationId}] Saving network setup: IP=${ip}, MAC=${mac}, Input=${hdmi}...`);
+
+  try {
+    let res;
+    if (window.tvAPI?.saveStation) {
+      res = await window.tvAPI.saveStation({ stationId, ip, mac, hdmiInput: hdmi, tvBrand: brand });
+    } else {
+      const resp = await fetch('/api/tv/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_station_tv',
+          stationId,
+          ip,
+          mac,
+          hdmiInput: hdmi,
+          tvBrand: brand
+        })
+      });
+      res = await resp.json();
+    }
+
+    if (res?.success) {
+      addTvLog('success', `[${stationId}] ✅ Network settings saved to local_database/tv_config.json`);
+      showNotification(`Saved network settings for ${stationId}`, 'success');
+      const cached = tvConfigsCache.find((c) => c.stationId === stationId);
+      if (cached) {
+        cached.ip = ip;
+        cached.mac = mac;
+        cached.hdmiInput = hdmi;
+        cached.tvBrand = brand;
+      }
+    } else {
+      addTvLog('error', `[${stationId}] ❌ Save failed: ${res?.message}`);
+      showNotification(res?.message || 'Failed to save', 'error');
+    }
+  } catch (err) {
+    addTvLog('error', `[${stationId}] Network error: ${err.message}`);
+    showNotification(err.message, 'error');
+  }
+}
+window.saveStationTvSettings = saveStationTvSettings;
+
+async function renderTvControlView() {
+  const grid = document.getElementById('tv-control-grid');
+  if (!grid) return;
+
+  try {
+    let configs = [];
+    if (window.tvAPI?.getConfigs) {
+      configs = await window.tvAPI.getConfigs();
+    } else {
+      const resp = await fetch('/api/tv/control');
+      const data = await resp.json();
+      configs = data.configs || [];
+    }
+    tvConfigsCache = configs;
+
+    if (!configs.length) {
+      grid.innerHTML = '<p style="color: var(--text-muted); padding: 20px;">No Smart TVs configured in local_database/tv_config.json</p>';
+      return;
+    }
+
+    grid.innerHTML = configs.map(tv => {
+      const isLg = tv.tvBrand === 'LG';
+      return `
+        <div class="tv-card">
+          <div class="tv-card-header">
+            <div>
+              <h3 class="tv-card-title">${tv.stationName}</h3>
+              <span class="${isLg ? 'tv-badge-lg' : 'tv-badge-sony'}">${tv.tvBrand} Smart TV</span>
+            </div>
+            <span style="font-size: 0.75rem; color: ${tv.enabled ? '#10b981' : '#64748b'};">
+              ${tv.enabled ? '● Active Test' : '○ Standby'}
+            </span>
+          </div>
+
+          <div class="tv-specs-grid">
+            <div class="tv-spec-item">
+              <label class="tv-spec-label">IP Address</label>
+              <input type="text" class="tv-spec-input" id="tv-ip-${tv.stationId}" value="${tv.ip || ''}" placeholder="192.168.1.30">
+            </div>
+            <div class="tv-spec-item">
+              <label class="tv-spec-label">MAC Address</label>
+              <input type="text" class="tv-spec-input" id="tv-mac-${tv.stationId}" value="${tv.mac || ''}" placeholder="20:3D:BD:99:DE:FA">
+            </div>
+            <div class="tv-spec-item">
+              <label class="tv-spec-label">Console Input</label>
+              <input type="text" class="tv-spec-input" id="tv-hdmi-${tv.stationId}" value="${tv.hdmiInput || 'HDMI_1'}" placeholder="HDMI_1">
+            </div>
+            <div class="tv-spec-item">
+              <label class="tv-spec-label">TV Brand</label>
+              <select class="tv-spec-select" id="tv-brand-${tv.stationId}">
+                <option value="LG" ${isLg ? 'selected' : ''}>LG Smart TV (webOS)</option>
+                <option value="SONY" ${!isLg ? 'selected' : ''}>Sony Bravia (REST)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="tv-save-bar">
+            <button type="button" class="tv-btn-save" onclick="saveStationTvSettings('${tv.stationId}')">
+              💾 Save IP & MAC Settings
+            </button>
+          </div>
+
+          <div class="tv-actions-grid">
+            <button type="button" class="tv-btn-action tv-btn-wake" onclick="triggerDesktopTvAction('${tv.stationId}', 'wake')">
+              🟢 Wake-on-LAN (ON)
+            </button>
+            <button type="button" class="tv-btn-action tv-btn-hdmi" onclick="triggerDesktopTvAction('${tv.stationId}', 'switchHdmi')">
+              🎮 Switch to ${tv.hdmiInput}
+            </button>
+            <button type="button" class="tv-btn-action tv-btn-warn" onclick="triggerDesktopTvAction('${tv.stationId}', 'warning5Min')">
+              ⚠️ Test 5-Min Warning
+            </button>
+            <button type="button" class="tv-btn-action" onclick="triggerDesktopTvAction('${tv.stationId}', 'screenOff')">
+              🕶️ Blackout Screen
+            </button>
+            <button type="button" class="tv-btn-action" onclick="triggerDesktopTvAction('${tv.stationId}', 'screenOn')">
+              ☀️ Screen On
+            </button>
+            <button type="button" class="tv-btn-action" style="color: #c1ff1c; border-color: rgba(193, 255, 28, 0.35);" onclick="triggerDesktopTvAction('${tv.stationId}', 'showPhoto')">
+              🖼️ Standby Poster
+            </button>
+            <button type="button" class="tv-btn-action" style="color: #a78bfa; border-color: rgba(167, 139, 250, 0.35);" onclick="triggerDesktopTvAction('${tv.stationId}', 'gallery')">
+              🎨 Art Gallery
+            </button>
+            <button type="button" class="tv-btn-action tv-btn-off" onclick="triggerDesktopTvAction('${tv.stationId}', 'turnOff')">
+              🔴 Power OFF
+            </button>
+          </div>
+
+          ${isLg ? `
+            <div>
+              <label style="font-size: 0.68rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">
+                Custom Toast Banner to TV Screen
+              </label>
+              <div class="tv-toast-row">
+                <input type="text" class="tv-toast-input" id="toast-input-${tv.stationId}" value="🎮 Station 1 (PS5): Hello from Reception!" placeholder="Type custom message...">
+                <button type="button" class="btn btn-primary btn-sm" onclick="triggerDesktopTvAction('${tv.stationId}', 'toast', document.getElementById('toast-input-${tv.stationId}').value)">
+                  🚀 Send Toast
+                </button>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    grid.innerHTML = `<p style="color: var(--accent-rose); padding: 20px;">Error loading TV configs: ${err.message}</p>`;
+  }
+}
+

@@ -19,3 +19,10 @@ contextBridge.exposeInMainWorld('terminalAPI', {
   loadLocalState: () => ipcRenderer.invoke('terminal:load-local-state'),
   saveLocalState: (data) => ipcRenderer.invoke('terminal:save-local-state', data),
 });
+
+contextBridge.exposeInMainWorld('tvAPI', {
+  getConfigs: () => ipcRenderer.invoke('tv:get-configs'),
+  saveConfigs: (configs) => ipcRenderer.invoke('tv:save-configs', configs),
+  saveStation: (params) => ipcRenderer.invoke('tv:save-station', params),
+  controlTv: (payload) => ipcRenderer.invoke('tv:control', payload),
+});

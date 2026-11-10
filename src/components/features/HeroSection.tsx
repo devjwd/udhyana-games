@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import Image from 'next/image';
 import styles from './HeroSection.module.css';
 import CyberArrowButton from '@/components/ui/CyberArrowButton';
 import CyberButton from '@/components/ui/CyberButton';
+import GamingIcon, { getGamingIconType } from '@/components/ui/GamingIcon';
 import {
   getHeroTrending,
   getHeroGallery,
@@ -132,15 +132,28 @@ export default function HeroSection({ initialTrending, initialGallery }: HeroSec
         {/* ── LEFT: Full-Bleed Poster with Action Buttons (~63% width) ── */}
         <div className={styles.posterWrapper}>
           <div className={styles.posterCard}>
-            <Image
-              src={currentPoster.imageUrl}
-              alt={currentPoster.title || 'Udhyana Games Lounge'}
-              fill
-              priority
-              sizes="(max-width: 1024px) 100vw, 63vw"
-              className={styles.heroBgImage}
-              quality={85}
-            />
+            {/* Cyber Icon Poster Display */}
+            <div className={styles.heroIconCanvas}>
+              <div className={styles.heroGridLines} />
+              <div className={styles.heroGlowCircle} />
+              <div className={styles.heroIconMain}>
+                <GamingIcon
+                  name={getGamingIconType(`${currentPoster.title} ${currentPoster.subtitle} ${currentPoster.badge}`)}
+                  size={140}
+                />
+              </div>
+            </div>
+
+            {/* Poster Info Overlay */}
+            <div className={styles.heroPosterContent}>
+              {currentPoster.badge && (
+                <span className={styles.heroPosterBadge}>{currentPoster.badge}</span>
+              )}
+              <h2 className={styles.heroPosterTitle}>{currentPoster.title}</h2>
+              {currentPoster.subtitle && (
+                <span className={styles.heroPosterSubtitle}>{currentPoster.subtitle}</span>
+              )}
+            </div>
 
             {/* Top-Left Navigation Arrows */}
             <div className={styles.posterNavButtons}>
@@ -172,15 +185,21 @@ export default function HeroSection({ initialTrending, initialGallery }: HeroSec
         {/* ── RIGHT: Full-Bleed Featured Card with Navigation Controls (~37% width) ── */}
         <div className={styles.featureCardWrapper}>
           <div className={styles.featureCard}>
-            <Image
-              src={currentFeature.imageUrl}
-              alt={currentFeature.label || 'Udhyana Games Feature'}
-              fill
-              priority
-              sizes="(max-width: 1024px) 100vw, 37vw"
-              className={styles.heroBgImage}
-              quality={85}
-            />
+            <div className={styles.heroIconCanvas}>
+              <div className={styles.heroGridLines} />
+              <div className={styles.heroGlowCircle} style={{ width: 220, height: 220 }} />
+              <div className={styles.featureCenterContent}>
+                <div className={styles.heroIconMain}>
+                  <GamingIcon
+                    name={getGamingIconType(currentFeature.label)}
+                    size={90}
+                  />
+                </div>
+                {currentFeature.label && (
+                  <span className={styles.featureLabelText}>{currentFeature.label}</span>
+                )}
+              </div>
+            </div>
             {/* Corner Emblem */}
             <div className={styles.cardEmblem}>
               <div className={styles.emblemShield}>

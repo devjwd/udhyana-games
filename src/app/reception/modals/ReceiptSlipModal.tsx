@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Image from 'next/image';
 import styles from '../page.module.css';
 import { CartItem } from '../types';
 import toast from 'react-hot-toast';
+import GamingIcon from '@/components/ui/GamingIcon';
 import { generateThermalReceiptBytes, printDirectWebSerial } from '../utils/escpos';
 
 interface ReceiptSlipModalProps {
@@ -47,21 +47,22 @@ export default function ReceiptSlipModal({
   pointsToRedeem = 0
 }: ReceiptSlipModalProps) {
   const [printers, setPrinters] = useState<ElectronPrinter[]>([]);
-  const [selectedPrinter, setSelectedPrinter] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('pos_thermal_printer_name') || '';
-    }
-    return '';
-  });
-  const [silentPrint, setSilentPrint] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('pos_thermal_silent_print') !== 'false';
-    }
-    return true;
-  });
+  const [selectedPrinter, setSelectedPrinter] = useState<string>('');
+  const [silentPrint, setSilentPrint] = useState<boolean>(true);
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
   const electronApi = getElectronApi();
   const isDesktop = Boolean(electronApi?.isDesktop);
+
+  useEffect(() => {
+    try {
+      const savedPrinter = localStorage.getItem('pos_thermal_printer_name');
+      if (savedPrinter) setSelectedPrinter(savedPrinter);
+      const savedSilent = localStorage.getItem('pos_thermal_silent_print');
+      if (savedSilent !== null) setSilentPrint(savedSilent !== 'false');
+    } catch {
+      // ignore storage access errors
+    }
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -96,7 +97,8 @@ export default function ReceiptSlipModal({
   const netTotalAmount = Math.max(0, grossTotal - discountAmount);
   const totalAmount = netTotalAmount;
   const hasPostpaid = cart.some(item => item.billingType === 'POSTPAID');
-  const pointsEarned = Math.floor(netTotalAmount / 100);
+  const hasMember = cart.some(item => Boolean(item.userId));
+  const pointsEarned = hasMember && netTotalAmount > 0 ? Math.floor(netTotalAmount / 10) : 0;
   const now = new Date();
   const dateStr = now.toLocaleDateString();
   const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -148,7 +150,10 @@ export default function ReceiptSlipModal({
         items: cart.map(i => ({
           name: i.name,
           price: i.price,
-          sub: i.consoleName,
+          sub: [
+            i.consoleName ? `Station: ${i.consoleName}` : null,
+            i.cnic ? `${i.isUnder18 ? 'Guardian CNIC' : 'CNIC'}: ${i.cnic}` : null
+          ].filter(Boolean).join(' | '),
           priceStr: i.billingType === 'POSTPAID' ? 'PAY ON EXIT' : undefined
         })),
         subtotalAmount: grossTotal,
@@ -176,15 +181,8 @@ export default function ReceiptSlipModal({
       {/* Printable Thermal Receipt (Visible Only In @media print) */}
       <div className={styles.printableReceipt}>
         <div className={styles.printHeader}>
-          <div className={styles.printLogo}>
-            <Image
-              src="/images/logo.png"
-              alt="Udhyana Games"
-              width={140}
-              height={42}
-              style={{ objectFit: 'contain' }}
-              priority
-            />
+          <div className={styles.printLogo} style={{ display: 'flex', justifyContent: 'center' }}>
+            <GamingIcon name="logo" size={36} color="#000" accentColor="#000" />
           </div>
           <div className={styles.printBrand}>UDHYANA GAMES</div>
           <div className={styles.printSub}>
@@ -206,6 +204,11 @@ export default function ReceiptSlipModal({
                 <div className={styles.printItemName}>
                   <span>{item.name}</span>
                   {item.consoleName && <small className={styles.printItemSub}>Station: {item.consoleName}</small>}
+                  {item.cnic && (
+                    <small className={styles.printItemSub} style={{ fontWeight: 600 }}>
+                      {item.isUnder18 ? 'Guardian CNIC' : 'CNIC'}: {item.cnic} {item.isUnder18 ? '(Under 18)' : ''}
+                    </small>
+                  )}
                   {isPostpaid && (
                     <small className={styles.printItemSub} style={{ fontWeight: 'bold' }}>
                       ⏱️ Check-In: {timeStr} • Pay on Exit
@@ -264,13 +267,7 @@ export default function ReceiptSlipModal({
         <div className={styles.modalContent}>
           <div className={styles.modalHeader}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <Image
-                src="/images/logo.png"
-                alt="Udhyana Games"
-                width={120}
-                height={36}
-                style={{ objectFit: 'contain' }}
-              />
+              <GamingIcon name="logo" size={28} />
               <h2 className={styles.modalTitle} style={{ color: 'var(--primary-accent)', fontSize: '1.1rem' }}>
                 {hasPostpaid ? 'Open Session Slip & Pass' : 'Order Slip'}
               </h2>

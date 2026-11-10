@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import Image from 'next/image';
 import { useSession, signOut } from 'next-auth/react';
 import { Toaster, toast } from 'react-hot-toast';
+import GamingIcon from '@/components/ui/GamingIcon';
 import styles from './page.module.css';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
 import { soundManager } from './utils/sound';
@@ -16,7 +16,8 @@ import {
   SnackItem,
   CartItem,
   ShiftSummary,
-  UpcomingBooking
+  UpcomingBooking,
+  PrefilledCustomer
 } from './types';
 import {
   getUpcomingBookings,
@@ -63,10 +64,11 @@ import TransferModal from './modals/TransferModal';
 import AddTimeModal from './modals/AddTimeModal';
 import AssignWaitlistModal from './modals/AssignWaitlistModal';
 import PostpaidCheckoutModal from './modals/PostpaidCheckoutModal';
+import TvControlPanel from './components/TvControlTab/TvControlPanel';
 
 export default function ReceptionPortal() {
   const { data: session, status: authStatus } = useSession();
-  const [activeTab, setActiveTab] = useState<'register' | 'data'>('register');
+  const [activeTab, setActiveTab] = useState<'register' | 'data' | 'tv'>('register');
   const [isMuted, setIsMuted] = useState<boolean>(() => typeof window !== 'undefined' ? soundManager.getMuted() : false);
 
   // Business Rates & Catalog
@@ -86,7 +88,7 @@ export default function ReceptionPortal() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'account'>('cash');
   const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
-  const [prefilledWaitlistName, setPrefilledWaitlistName] = useState<string>('');
+  const [prefilledCustomer, setPrefilledCustomer] = useState<PrefilledCustomer | null>(null);
 
   // Active Modals State
   const [isSlipModalOpen, setIsSlipModalOpen] = useState(false);
@@ -126,6 +128,14 @@ export default function ReceptionPortal() {
       setRecentSales(sales as unknown as Sale[]);
       setDbWaitlist(wl as unknown as WaitlistEntry[]);
       setShiftSummary(shift as unknown as ShiftSummary);
+
+      // Prune expiredNotifiedRef of sessions that are no longer active
+      const activeIds = new Set((activeSess as unknown as Session[]).map(s => s.id));
+      expiredNotifiedRef.current.forEach(id => {
+        if (!activeIds.has(id)) {
+          expiredNotifiedRef.current.delete(id);
+        }
+      });
 
       // Check expired sessions for chime
       (activeSess as unknown as Session[]).forEach(s => {
@@ -184,6 +194,18 @@ export default function ReceptionPortal() {
     let lastKeyTime = 0;
 
     const handleKeyDown = async (e: KeyboardEvent) => {
+      // Do not intercept if user is typing into any input, textarea, select or contenteditable
+      const activeEl = document.activeElement;
+      if (
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement ||
+        activeEl instanceof HTMLSelectElement ||
+        (activeEl as HTMLElement)?.isContentEditable
+      ) {
+        buffer = '';
+        return;
+      }
+
       const now = Date.now();
       const timeDiff = now - lastKeyTime;
       lastKeyTime = now;
@@ -198,7 +220,13 @@ export default function ReceptionPortal() {
               const found = results[0];
               soundManager.playSuccessTone();
               toast.success(`Pass Scanned: ${found.fullName || found.username} (${found.rank || 'Member'})!`);
-              setPrefilledWaitlistName(found.fullName || found.username || '');
+              setPrefilledCustomer({
+                id: found.id,
+                name: found.fullName || found.username || '',
+                phone: found.phone,
+                loyaltyPoints: found.loyaltyPoints,
+                rank: found.rank
+              });
             } else {
               toast.error(`No member pass found for: "${scannedCode}"`);
             }
@@ -297,8 +325,14 @@ export default function ReceptionPortal() {
     consoleName?: string;
     durationSeconds?: number;
     phone?: string;
+    cnic?: string;
+    isUnder18?: boolean;
     userId?: string;
     extraControllers?: number;
+    billingType?: 'PREPAID' | 'POSTPAID';
+    userLoyaltyPoints?: number;
+    userRank?: string;
+    userName?: string;
   }) => {
     const newItem: CartItem = {
       id: item.id || `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -309,8 +343,14 @@ export default function ReceptionPortal() {
       consoleName: item.consoleName,
       durationSeconds: item.durationSeconds,
       phone: item.phone,
+      cnic: item.cnic,
+      isUnder18: item.isUnder18,
       userId: item.userId,
-      extraControllers: item.extraControllers
+      extraControllers: item.extraControllers,
+      billingType: item.billingType,
+      userLoyaltyPoints: item.userLoyaltyPoints,
+      userRank: item.userRank,
+      userName: item.userName
     };
     setCart(prev => [...prev, newItem]);
     if (item.type === 'waitlist') {
@@ -429,6 +469,7 @@ export default function ReceptionPortal() {
               orderItems,
               billingType: s.billingType || 'PREPAID',
               extraControllers: s.extraControllers || 0,
+              pointsToRedeem: pointsToRedeem || 0,
             });
           }
           if (sessionItems.length === 0 && orderItems.length > 0) {
@@ -666,6 +707,30 @@ export default function ReceptionPortal() {
       await fetchLiveDashboardData();
       return res;
     } catch (err: unknown) {
+      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+      const isNetworkErr = err instanceof TypeError || (err instanceof Error && (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('Failed to fetch')));
+      if (isOffline || isNetworkErr) {
+        try {
+          const { syncManager } = await import('@/lib/local-db/sync-manager');
+          const snacksCost = snackItems.reduce((acc, s) => acc + s.price * s.quantity, 0);
+          const totalAfterDiscount = Math.max(0, customGamingAmount + snacksCost - pointsToRedeem);
+          await syncManager.enqueue('SETTLE_POSTPAID_SESSION', {
+            sessionId,
+            paymentMethod,
+            totalAmount: totalAfterDiscount,
+            orderItems: [
+              { name: 'Gaming Session (Postpaid)', price: customGamingAmount, quantity: 1, type: 'session' },
+              ...snackItems
+            ],
+            pointsToRedeem: pointsToRedeem || 0
+          });
+          toast.success('Network offline — Settlement saved locally! Will sync automatically when online.', { id: 'settle-postpaid', icon: '💾', duration: 5000 });
+          await fetchLiveDashboardData();
+          return { success: true, isOffline: true };
+        } catch {
+          // fall through to normal error display
+        }
+      }
       const message = err instanceof Error ? err.message : 'Failed to settle session.';
       toast.error(message, { id: 'settle-postpaid' });
       throw err;
@@ -757,14 +822,12 @@ export default function ReceptionPortal() {
       {/* Sidebar */}
       <aside className={styles.sidebar}>
         <div className={styles.logoArea}>
-          <Image
-            src="/images/logo.png"
-            alt="Udhyana Games"
-            width={140}
-            height={42}
-            style={{ objectFit: 'contain' }}
-            priority
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <GamingIcon name="logo" size={28} />
+            <span style={{ fontSize: '1rem', fontWeight: 900, letterSpacing: '0.06em', color: '#fff' }}>
+              UDHYANA <span style={{ color: 'var(--accent, #d6ff01)' }}>GAMES</span>
+            </span>
+          </div>
           <span className={styles.receptionTag}>RECEPTION</span>
         </div>
 
@@ -783,6 +846,13 @@ export default function ReceptionPortal() {
           >
             <span>Lounge Monitor</span>
             {actionItemCount > 0 && <span className={styles.navBadge}>{actionItemCount}</span>}
+          </div>
+
+          <div
+            className={`${styles.navItem} ${activeTab === 'tv' ? styles.navItemActive : ''}`}
+            onClick={() => setActiveTab('tv')}
+          >
+            <span>📺 Smart TV Test</span>
           </div>
         </nav>
 
@@ -803,7 +873,9 @@ export default function ReceptionPortal() {
         <header className={styles.header}>
           <div className={styles.headerLeft}>
             <h1 className={styles.pageTitle}>
-              {activeTab === 'register' ? 'Walk-In Registration & POS' : 'Lounge Monitor & Data Dashboard'}
+              {activeTab === 'register' && 'Walk-In Registration & POS'}
+              {activeTab === 'data' && 'Lounge Monitor & Data Dashboard'}
+              {activeTab === 'tv' && 'Smart TV Network Control & Testing'}
             </h1>
           </div>
 
@@ -841,10 +913,8 @@ export default function ReceptionPortal() {
                   baseRate={baseRate}
                   checkAvailability={checkConsoleAvailability}
                   onAddToCart={handleAddSessionToCart}
-                  onStartPostpaid={handleStartPostpaidSession}
-                  onAddToWaitlist={handleAddToWaitlist}
-                  prefilledName={prefilledWaitlistName}
-                  onClearPrefill={() => setPrefilledWaitlistName('')}
+                  prefilledCustomer={prefilledCustomer}
+                  onClearPrefill={() => setPrefilledCustomer(null)}
                 />
                 <QuickSaleSnacks
                   snacks={snacks}
@@ -900,6 +970,10 @@ export default function ReceptionPortal() {
                 sales={recentSales}
               />
             </div>
+          )}
+
+          {activeTab === 'tv' && (
+            <TvControlPanel />
           )}
         </div>
       </main>

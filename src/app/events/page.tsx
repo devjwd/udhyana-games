@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import Image from 'next/image';
+import GamingIcon from '@/components/ui/GamingIcon';
 import CyberButton from '@/components/ui/CyberButton';
 import styles from './page.module.css';
 
@@ -202,21 +202,31 @@ export default function EventsPage() {
                             </td>
                             <td className={styles.td}>
                               <div className={styles.playerCell}>
-                                <Image
-                                  src={
-                                    user.image ||
-                                    `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${
-                                      user.username || user.id
-                                    }`
-                                  }
-                                  alt={user.username || 'Player'}
-                                  width={36}
-                                  height={36}
+                                <div
                                   className={`${styles.playerAvatar} ${
                                     index < 3 ? styles.playerAvatarTop : ''
                                   }`}
-                                  unoptimized
-                                />
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: 'var(--surface-2)',
+                                  }}
+                                >
+                                  <GamingIcon
+                                    name="avatar"
+                                    size={24}
+                                    accentColor={
+                                      index === 0
+                                        ? '#ffd700'
+                                        : index === 1
+                                        ? '#c0c0c0'
+                                        : index === 2
+                                        ? '#cd7f32'
+                                        : 'var(--accent)'
+                                    }
+                                  />
+                                </div>
                                 <div>
                                   <div className={styles.playerName}>
                                     {user.username || 'Player'}

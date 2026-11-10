@@ -1,0 +1,42 @@
+[
+  {
+    "stationId": "PS5",
+    "stationName": "Station 1 (PS5)",
+    "tvBrand": "LG",
+    "ip": "192.168.1.8",
+    "mac": "20:3D:BD:99:DE:FA",
+    "hdmiInput": "HDMI_1",
+    "psk": "",
+    "enabled": true
+  },
+  {
+    "stationId": "Xbox series X",
+    "stationName": "Station 2 (Xbox Series X)",
+    "tvBrand": "SONY",
+    "ip": "192.168.1.31",
+    "mac": "",
+    "hdmiInput": "HDMI_1",
+    "psk": "udhyana123",
+    "enabled": false
+  },
+  {
+    "stationId": "Xbox series X(2)",
+    "stationName": "Station 3 (Xbox Series X)",
+    "tvBrand": "LG",
+    "ip": "192.168.1.32",
+    "mac": "",
+    "hdmiInput": "HDMI_1",
+    "psk": "",
+    "enabled": false
+  },
+  {
+    "stationId": "steerin wheel + ps4",
+    "stationName": "Station 4 (Steering Wheel + PS4)",
+    "tvBrand": "LG",
+    "ip": "192.168.1.33",
+    "mac": "",
+    "hdmiInput": "HDMI_1",
+    "psk": "",
+    "enabled": false
+  }
+]

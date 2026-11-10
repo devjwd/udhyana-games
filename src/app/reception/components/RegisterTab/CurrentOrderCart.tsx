@@ -76,6 +76,17 @@ export default function CurrentOrderCart({
                   {item.type === 'session' && item.consoleName && (
                     <span className={styles.cartItemSub}>Station: {item.consoleName}</span>
                   )}
+                  {item.cnic && (
+                    <span className={styles.cartItemSub} style={{
+                      color: item.isUnder18 ? '#ffb400' : '#38bdf8',
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <span>🪪</span> {item.isUnder18 ? 'Guardian CNIC' : 'CNIC'}: {item.cnic} {item.isUnder18 ? '(Under 18)' : ''}
+                    </span>
+                  )}
                   {isPostpaid && (
                     <span className={styles.cartItemSub} style={{ color: 'var(--primary-accent)', fontWeight: 700 }}>
                       ⚡ Open Session • Accrues per minute • Pay at Exit

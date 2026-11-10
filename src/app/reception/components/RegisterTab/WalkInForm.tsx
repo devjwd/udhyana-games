@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import styles from '../../page.module.css';
-import { ConsoleStation, DurationOption } from '../../types';
+import { ConsoleStation, DurationOption, PrefilledCustomer } from '../../types';
 import { searchUsers } from '@/backend/actions';
 import toast from 'react-hot-toast';
 import MemberScannerModal from '../../modals/MemberScannerModal';
@@ -28,6 +28,8 @@ interface WalkInFormProps {
     consoleName?: string;
     durationSeconds?: number;
     phone?: string;
+    cnic?: string;
+    isUnder18?: boolean;
     userId?: string;
     extraControllers?: number;
     billingType?: 'PREPAID' | 'POSTPAID';
@@ -35,15 +37,7 @@ interface WalkInFormProps {
     userRank?: string;
     userName?: string;
   }) => void;
-  onStartPostpaid?: (params: {
-    consoleId: string;
-    guestName: string;
-    userId?: string;
-    phone?: string;
-    extraControllers?: number;
-  }) => Promise<void>;
-  onAddToWaitlist?: (name: string, requestedStation: string) => Promise<void>;
-  prefilledName?: string;
+  prefilledCustomer?: PrefilledCustomer | null;
   onClearPrefill?: () => void;
 }
 
@@ -63,11 +57,13 @@ export default function WalkInForm({
   baseRate = 300,
   checkAvailability,
   onAddToCart,
-  prefilledName,
+  prefilledCustomer,
   onClearPrefill
 }: WalkInFormProps) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [cnic, setCnic] = useState('');
+  const [isUnder18, setIsUnder18] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | undefined>(undefined);
   const [selectedUserPoints, setSelectedUserPoints] = useState<number | undefined>(undefined);
   const [selectedUserRank, setSelectedUserRank] = useState<string | undefined>(undefined);
@@ -87,16 +83,19 @@ export default function WalkInForm({
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync prefill from waitlist if triggered (pure render-time state adjustment)
-  const [prevPrefilled, setPrevPrefilled] = useState(prefilledName);
-  if (prefilledName !== prevPrefilled) {
-    setPrevPrefilled(prefilledName);
-    if (prefilledName) {
-      setName(prefilledName);
-      setSelectedUserId(undefined);
+  // Sync prefill from external scan (e.g. handheld USB barcode scanner)
+  useEffect(() => {
+    if (prefilledCustomer) {
+      setName(prefilledCustomer.name);
+      setSelectedUserId(prefilledCustomer.id);
+      setSelectedUserPoints(prefilledCustomer.loyaltyPoints ?? 0);
+      setSelectedUserRank(prefilledCustomer.rank ?? 'ROOKIE');
+      if (prefilledCustomer.phone) {
+        setPhone(prefilledCustomer.phone);
+      }
       if (onClearPrefill) onClearPrefill();
     }
-  }
+  }, [prefilledCustomer, onClearPrefill]);
 
   // Click outside to dismiss search results
   useEffect(() => {
@@ -145,6 +144,13 @@ export default function WalkInForm({
     setSearchResults([]);
   };
 
+  const formatCnic = (val: string) => {
+    const digits = val.replace(/\D/g, '').slice(0, 13);
+    if (digits.length <= 5) return digits;
+    if (digits.length <= 12) return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+    return `${digits.slice(0, 5)}-${digits.slice(5, 12)}-${digits.slice(12)}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -168,16 +174,23 @@ export default function WalkInForm({
     const consoleObj = consoles.find(c => c.id === selectedConsoleId);
     if (!consoleObj) return;
 
+    const cnicClean = cnic.trim();
+    const guestDisplayName = cnicClean
+      ? `${name.trim()} [${isUnder18 ? 'Guardian CNIC' : 'CNIC'}: ${cnicClean}]`
+      : name.trim();
+
     if (isPostpaid) {
       onAddToCart({
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         type: 'session',
-        name: `${name.trim()} - Open Session${additionalControllers > 0 ? ` (+${additionalControllers} Controller${additionalControllers > 1 ? 's' : ''})` : ''}`,
+        name: `${guestDisplayName} - Open Session${additionalControllers > 0 ? ` (+${additionalControllers} Controller${additionalControllers > 1 ? 's' : ''})` : ''}`,
         price: 0,
         consoleId: selectedConsoleId,
         consoleName: consoleObj.name,
         durationSeconds: 3600,
         phone: phone.trim() || undefined,
+        cnic: cnicClean || undefined,
+        isUnder18,
         userId: selectedUserId,
         userLoyaltyPoints: selectedUserPoints,
         userRank: selectedUserRank,
@@ -188,6 +201,8 @@ export default function WalkInForm({
       toast.success(`Open Session for ${name.trim()} added to order cart!`);
       setName('');
       setPhone('');
+      setCnic('');
+      setIsUnder18(false);
       setSelectedUserId(undefined);
       setSelectedUserPoints(undefined);
       setSelectedUserRank(undefined);
@@ -198,7 +213,7 @@ export default function WalkInForm({
     }
 
     const extraFee = additionalControllers * extraControllerRate;
-    const sessionTitle = `${name.trim()} - ${durationObj.name}${additionalControllers > 0 ? ` (+${additionalControllers} Controller${additionalControllers > 1 ? 's' : ''})` : ''}`;
+    const sessionTitle = `${guestDisplayName} - ${durationObj.name}${additionalControllers > 0 ? ` (+${additionalControllers} Controller${additionalControllers > 1 ? 's' : ''})` : ''}`;
 
     onAddToCart({
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -209,6 +224,8 @@ export default function WalkInForm({
       consoleName: consoleObj.name,
       durationSeconds: durationObj.seconds,
       phone: phone.trim() || undefined,
+      cnic: cnicClean || undefined,
+      isUnder18,
       userId: selectedUserId,
       userLoyaltyPoints: selectedUserPoints,
       userRank: selectedUserRank,
@@ -220,6 +237,8 @@ export default function WalkInForm({
     // Reset form
     setName('');
     setPhone('');
+    setCnic('');
+    setIsUnder18(false);
     setSelectedUserId(undefined);
     setSelectedUserPoints(undefined);
     setSelectedUserRank(undefined);
@@ -240,16 +259,22 @@ export default function WalkInForm({
     const extraFee = additionalControllers * extraControllerRate;
     const itemPrice = (isPostpaid ? baseRate : durationObj.price) + extraFee;
     const durationLabel = isPostpaid ? 'Open Session' : durationObj.name;
+    const cnicClean = cnic.trim();
+    const guestDisplayName = cnicClean
+      ? `${name.trim()} [${isUnder18 ? 'Guardian CNIC' : 'CNIC'}: ${cnicClean}]`
+      : name.trim();
 
     onAddToCart({
       id: `waitlist-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       type: 'waitlist',
-      name: `[Waitlist] ${name.trim()} - ${durationLabel} (${stationLabel})`,
+      name: `[Waitlist] ${guestDisplayName} - ${durationLabel} (${stationLabel})`,
       price: itemPrice,
       consoleId: selectedConsoleId || undefined,
       consoleName: stationLabel,
       durationSeconds: isPostpaid ? 3600 : durationObj.seconds,
       phone: phone.trim() || undefined,
+      cnic: cnicClean || undefined,
+      isUnder18,
       userId: selectedUserId,
       userLoyaltyPoints: selectedUserPoints,
       userRank: selectedUserRank,
@@ -261,6 +286,8 @@ export default function WalkInForm({
 
     setName('');
     setPhone('');
+    setCnic('');
+    setIsUnder18(false);
     setSelectedUserId(undefined);
     setSelectedUserPoints(undefined);
     setSelectedUserRank(undefined);
@@ -270,9 +297,19 @@ export default function WalkInForm({
   };
 
   const filteredConsoles = consoles.filter(c => {
-    if (platformFilter === 'PS5' && !c.name.toLowerCase().includes('ps5') && !c.id.startsWith('ps5')) return false;
-    if (platformFilter === 'PC' && !c.name.toLowerCase().includes('pc') && !c.id.startsWith('pc')) return false;
-    if (platformFilter === 'XBOX' && !c.name.toLowerCase().includes('xbox') && !c.id.startsWith('xbox')) return false;
+    if (platformFilter === 'ALL') return true;
+    const nameLower = c.name.toLowerCase();
+    const typeLower = (c.type || '').toLowerCase();
+    const idLower = c.id.toLowerCase();
+    if (platformFilter === 'PS5') {
+      return nameLower.includes('ps5') || nameLower.includes('playstation') || typeLower.includes('ps5') || idLower.includes('ps5');
+    }
+    if (platformFilter === 'PC') {
+      return nameLower.includes('pc') || typeLower.includes('pc') || idLower.includes('pc');
+    }
+    if (platformFilter === 'XBOX') {
+      return nameLower.includes('xbox') || typeLower.includes('xbox') || idLower.includes('xbox');
+    }
     return true;
   });
 
@@ -356,6 +393,63 @@ export default function WalkInForm({
             onChange={e => setPhone(e.target.value)}
             className={styles.input}
             placeholder="e.g. 0300 1234567"
+          />
+        </div>
+
+        {/* CNIC and Under 18 Toggle */}
+        <div className={styles.field}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: 0 }}>
+              <span>{isUnder18 ? 'Guardian / Parent CNIC' : 'CNIC Number'}</span>
+              {isUnder18 ? (
+                <span style={{
+                  fontSize: '0.68rem',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  background: 'rgba(255, 180, 0, 0.18)',
+                  color: '#ffb400',
+                  border: '1px solid rgba(255, 180, 0, 0.4)',
+                  fontWeight: 800,
+                  letterSpacing: 'normal',
+                  textTransform: 'none'
+                }}>
+                  Under 18
+                </span>
+              ) : (
+                <span style={{ fontSize: '0.68rem', opacity: 0.6, fontWeight: 500, textTransform: 'none' }}>(Optional)</span>
+              )}
+            </label>
+            <label style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              color: isUnder18 ? '#ffb400' : 'rgba(255, 255, 255, 0.75)',
+              userSelect: 'none'
+            }}>
+              <input
+                type="checkbox"
+                checked={isUnder18}
+                onChange={e => setIsUnder18(e.target.checked)}
+                style={{ cursor: 'pointer', accentColor: '#ffb400', width: '15px', height: '15px' }}
+              />
+              <span>Under 18 (Minor)</span>
+            </label>
+          </div>
+          <input
+            type="text"
+            value={cnic}
+            onChange={e => setCnic(formatCnic(e.target.value))}
+            className={styles.input}
+            style={{
+              borderColor: isUnder18 ? 'rgba(255, 180, 0, 0.4)' : undefined,
+              marginTop: '0.2rem'
+            }}
+            placeholder={isUnder18 ? "Enter Parent / Guardian CNIC (e.g. 42101-1234567-1)" : "e.g. 42101-1234567-1"}
+            maxLength={15}
+            autoComplete="off"
           />
         </div>
 

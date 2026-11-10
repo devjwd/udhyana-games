@@ -1,5 +1,6 @@
-import Image from 'next/image';
 import CyberButton from '@/components/ui/CyberButton';
+import IconPlaceholder from '@/components/ui/IconPlaceholder';
+import { getGamingIconType } from '@/components/ui/GamingIcon';
 import styles from './ConsoleCard.module.css';
 
 interface ConsoleCardProps {
@@ -7,17 +8,19 @@ interface ConsoleCardProps {
   title: string;
   specs: string;
   description: string;
-  image: string;
+  image?: string;
   status: string;
   statusColor: string;
   games: string[];
 }
 
-export default function ConsoleCard({ id, title, specs, description, image, status, statusColor, games }: ConsoleCardProps) {
+export default function ConsoleCard({ id, title, specs, description, status, statusColor, games }: ConsoleCardProps) {
+  const iconType = getGamingIconType(`${title} ${specs}`);
+
   return (
     <div className={styles.card}>
       <div className={styles.imageWrapper}>
-        <Image src={image} alt={title} fill className={styles.image} />
+        <IconPlaceholder icon={iconType} title={title} size={72} />
         <div className={styles.statusBadge} style={{ color: statusColor }}>
           <span className={styles.statusDot} style={{ backgroundColor: statusColor }} />
           {status}
@@ -46,4 +49,3 @@ export default function ConsoleCard({ id, title, specs, description, image, stat
     </div>
   );
 }
-
