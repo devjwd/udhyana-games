@@ -38,8 +38,21 @@ export interface RemoteVideoCommand {
   timestamp: number;
 }
 
+export interface StationTestCommand {
+  testType: 'LOCATE' | 'WARNING' | 'EXPIRED' | 'RELOAD';
+  label?: string;
+  timestamp: number;
+}
+
 // Active Remote Video commands map: stationId -> RemoteVideoCommand
 const activeStationVideos: Map<string, RemoteVideoCommand> = new Map();
+
+// Active Remote Test commands map: stationId -> StationTestCommand
+const activeTestCommands: Map<string, StationTestCommand> = new Map();
+
+// Active Station Heartbeats map: stationId -> { lastSeen: number, ip: string }
+const activeStationHeartbeats: Map<string, { lastSeen: number; ip: string }> = new Map();
+
 const VIDEO_STATE_PATH = path.join(process.cwd(), 'local_database', 'remote_video_state.json');
 
 function ensureVideoStateLoaded() {
@@ -135,11 +148,22 @@ export async function GET(req: NextRequest) {
     slug: c.hardwareSlug || c.id.toLowerCase().replace(/[^a-z0-9]+/g, '-')
   }));
 
-  // If no stationId provided, return catalog of all stations for launcher
+  // If no stationId provided, return catalog of all stations & fleet status
   if (!stationParam) {
+    const fleetData: Record<string, { lastSeen: number; ip: string; isOnline: boolean; agoSeconds: number }> = {};
+    activeStationHeartbeats.forEach((val, key) => {
+      const agoSeconds = Math.round((Date.now() - val.lastSeen) / 1000);
+      fleetData[key] = {
+        ...val,
+        agoSeconds,
+        isOnline: agoSeconds <= 15
+      };
+    });
+
     return NextResponse.json({
       success: true,
       allStations: allStationsSummary,
+      fleet: fleetData,
       offline: isOffline
     });
   }
@@ -168,6 +192,17 @@ export async function GET(req: NextRequest) {
   const gamesList: string[] = Array.isArray(resolvedStation.games)
     ? resolvedStation.games.map((g) => (typeof g === 'string' ? g : g?.game?.name || '')).filter(Boolean)
     : [];
+
+  // Record Station Heartbeat
+  const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'LAN';
+  activeStationHeartbeats.set(resolvedStation.id, {
+    lastSeen: Date.now(),
+    ip: clientIp
+  });
+
+  // Check for active test commands sent from reception
+  const rawTest = activeTestCommands.get(resolvedStation.id) || activeTestCommands.get('ALL');
+  const activeTest = rawTest && Date.now() - rawTest.timestamp < 15000 ? rawTest : null;
 
   // 3. Find active session for this console
   const now = new Date();
@@ -204,6 +239,7 @@ export async function GET(req: NextRequest) {
       allStations: allStationsSummary,
       staffCallPending: activeStaffCalls.has(resolvedStation.id),
       remoteVideo: currentVideo,
+      testCommand: activeTest,
       offline: isOffline
     });
   }
@@ -269,6 +305,7 @@ export async function GET(req: NextRequest) {
     allStations: allStationsSummary,
     staffCallPending: activeStaffCalls.has(resolvedStation.id),
     remoteVideo: currentVideo,
+    testCommand: activeTest,
     offline: isOffline
   });
 }
@@ -276,13 +313,50 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { stationId, stationName, action, url, title, loop, autoClose } = body;
+    const { stationId, stationName, action, url, title, loop, autoClose, testType, label } = body;
 
     if (!stationId) {
       return NextResponse.json({ success: false, error: 'stationId is required' }, { status: 400 });
     }
 
     ensureVideoStateLoaded();
+
+    if (action === 'TRIGGER_TEST') {
+      const cmd: StationTestCommand = {
+        testType: testType || 'LOCATE',
+        label: label || `Diagnostic Test on ${stationId}`,
+        timestamp: Date.now()
+      };
+      activeTestCommands.set(stationId, cmd);
+      console.log(`[PodTesting] 🚨 Remote Test triggered on [${stationId}]: ${cmd.testType}`);
+      return NextResponse.json({
+        success: true,
+        message: `Test ${cmd.testType} sent to ${stationId}`,
+        command: cmd
+      });
+    }
+
+    if (action === 'CLEAR_TEST') {
+      if (stationId === 'ALL') {
+        activeTestCommands.clear();
+      } else {
+        activeTestCommands.delete(stationId);
+      }
+      return NextResponse.json({ success: true, message: `Test cleared on ${stationId}` });
+    }
+
+    if (action === 'GET_FLEET_STATUS') {
+      const fleetData: Record<string, { lastSeen: number; ip: string; isOnline: boolean; agoSeconds: number }> = {};
+      activeStationHeartbeats.forEach((val, key) => {
+        const agoSeconds = Math.round((Date.now() - val.lastSeen) / 1000);
+        fleetData[key] = {
+          ...val,
+          agoSeconds,
+          isOnline: agoSeconds <= 15
+        };
+      });
+      return NextResponse.json({ success: true, fleet: fleetData });
+    }
 
     if (action === 'PLAY_VIDEO') {
       if (!url) {

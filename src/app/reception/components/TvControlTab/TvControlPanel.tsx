@@ -58,6 +58,7 @@ export default function TvControlPanel() {
     videos: Array<{ name: string; url: string; sizeFormatted: string }>;
     images: Array<{ name: string; url: string; sizeFormatted: string }>;
   }>({ videos: [], images: [] });
+  const [podFleet, setPodFleet] = useState<Record<string, { lastSeen: number; ip: string; isOnline: boolean; agoSeconds: number }>>({});
   const [logs, setLogs] = useState<LogEntry[]>([
     {
       id: 'init-1',
@@ -111,6 +112,53 @@ export default function TvControlPanel() {
       ignore = true;
     };
   }, []);
+
+  const fetchFleet = useCallback(async () => {
+    try {
+      const res = await fetch('/api/station-display', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success && data.fleet) {
+        setPodFleet(data.fleet);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFleet();
+    const interval = setInterval(fetchFleet, 3500);
+    return () => clearInterval(interval);
+  }, [fetchFleet]);
+
+  const handleTriggerPodTest = async (
+    targetStation: string,
+    testType: 'LOCATE' | 'WARNING' | 'EXPIRED' | 'RELOAD',
+    label?: string
+  ) => {
+    addLog('info', `[${targetStation}] Triggering remote test: ${testType}...`);
+    try {
+      const res = await fetch('/api/station-display', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stationId: targetStation,
+          action: 'TRIGGER_TEST',
+          testType,
+          label: label || `Test ${testType} on ${targetStation}`
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        addLog('success', `[${targetStation}] ⚡ Test [${testType}] sent! Pod tablet will react within 2 seconds.`);
+      } else {
+        addLog('error', `[${targetStation}] ❌ Failed: ${data.error}`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error';
+      addLog('error', `[${targetStation}] ❌ Error: ${msg}`);
+    }
+  };
 
   const updateStationField = (stationId: string, field: keyof StationTvConfig, value: unknown) => {
     setConfigs((prev) =>
@@ -621,6 +669,118 @@ export default function TvControlPanel() {
           >
             ⏹️ Close Media & Return
           </button>
+        </div>
+      </div>
+
+      {/* Station Pod Live Fleet Diagnostics */}
+      <div className={styles.videoSection} style={{ borderLeft: '4px solid #00f0ff' }}>
+        <div className={styles.videoHeader}>
+          <div className={styles.videoTitle}>
+            <span>🎮</span> Station Pod Fleet & Remote Hardware Diagnostics
+          </div>
+          <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', color: '#00f0ff', fontWeight: 800 }}>
+              ● LIVE 5-POD DIAGNOSTIC SUITE
+            </span>
+            <a
+              href="/station/test"
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                background: 'rgba(0, 240, 255, 0.15)',
+                border: '1px solid #00f0ff',
+                color: '#00f0ff',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                textDecoration: 'none'
+              }}
+            >
+              🛠️ Open Full Tablet Diagnostics ↗
+            </a>
+          </div>
+        </div>
+
+        <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(255, 255, 255, 0.6)' }}>
+          Ping, calibrate, and trigger hardware alert tests across all 5 NEC VersaPro station pods over Wi-Fi with zero delay.
+        </p>
+
+        <div className={styles.stationGrid} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+          {configs.map((c) => {
+            const fleetInfo = podFleet[c.stationId];
+            const isOnline = Boolean(fleetInfo?.isOnline);
+            const pingText = fleetInfo ? `${fleetInfo.agoSeconds}s ago (${fleetInfo.ip})` : 'Offline / Waiting';
+
+            return (
+              <div
+                key={c.stationId}
+                className={styles.stationCard}
+                style={{ padding: '1.1rem', borderColor: isOnline ? 'rgba(0, 240, 255, 0.4)' : 'rgba(255,255,255,0.08)' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#fff' }}>
+                    🎮 {c.stationName}
+                  </div>
+                  <span
+                    style={{
+                      background: isOnline ? 'rgba(0, 240, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                      color: isOnline ? '#00f0ff' : 'rgba(255,255,255,0.4)',
+                      border: `1px solid ${isOnline ? 'rgba(0, 240, 255, 0.4)' : 'rgba(255,255,255,0.1)'}`,
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.68rem',
+                      fontWeight: 800
+                    }}
+                  >
+                    {isOnline ? '🟢 ONLINE' : '⚪ IDLE / OFFLINE'}
+                  </span>
+                </div>
+
+                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>
+                  Last Tablet Ping: <strong style={{ color: isOnline ? '#00f0ff' : 'inherit' }}>{pingText}</strong>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginTop: '0.2rem' }}>
+                  <button
+                    type="button"
+                    className={styles.btnAction}
+                    style={{ padding: '0.45rem', fontSize: '0.72rem' }}
+                    onClick={() => handleTriggerPodTest(c.stationId, 'LOCATE', `📍 LOCATE: ${c.stationName}`)}
+                  >
+                    📍 Locate Tablet
+                  </button>
+
+                  <button
+                    type="button"
+                    className={styles.btnAction}
+                    style={{ padding: '0.45rem', fontSize: '0.72rem', borderColor: 'rgba(255, 170, 0, 0.3)', color: '#ffaa00' }}
+                    onClick={() => handleTriggerPodTest(c.stationId, 'WARNING')}
+                  >
+                    🔔 5-Min Chime
+                  </button>
+
+                  <button
+                    type="button"
+                    className={styles.btnAction}
+                    style={{ padding: '0.45rem', fontSize: '0.72rem', borderColor: 'rgba(255, 0, 85, 0.3)', color: '#ff0055' }}
+                    onClick={() => handleTriggerPodTest(c.stationId, 'EXPIRED')}
+                  >
+                    🚨 Time Alarm
+                  </button>
+
+                  <button
+                    type="button"
+                    className={styles.btnAction}
+                    style={{ padding: '0.45rem', fontSize: '0.72rem' }}
+                    onClick={() => handleTriggerPodTest(c.stationId, 'RELOAD')}
+                  >
+                    🔄 Reload Kiosk
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

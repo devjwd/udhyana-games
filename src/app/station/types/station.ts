@@ -37,6 +37,12 @@ export interface RemoteVideoCommand {
   timestamp: number;
 }
 
+export interface StationTestCommand {
+  testType: 'LOCATE' | 'WARNING' | 'EXPIRED' | 'RELOAD';
+  label?: string;
+  timestamp: number;
+}
+
 export interface StationApiResponse {
   success: boolean;
   station?: StationInfo;
@@ -44,6 +50,7 @@ export interface StationApiResponse {
   allStations?: StationSummary[];
   staffCallPending?: boolean;
   remoteVideo?: RemoteVideoCommand | null;
+  testCommand?: StationTestCommand | null;
   offline?: boolean;
   error?: string;
 }

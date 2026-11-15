@@ -80,6 +80,8 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
   });
   const [isSwitcherOpen, setIsSwitcherOpen] = useState<boolean>(false);
   const [remoteVideo, setRemoteVideo] = useState<RemoteVideoCommand | null>(null);
+  const [locateMessage, setLocateMessage] = useState<string | null>(null);
+  const lastTestTimestampRef = useRef<number>(0);
 
   // Determine current active/warning/expired state
   const isTimeUp =
@@ -304,6 +306,24 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
         } else {
           setRemoteVideo(null);
         }
+
+        // Remote Fleet Testing & Diagnostic Commands
+        if (data.testCommand && data.testCommand.timestamp !== lastTestTimestampRef.current) {
+          lastTestTimestampRef.current = data.testCommand.timestamp;
+          wakeScreen(20);
+          if (data.testCommand.testType === 'LOCATE') {
+            setLocateMessage(data.testCommand.label || `📍 LOCATE: ${cleanStationName}`);
+            stationSounds.playSessionStart();
+            setTimeout(() => setLocateMessage(null), 6000);
+          } else if (data.testCommand.testType === 'WARNING') {
+            stationSounds.playWarningChime();
+            triggerSoftWarningFlash();
+          } else if (data.testCommand.testType === 'EXPIRED') {
+            stationSounds.playTimeUpAlarm();
+          } else if (data.testCommand.testType === 'RELOAD') {
+            window.location.reload();
+          }
+        }
       }
     } catch {
       // Graceful offline fallback
@@ -503,6 +523,62 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
           video={remoteVideo}
           onClose={handleCloseVideo}
         />
+      )}
+
+      {/* REMOTE LOCATE BEACON OVERLAY (TRIGGERED BY RECEPTION DIAGNOSTICS) */}
+      {locateMessage && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            backgroundColor: 'rgba(0, 0, 0, 0.94)',
+            border: '8px solid #00f0ff',
+            boxShadow: 'inset 0 0 50px rgba(0, 240, 255, 0.6)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '2rem',
+            textAlign: 'center',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+          onClick={() => setLocateMessage(null)}
+        >
+          <div style={{ fontSize: '4.5rem', marginBottom: '1rem', animation: 'bounce 1s infinite' }}>📍</div>
+          <div
+            style={{
+              fontSize: '2.4rem',
+              fontWeight: 900,
+              color: '#00f0ff',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              textShadow: '0 0 20px rgba(0, 240, 255, 0.8)'
+            }}
+          >
+            {locateMessage}
+          </div>
+          <div style={{ marginTop: '1.2rem', color: '#ffffff', fontSize: '1.1rem', fontWeight: 600, opacity: 0.85 }}>
+            Remote Hardware Diagnostic Ping Received from Reception
+          </div>
+          <button
+            type="button"
+            style={{
+              marginTop: '2rem',
+              background: '#00f0ff',
+              color: '#000',
+              fontWeight: 800,
+              border: 'none',
+              padding: '0.6rem 1.8rem',
+              borderRadius: '24px',
+              fontSize: '0.9rem',
+              cursor: 'pointer'
+            }}
+            onClick={() => setLocateMessage(null)}
+          >
+            ✓ Dismiss Beacon
+          </button>
+        </div>
       )}
     </div>
   );
