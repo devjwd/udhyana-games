@@ -64,6 +64,7 @@ import TransferModal from './modals/TransferModal';
 import AddTimeModal from './modals/AddTimeModal';
 import AssignWaitlistModal from './modals/AssignWaitlistModal';
 import PostpaidCheckoutModal from './modals/PostpaidCheckoutModal';
+import PodTestModal from './modals/PodTestModal';
 import TvControlPanel from './components/TvControlTab/TvControlPanel';
 
 export default function ReceptionPortal() {
@@ -98,6 +99,7 @@ export default function ReceptionPortal() {
   const [addTimeModalSession, setAddTimeModalSession] = useState<Session | null>(null);
   const [assignWaitlistModalWaiter, setAssignWaitlistModalWaiter] = useState<WaitlistEntry | null>(null);
   const [postpaidModalSession, setPostpaidModalSession] = useState<Session | null>(null);
+  const [isPodTestModalOpen, setIsPodTestModalOpen] = useState(false);
 
   const expiredNotifiedRef = useRef<Set<string>>(new Set());
 
@@ -883,6 +885,22 @@ export default function ReceptionPortal() {
             <button
               type="button"
               className={styles.iconBtn}
+              onClick={() => setIsPodTestModalOpen(true)}
+              style={{
+                background: 'rgba(0, 240, 255, 0.12)',
+                borderColor: '#00f0ff',
+                color: '#00f0ff',
+                fontWeight: 800,
+                boxShadow: '0 0 10px rgba(0, 240, 255, 0.2)'
+              }}
+              title="Test Live Actions on Station Pods"
+            >
+              🧪 Test Pod Actions
+            </button>
+
+            <button
+              type="button"
+              className={styles.iconBtn}
               onClick={handleToggleMute}
               title={isMuted ? 'Unmute Audio Chime' : 'Mute Audio Chime'}
             >
@@ -1029,6 +1047,12 @@ export default function ReceptionPortal() {
         snacks={snacks}
         onClose={() => setPostpaidModalSession(null)}
         onConfirm={handleConfirmPostpaidCheckout}
+      />
+
+      <PodTestModal
+        isOpen={isPodTestModalOpen}
+        onClose={() => setIsPodTestModalOpen(false)}
+        consoles={consoles}
       />
     </div>
   );

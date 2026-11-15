@@ -1856,6 +1856,14 @@ const launchTvScreen = async (mode = 'visitor') => {
   }
 };
 
+const btnPodTester = document.getElementById('btn-open-pod-tester');
+if (btnPodTester) {
+  btnPodTester.onclick = () => {
+    const navBtn = document.getElementById('nav-tv-control-btn');
+    if (navBtn) navBtn.click();
+  };
+}
+
 const btnPopout = document.getElementById('btn-open-tv-popout');
 if (btnPopout) btnPopout.onclick = () => launchTvScreen('visitor');
 
