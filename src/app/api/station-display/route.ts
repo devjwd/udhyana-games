@@ -30,6 +30,46 @@ interface RawSession {
 // Pending staff assistance calls map: stationId -> { stationName, time }
 const activeStaffCalls: Map<string, { stationName: string; time: Date }> = new Map();
 
+export interface RemoteVideoCommand {
+  url: string;
+  title?: string;
+  loop?: boolean;
+  autoClose?: boolean;
+  timestamp: number;
+}
+
+// Active Remote Video commands map: stationId -> RemoteVideoCommand
+const activeStationVideos: Map<string, RemoteVideoCommand> = new Map();
+const VIDEO_STATE_PATH = path.join(process.cwd(), 'local_database', 'remote_video_state.json');
+
+function ensureVideoStateLoaded() {
+  if (activeStationVideos.size > 0) return;
+  try {
+    if (fs.existsSync(VIDEO_STATE_PATH)) {
+      const data = JSON.parse(fs.readFileSync(VIDEO_STATE_PATH, 'utf-8'));
+      if (typeof data === 'object' && data !== null) {
+        Object.entries(data).forEach(([k, v]) => {
+          activeStationVideos.set(k, v as RemoteVideoCommand);
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('[StationDisplayAPI] Error reading remote_video_state.json:', e);
+  }
+}
+
+function persistVideoState() {
+  try {
+    const obj: Record<string, RemoteVideoCommand> = {};
+    activeStationVideos.forEach((v, k) => {
+      obj[k] = v;
+    });
+    fs.writeFileSync(VIDEO_STATE_PATH, JSON.stringify(obj, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('[StationDisplayAPI] Error writing remote_video_state.json:', e);
+  }
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const stationParam = searchParams.get('stationId') || searchParams.get('id');
@@ -133,6 +173,12 @@ export async function GET(req: NextRequest) {
   const now = new Date();
   const activeSession = dbSessions.find((s) => s.consoleId === resolvedStation.id);
 
+  ensureVideoStateLoaded();
+  const currentVideo =
+    activeStationVideos.get(resolvedStation.id) ||
+    activeStationVideos.get('ALL') ||
+    null;
+
   if (!activeSession) {
     return NextResponse.json({
       success: true,
@@ -156,6 +202,8 @@ export async function GET(req: NextRequest) {
         endTime: null
       },
       allStations: allStationsSummary,
+      staffCallPending: activeStaffCalls.has(resolvedStation.id),
+      remoteVideo: currentVideo,
       offline: isOffline
     });
   }
@@ -220,6 +268,7 @@ export async function GET(req: NextRequest) {
     },
     allStations: allStationsSummary,
     staffCallPending: activeStaffCalls.has(resolvedStation.id),
+    remoteVideo: currentVideo,
     offline: isOffline
   });
 }
@@ -227,10 +276,48 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { stationId, stationName, action } = body;
+    const { stationId, stationName, action, url, title, loop, autoClose } = body;
 
     if (!stationId) {
       return NextResponse.json({ success: false, error: 'stationId is required' }, { status: 400 });
+    }
+
+    ensureVideoStateLoaded();
+
+    if (action === 'PLAY_VIDEO') {
+      if (!url) {
+        return NextResponse.json({ success: false, error: 'url is required to play video' }, { status: 400 });
+      }
+      const cmd: RemoteVideoCommand = {
+        url,
+        title: title || 'Lounge Video Broadcast',
+        loop: loop !== undefined ? Boolean(loop) : true,
+        autoClose: Boolean(autoClose),
+        timestamp: Date.now()
+      };
+      activeStationVideos.set(stationId, cmd);
+      persistVideoState();
+      console.log(`[RemoteVideo] 🎬 Broadcast started for ${stationId}: ${url}`);
+      return NextResponse.json({ success: true, message: `Video broadcast started on ${stationId}`, command: cmd });
+    }
+
+    if (action === 'STOP_VIDEO') {
+      if (stationId === 'ALL') {
+        activeStationVideos.clear();
+      } else {
+        activeStationVideos.delete(stationId);
+      }
+      persistVideoState();
+      console.log(`[RemoteVideo] ⏹️ Broadcast stopped for ${stationId}`);
+      return NextResponse.json({ success: true, message: `Video stopped on ${stationId}` });
+    }
+
+    if (action === 'GET_ACTIVE_VIDEOS') {
+      const list: Record<string, RemoteVideoCommand> = {};
+      activeStationVideos.forEach((v, k) => {
+        list[k] = v;
+      });
+      return NextResponse.json({ success: true, videos: list });
     }
 
     if (action === 'DISMISS_CALL') {

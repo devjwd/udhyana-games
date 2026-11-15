@@ -26,3 +26,9 @@ contextBridge.exposeInMainWorld('tvAPI', {
   saveStation: (params) => ipcRenderer.invoke('tv:save-station', params),
   controlTv: (payload) => ipcRenderer.invoke('tv:control', payload),
 });
+
+contextBridge.exposeInMainWorld('podMediaAPI', {
+  playVideo: (params) => ipcRenderer.invoke('pod:play-video', params),
+  stopVideo: (params) => ipcRenderer.invoke('pod:stop-video', params),
+  getVideos: () => ipcRenderer.invoke('pod:get-videos'),
+});

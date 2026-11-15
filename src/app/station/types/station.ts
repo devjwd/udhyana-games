@@ -29,12 +29,21 @@ export interface StationSummary {
   slug: string;
 }
 
+export interface RemoteVideoCommand {
+  url: string;
+  title?: string;
+  loop?: boolean;
+  autoClose?: boolean;
+  timestamp: number;
+}
+
 export interface StationApiResponse {
   success: boolean;
   station?: StationInfo;
   session?: SessionInfo;
   allStations?: StationSummary[];
   staffCallPending?: boolean;
+  remoteVideo?: RemoteVideoCommand | null;
   offline?: boolean;
   error?: string;
 }

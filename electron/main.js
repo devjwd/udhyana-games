@@ -828,6 +828,60 @@ ipcMain.handle('tv:control', async (event, { stationId, action, message, hdmiPor
   return { success: false, message: `Action "${action}" unknown.` };
 });
 
+// =========================================================
+// STATION POD REMOTE VIDEO BROADCAST ENGINE (OFFLINE)
+// =========================================================
+const REMOTE_VIDEO_STATE_PATH = path.join(LOCAL_DB_DIR, 'remote_video_state.json');
+
+function getLocalVideoState() {
+  try {
+    if (fs.existsSync(REMOTE_VIDEO_STATE_PATH)) {
+      return JSON.parse(fs.readFileSync(REMOTE_VIDEO_STATE_PATH, 'utf8') || '{}');
+    }
+  } catch (err) {
+    console.warn('[Video Engine] Error reading remote_video_state.json:', err.message);
+  }
+  return {};
+}
+
+function saveLocalVideoState(state) {
+  try {
+    fs.writeFileSync(REMOTE_VIDEO_STATE_PATH, JSON.stringify(state, null, 2), 'utf8');
+    return true;
+  } catch (err) {
+    console.warn('[Video Engine] Error writing remote_video_state.json:', err.message);
+    return false;
+  }
+}
+
+ipcMain.handle('pod:play-video', (event, { stationId, url, title, loop }) => {
+  const state = getLocalVideoState();
+  const cmd = {
+    url,
+    title: title || 'Lounge Video Broadcast',
+    loop: loop !== false,
+    timestamp: Date.now()
+  };
+  state[stationId] = cmd;
+  saveLocalVideoState(state);
+  return { success: true, message: `Video broadcast queued for ${stationId}`, command: cmd };
+});
+
+ipcMain.handle('pod:stop-video', (event, { stationId }) => {
+  const state = getLocalVideoState();
+  if (stationId === 'ALL') {
+    saveLocalVideoState({});
+  } else {
+    delete state[stationId];
+    saveLocalVideoState(state);
+  }
+  return { success: true, message: `Video stopped for ${stationId}` };
+});
+
+ipcMain.handle('pod:get-videos', () => {
+  return getLocalVideoState();
+});
+
 // App Lifecycle
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);

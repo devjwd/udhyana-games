@@ -21,6 +21,8 @@ import ScreenFlashOverlay from './components/ScreenFlashOverlay';
 import StationSwitcherModal from './components/StationSwitcherModal';
 import KioskTapOverlay from './components/KioskTapOverlay';
 import SleepBlackoutOverlay from './components/SleepBlackoutOverlay';
+import RemoteVideoOverlay from './components/RemoteVideoOverlay';
+import { RemoteVideoCommand } from './types/station';
 
 function formatTimerDigits(totalSeconds: number): string {
   if (totalSeconds <= 0) return '00:00:00';
@@ -77,6 +79,7 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
     return false;
   });
   const [isSwitcherOpen, setIsSwitcherOpen] = useState<boolean>(false);
+  const [remoteVideo, setRemoteVideo] = useState<RemoteVideoCommand | null>(null);
 
   // Determine current active/warning/expired state
   const isTimeUp =
@@ -170,6 +173,43 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
     stationName: cleanStationName
   });
 
+  // Background Preloader: Silently buffers lounge videos & posters on pod boot for instant 0ms playback
+  useEffect(() => {
+    let ignore = false;
+    const preloadMediaFiles = async () => {
+      try {
+        const res = await fetch('/api/station-media');
+        const data = await res.json();
+        if (ignore || !data.success) return;
+
+        // Preload images into memory cache
+        if (Array.isArray(data.images)) {
+          data.images.slice(0, 10).forEach((img: { url: string }) => {
+            const imageObj = new Image();
+            imageObj.src = img.url;
+          });
+        }
+
+        // Preload videos into disk/memory cache
+        if (Array.isArray(data.videos)) {
+          data.videos.slice(0, 5).forEach((vid: { url: string }) => {
+            const videoElement = document.createElement('video');
+            videoElement.preload = 'auto';
+            videoElement.src = vid.url;
+            videoElement.muted = true;
+          });
+        }
+      } catch {
+        // Silently continue if offline
+      }
+    };
+
+    preloadMediaFiles();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   const triggerSoftWarningFlash = useCallback(() => {
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
     setFlashState('SOFT_WARNING');
@@ -239,11 +279,32 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
             hasChimedExpiredRef.current = false;
           }
         }
+
+        // Remote Video Broadcast Sync
+        if (data.remoteVideo) {
+          setRemoteVideo(data.remoteVideo);
+          wakeScreen(30);
+        } else {
+          setRemoteVideo(null);
+        }
       }
     } catch {
       // Graceful offline fallback
     }
   }, [stationId, triggerSoftWarningFlash, wakeScreen]);
+
+  const handleCloseVideo = useCallback(async () => {
+    setRemoteVideo(null);
+    try {
+      await fetch('/api/station-display', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stationId, action: 'STOP_VIDEO' })
+      });
+    } catch (err) {
+      console.warn('Failed stopping remote video:', err);
+    }
+  }, [stationId]);
 
   // Polling interval
   useEffect(() => {
@@ -418,6 +479,14 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
         onSelectStation={(id) => setStationId(id)}
         onClose={() => setIsSwitcherOpen(false)}
       />
+
+      {/* REMOTE VIDEO BROADCAST OVERLAY */}
+      {remoteVideo && (
+        <RemoteVideoOverlay
+          video={remoteVideo}
+          onClose={handleCloseVideo}
+        />
+      )}
     </div>
   );
 }

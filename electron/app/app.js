@@ -2264,3 +2264,85 @@ async function renderTvControlView() {
   }
 }
 
+// =========================================================
+// REMOTE VIDEO BROADCAST FOR STATION PODS (DESKTOP)
+// =========================================================
+let currentDesktopVideoTitle = 'Tekken 8 — The King of Iron Fist';
+
+function setDesktopVideoPreset(url, title) {
+  const input = document.getElementById('desktop-video-url-input');
+  if (input) input.value = url;
+  currentDesktopVideoTitle = title || 'Lounge Video';
+  showNotification(`Selected: ${title}`, 'success');
+}
+window.setDesktopVideoPreset = setDesktopVideoPreset;
+
+async function playDesktopVideoOnPod() {
+  const targetSelect = document.getElementById('desktop-video-target-station');
+  const input = document.getElementById('desktop-video-url-input');
+  const stationId = targetSelect ? targetSelect.value : 'ALL';
+  const url = input ? input.value.trim() : '';
+
+  if (!url) {
+    showNotification('Please enter a video URL', 'error');
+    return;
+  }
+
+  addTvLog('info', `[${stationId}] Broadcasting video to pod(s): "${currentDesktopVideoTitle}"...`);
+
+  try {
+    let res;
+    if (window.podMediaAPI?.playVideo) {
+      res = await window.podMediaAPI.playVideo({ stationId, url, title: currentDesktopVideoTitle, loop: true });
+    } else {
+      const resp = await fetch('/api/station-display', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'PLAY_VIDEO', stationId, url, title: currentDesktopVideoTitle, loop: true })
+      });
+      res = await resp.json();
+    }
+
+    if (res?.success) {
+      addTvLog('success', `[${stationId}] 🎬 Video broadcast started on pod(s).`);
+      showNotification(`Video started on ${stationId === 'ALL' ? 'all 5 pods' : stationId}!`, 'success');
+    } else {
+      addTvLog('error', `[${stationId}] ❌ Video broadcast failed`);
+      showNotification('Failed starting video', 'error');
+    }
+  } catch (err) {
+    addTvLog('error', `[${stationId}] Video error: ${err.message}`);
+    showNotification(err.message, 'error');
+  }
+}
+window.playDesktopVideoOnPod = playDesktopVideoOnPod;
+
+async function stopDesktopVideoOnPod() {
+  const targetSelect = document.getElementById('desktop-video-target-station');
+  const stationId = targetSelect ? targetSelect.value : 'ALL';
+
+  addTvLog('info', `[${stationId}] Stopping video broadcast...`);
+
+  try {
+    let res;
+    if (window.podMediaAPI?.stopVideo) {
+      res = await window.podMediaAPI.stopVideo({ stationId });
+    } else {
+      const resp = await fetch('/api/station-display', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'STOP_VIDEO', stationId })
+      });
+      res = await resp.json();
+    }
+
+    if (res?.success) {
+      addTvLog('success', `[${stationId}] ⏹️ Video stopped. Pod returned to countdown timer.`);
+      showNotification(`Video stopped on ${stationId === 'ALL' ? 'all pods' : stationId}`, 'success');
+    }
+  } catch (err) {
+    addTvLog('error', `[${stationId}] Error: ${err.message}`);
+  }
+}
+window.stopDesktopVideoOnPod = stopDesktopVideoOnPod;
+

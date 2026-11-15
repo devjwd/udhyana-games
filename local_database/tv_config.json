@@ -3,7 +3,7 @@
     "stationId": "PS5",
     "stationName": "Station 1 (PS5)",
     "tvBrand": "LG",
-    "ip": "192.168.1.8",
+    "ip": "192.168.1.10",
     "mac": "20:3D:BD:99:DE:FA",
     "hdmiInput": "HDMI_1",
     "psk": "",

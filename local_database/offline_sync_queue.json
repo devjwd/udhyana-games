@@ -36,5 +36,99 @@
       "consoleId": "PS5"
     },
     "timestamp": "2026-11-09T11:01:07.195Z"
+  },
+  {
+    "id": "off_1794666678101_j4ia4",
+    "type": "CHECKOUT",
+    "payload": {
+      "cartItems": [
+        {
+          "name": "station 1 ( ps5 ) (atta  ullaj)",
+          "price": 300,
+          "type": "session",
+          "quantity": 1
+        }
+      ],
+      "totalAmount": 300,
+      "paymentMethod": "cash",
+      "sessionData": [
+        {
+          "consoleId": "PS5",
+          "playerName": "atta  ullaj",
+          "phone": "031501515125",
+          "userId": null,
+          "durationHours": 1,
+          "durationSeconds": 3600
+        }
+      ],
+      "walkInName": "atta  ullaj",
+      "walkInPhone": "031501515125",
+      "userId": null
+    },
+    "timestamp": "2026-11-14T14:31:18.101Z"
+  },
+  {
+    "id": "off_1794666852493_85w30",
+    "type": "CHECKOUT",
+    "payload": {
+      "cartItems": [
+        {
+          "name": "station 2 ( xbox series X ) (jawad)",
+          "price": 1500,
+          "type": "session",
+          "quantity": 1
+        },
+        {
+          "name": "Coca-Cola / Sprite (345ml)",
+          "price": 150,
+          "type": "snack",
+          "quantity": 1
+        },
+        {
+          "name": "Lays / Kurkure Chips",
+          "price": 200,
+          "type": "snack",
+          "quantity": 1
+        },
+        {
+          "name": "Red Bull Energy Drink",
+          "price": 500,
+          "type": "snack",
+          "quantity": 1
+        }
+      ],
+      "totalAmount": 1880,
+      "paymentMethod": "cash",
+      "sessionData": [
+        {
+          "consoleId": "Xbox series X",
+          "playerName": "jawad",
+          "phone": "sad23",
+          "userId": null,
+          "durationHours": 4,
+          "durationSeconds": 14400
+        }
+      ],
+      "walkInName": "jawad",
+      "walkInPhone": "sad23",
+      "userId": null
+    },
+    "timestamp": "2026-11-14T14:34:12.493Z"
+  },
+  {
+    "id": "off_1794670309549_ccgr5",
+    "type": "session_end",
+    "payload": {
+      "consoleId": "PS5"
+    },
+    "timestamp": "2026-11-14T15:31:49.549Z"
+  },
+  {
+    "id": "off_1794670312362_a54s6",
+    "type": "session_end",
+    "payload": {
+      "consoleId": "Xbox series X"
+    },
+    "timestamp": "2026-11-14T15:31:52.363Z"
   }
 ]

@@ -385,4 +385,145 @@
   box-shadow: 0 0 12px rgba(214, 255, 1, 0.35);
 }
 
+/* Remote Video Broadcast Section */
+.videoSection {
+  background: #0f111a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  border-left: 4px solid #ff0055;
+}
+
+.videoHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 0.75rem;
+}
+
+.videoTitle {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.presetGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.65rem;
+}
+
+.presetBtn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.presetBtn:hover {
+  background: rgba(255, 0, 85, 0.12);
+  border-color: rgba(255, 0, 85, 0.4);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.presetBtnActive {
+  background: rgba(255, 0, 85, 0.2) !important;
+  border-color: #ff0055 !important;
+  color: #fff !important;
+  box-shadow: 0 0 12px rgba(255, 0, 85, 0.3);
+}
+
+.videoControlsRow {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.stationSelect {
+  background: #08090d;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: #d6ff01;
+  font-weight: 800;
+  font-size: 0.85rem;
+  padding: 0.65rem 1rem;
+  outline: none;
+}
+
+.videoInput {
+  flex: 1;
+  min-width: 280px;
+  background: #08090d;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  color: #fff;
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.videoInput:focus {
+  border-color: #ff0055;
+}
+
+.btnPlayVideo {
+  background: #ff0055;
+  border: none;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  padding: 0.65rem 1.4rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 15px rgba(255, 0, 85, 0.35);
+}
+
+.btnPlayVideo:hover:not(:disabled) {
+  background: #ff1f6d;
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(255, 0, 85, 0.6);
+}
+
+.btnStopVideo {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  padding: 0.65rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.btnStopVideo:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+
 

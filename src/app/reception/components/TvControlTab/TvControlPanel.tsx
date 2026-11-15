@@ -12,6 +12,34 @@ interface LogEntry {
   text: string;
 }
 
+const PRESET_VIDEOS = [
+  {
+    name: '🎮 Tekken 8 Trailer',
+    url: 'https://www.youtube.com/watch?v=2hPuRQz6IlM',
+    title: 'Tekken 8 — The King of Iron Fist'
+  },
+  {
+    name: '🏎️ Forza Horizon 5',
+    url: 'https://www.youtube.com/watch?v=FYH9n3Ov126',
+    title: 'Forza Horizon 5 — Official Trailer'
+  },
+  {
+    name: '⚽ EA Sports FC 25',
+    url: 'https://www.youtube.com/watch?v=pBM2xyCo_Kg',
+    title: 'EA Sports FC 25 — Club is Everything'
+  },
+  {
+    name: '🥤 Cafe & Red Bull Reel',
+    url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    title: 'Udhyana Games — Lounge Cafe Specials'
+  },
+  {
+    name: '🍿 1080p Ultra-HD Animation',
+    url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+    title: '1080p 60FPS Video Hardware Test'
+  }
+];
+
 export default function TvControlPanel() {
   const [configs, setConfigs] = useState<StationTvConfig[]>([]);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
@@ -19,6 +47,17 @@ export default function TvControlPanel() {
   const [customToasts, setCustomToasts] = useState<Record<string, string>>({
     PS5: '🎮 Welcome to Udhyana Games Lounge! Station 1 Active.'
   });
+
+  // Video Broadcast State
+  const [selectedTargetPod, setSelectedTargetPod] = useState<string>('ALL');
+  const [customVideoUrl, setCustomVideoUrl] = useState<string>(PRESET_VIDEOS[0].url);
+  const [customVideoTitle, setCustomVideoTitle] = useState<string>(PRESET_VIDEOS[0].title);
+  const [isVideoLooping, setIsVideoLooping] = useState<boolean>(true);
+  const [isBroadcastingVideo, setIsBroadcastingVideo] = useState<boolean>(false);
+  const [localMedia, setLocalMedia] = useState<{
+    videos: Array<{ name: string; url: string; sizeFormatted: string }>;
+    images: Array<{ name: string; url: string; sizeFormatted: string }>;
+  }>({ videos: [], images: [] });
   const [logs, setLogs] = useState<LogEntry[]>([
     {
       id: 'init-1',
@@ -54,6 +93,19 @@ export default function TvControlPanel() {
           console.error('Failed to load TV configs:', err);
         }
       });
+
+    // Fetch preloaded local offline media files from public/videos and public/images
+    fetch('/api/station-media')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!ignore && data.success) {
+          setLocalMedia({
+            videos: data.videos || [],
+            images: data.images || []
+          });
+        }
+      })
+      .catch(() => {});
 
     return () => {
       ignore = true;
@@ -143,6 +195,65 @@ export default function TvControlPanel() {
       addLog('error', `[${stationId}] Network exception: ${errorMsg}`);
     } finally {
       setLoadingAction(null);
+    }
+  };
+
+  const handlePlayVideo = async () => {
+    if (!customVideoUrl) {
+      toast.error('Please enter or select a video URL');
+      return;
+    }
+    setIsBroadcastingVideo(true);
+    addLog('info', `[${selectedTargetPod}] Broadcasting video: "${customVideoTitle || customVideoUrl}"...`);
+    try {
+      const res = await fetch('/api/station-display', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'PLAY_VIDEO',
+          stationId: selectedTargetPod,
+          url: customVideoUrl,
+          title: customVideoTitle,
+          loop: isVideoLooping
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Video broadcast sent to ${selectedTargetPod === 'ALL' ? 'all 5 pods' : selectedTargetPod}!`);
+        addLog('success', `[${selectedTargetPod}] 🎬 Video broadcast started on pod(s).`);
+      } else {
+        toast.error(data.error || 'Failed broadcasting video');
+        addLog('error', `[${selectedTargetPod}] ❌ Broadcast failed: ${data.error}`);
+      }
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      toast.error(`Broadcast failed: ${errorMsg}`);
+      addLog('error', `[${selectedTargetPod}] ❌ Network error: ${errorMsg}`);
+    } finally {
+      setIsBroadcastingVideo(false);
+    }
+  };
+
+  const handleStopVideo = async () => {
+    addLog('info', `[${selectedTargetPod}] Stopping video broadcast...`);
+    try {
+      const res = await fetch('/api/station-display', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'STOP_VIDEO',
+          stationId: selectedTargetPod
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Video stopped on ${selectedTargetPod === 'ALL' ? 'all pods' : selectedTargetPod}. Pod returned to timer.`);
+        addLog('success', `[${selectedTargetPod}] ⏹️ Video stopped. Station returned to timer.`);
+      }
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      toast.error(`Stop failed: ${errorMsg}`);
+      addLog('error', `[${selectedTargetPod}] ❌ Network error: ${errorMsg}`);
     }
   };
 
@@ -362,6 +473,127 @@ export default function TvControlPanel() {
             </div>
           );
         })}
+      </div>
+
+      {/* Remote Video & Attract Mode Controller */}
+      <div className={styles.videoSection}>
+        <div className={styles.videoHeader}>
+          <div className={styles.videoTitle}>
+            <span>🎬</span> Station Pod Remote Video & Attract Mode
+          </div>
+          <span style={{ fontSize: '0.75rem', color: '#ff0055', fontWeight: 800 }}>
+            ● FULLSCREEN 1080P POD BROADCAST
+          </span>
+        </div>
+
+        <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(255, 255, 255, 0.6)' }}>
+          Broadcast high-energy trailers, promotional videos, or sponsor ads directly to your NEC VersaPro station pods over Wi-Fi.
+        </p>
+
+        {/* Preloaded Offline Media (from public/videos) */}
+        {localMedia.videos.length > 0 && (
+          <div style={{ background: 'rgba(0, 240, 255, 0.05)', border: '1px solid rgba(0, 240, 255, 0.2)', borderRadius: '8px', padding: '10px 14px' }}>
+            <label style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#00f0ff', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.5rem' }}>
+              <span>⚡</span> Preloaded Offline Videos Detected (public/videos/):
+            </label>
+            <div className={styles.presetGrid}>
+              {localMedia.videos.map((vid) => {
+                const isSelected = customVideoUrl === vid.url;
+                return (
+                  <button
+                    key={vid.url}
+                    type="button"
+                    className={`${styles.presetBtn} ${isSelected ? styles.presetBtnActive : ''}`}
+                    onClick={() => {
+                      setCustomVideoUrl(vid.url);
+                      setCustomVideoTitle(vid.name);
+                    }}
+                    style={{ borderColor: isSelected ? '#00f0ff' : 'rgba(0, 240, 255, 0.25)' }}
+                  >
+                    <span style={{ color: '#00f0ff' }}>📁 {vid.name}</span>
+                    <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.45)' }}>Instant 0ms / {vid.sizeFormatted}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Preset Video Cards */}
+        <div>
+          <label style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', fontWeight: 700, display: 'block', marginBottom: '0.5rem' }}>
+            Click Preset Video to Test:
+          </label>
+          <div className={styles.presetGrid}>
+            {PRESET_VIDEOS.map((vid) => {
+              const isSelected = customVideoUrl === vid.url;
+              return (
+                <button
+                  key={vid.url}
+                  type="button"
+                  className={`${styles.presetBtn} ${isSelected ? styles.presetBtnActive : ''}`}
+                  onClick={() => {
+                    setCustomVideoUrl(vid.url);
+                    setCustomVideoTitle(vid.title);
+                  }}
+                >
+                  <span>{vid.name}</span>
+                  <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.4)' }}>{vid.title}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Video Controls Bar */}
+        <div className={styles.videoControlsRow}>
+          <select
+            className={styles.stationSelect}
+            value={selectedTargetPod}
+            onChange={(e) => setSelectedTargetPod(e.target.value)}
+          >
+            <option value="ALL">📺 Broadcast to ALL 5 Pods</option>
+            {configs.map((c) => (
+              <option key={c.stationId} value={c.stationId}>
+                🎮 {c.stationName}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="text"
+            className={styles.videoInput}
+            value={customVideoUrl}
+            onChange={(e) => setCustomVideoUrl(e.target.value)}
+            placeholder="Paste direct MP4 or YouTube URL..."
+          />
+
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#fff', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={isVideoLooping}
+              onChange={(e) => setIsVideoLooping(e.target.checked)}
+            />
+            Loop
+          </label>
+
+          <button
+            type="button"
+            className={styles.btnPlayVideo}
+            disabled={isBroadcastingVideo}
+            onClick={handlePlayVideo}
+          >
+            {isBroadcastingVideo ? '⏳ Sending...' : '▶️ Play on Pod(s)'}
+          </button>
+
+          <button
+            type="button"
+            className={styles.btnStopVideo}
+            onClick={handleStopVideo}
+          >
+            ⏹️ Stop Video & Return
+          </button>
+        </div>
       </div>
 
       {/* Real-time Diagnostics Terminal */}

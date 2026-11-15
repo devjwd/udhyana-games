@@ -628,6 +628,66 @@
             <!-- Populated dynamically by app.js -->
           </div>
 
+          <!-- Remote Video & Attract Mode Controller for Pods -->
+          <div class="tv-card" style="border-left: 4px solid #ff0055;">
+            <div class="tv-card-header">
+              <div>
+                <h3 class="tv-card-title">🎬 Station Pod Remote Video & Attract Mode</h3>
+                <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 4px;">
+                  Broadcast game trailers, promos, and video ads directly to the 5 NEC VersaPro station pods over LAN.
+                </p>
+              </div>
+              <span class="nav-pill" style="background: rgba(255, 0, 85, 0.15); color: #ff0055; border: 1px solid rgba(255, 0, 85, 0.4);">
+                ● 1080P POD BROADCAST
+              </span>
+            </div>
+
+            <!-- Presets -->
+            <div>
+              <label style="font-size: 0.68rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 8px;">
+                Preset Video Trailers:
+              </label>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px;">
+                <button type="button" class="btn btn-subtle btn-sm" onclick="setDesktopVideoPreset('https://www.youtube.com/watch?v=2hPuRQz6IlM', 'Tekken 8 — The King of Iron Fist')">
+                  🎮 Tekken 8 Trailer
+                </button>
+                <button type="button" class="btn btn-subtle btn-sm" onclick="setDesktopVideoPreset('https://www.youtube.com/watch?v=FYH9n3Ov126', 'Forza Horizon 5 — Official')">
+                  🏎️ Forza Horizon 5
+                </button>
+                <button type="button" class="btn btn-subtle btn-sm" onclick="setDesktopVideoPreset('https://www.youtube.com/watch?v=pBM2xyCo_Kg', 'EA Sports FC 25 — Club is Everything')">
+                  ⚽ EA Sports FC 25
+                </button>
+                <button type="button" class="btn btn-subtle btn-sm" onclick="setDesktopVideoPreset('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', 'Lounge Cafe & Energy Drinks')">
+                  🥤 Cafe & Red Bull Reel
+                </button>
+                <button type="button" class="btn btn-subtle btn-sm" onclick="setDesktopVideoPreset('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', '1080p 60FPS Video Hardware Test')">
+                  🍿 1080p Sample MP4
+                </button>
+              </div>
+            </div>
+
+            <!-- Controls -->
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+              <select id="desktop-video-target-station" style="background: #08090d; border: 1px solid var(--border); border-radius: 6px; color: var(--primary); font-weight: 800; font-size: 0.85rem; padding: 8px 12px; outline: none;">
+                <option value="ALL">📺 Broadcast to ALL 5 Pods</option>
+                <option value="PS5">🎮 Station 1 (PS5)</option>
+                <option value="Xbox series X">🎮 Station 2 (Xbox Series X)</option>
+                <option value="Xbox series X(2)">🎮 Station 3 (Xbox Series X 2)</option>
+                <option value="steerin wheel + ps4">🎮 Station 4 (Steering Wheel)</option>
+              </select>
+
+              <input type="text" id="desktop-video-url-input" value="https://www.youtube.com/watch?v=2hPuRQz6IlM" placeholder="Paste direct MP4 or YouTube URL..." style="flex: 1; min-width: 260px; background: #08090d; border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: #fff; font-size: 0.85rem; outline: none;">
+
+              <button type="button" class="btn btn-primary" onclick="playDesktopVideoOnPod()" style="background: #ff0055; border-color: #ff0055; color: #fff;">
+                ▶️ Play Video on Pod(s)
+              </button>
+
+              <button type="button" class="btn btn-subtle" onclick="stopDesktopVideoOnPod()">
+                ⏹️ Stop Video & Return
+              </button>
+            </div>
+          </div>
+
           <!-- Real-time Diagnostic Terminal -->
           <div class="tv-console-box">
             <div class="tv-console-head">
