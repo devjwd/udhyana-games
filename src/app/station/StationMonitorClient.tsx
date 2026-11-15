@@ -182,9 +182,9 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
         const data = await res.json();
         if (ignore || !data.success) return;
 
-        // Preload images into memory cache
+        // Preload images into memory & permanent local tablet cache
         if (Array.isArray(data.images)) {
-          data.images.slice(0, 10).forEach((img: { url: string }) => {
+          data.images.slice(0, 15).forEach((img: { url: string }) => {
             const imageObj = new Image();
             imageObj.src = img.url;
           });
@@ -192,12 +192,29 @@ export default function StationMonitorClient({ initialStationId }: { initialStat
 
         // Preload videos into disk/memory cache
         if (Array.isArray(data.videos)) {
-          data.videos.slice(0, 5).forEach((vid: { url: string }) => {
+          data.videos.slice(0, 8).forEach((vid: { url: string }) => {
             const videoElement = document.createElement('video');
             videoElement.preload = 'auto';
             videoElement.src = vid.url;
             videoElement.muted = true;
           });
+        }
+
+        // Permanent Local Tablet Storage Vault (Edge / Chrome CacheStorage API)
+        if (typeof window !== 'undefined' && 'caches' in window) {
+          caches.open('udhyana-pod-media-v1').then((cache) => {
+            const mediaList = [...(data.videos || []), ...(data.images || [])];
+            mediaList.forEach((item: { url?: string }) => {
+              const targetUrl = item?.url;
+              if (targetUrl) {
+                cache.match(targetUrl).then((matched) => {
+                  if (!matched) {
+                    cache.add(targetUrl).catch(() => {});
+                  }
+                });
+              }
+            });
+          }).catch(() => {});
         }
       } catch {
         // Silently continue if offline

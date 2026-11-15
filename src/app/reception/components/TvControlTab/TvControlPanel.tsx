@@ -490,7 +490,7 @@ export default function TvControlPanel() {
           Broadcast high-energy trailers, promotional videos, or sponsor ads directly to your NEC VersaPro station pods over Wi-Fi.
         </p>
 
-        {/* Preloaded Offline Media (from public/videos) */}
+        {/* Preloaded Offline Media (from public/videos and public/images) */}
         {localMedia.videos.length > 0 && (
           <div style={{ background: 'rgba(0, 240, 255, 0.05)', border: '1px solid rgba(0, 240, 255, 0.2)', borderRadius: '8px', padding: '10px 14px' }}>
             <label style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#00f0ff', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.5rem' }}>
@@ -510,8 +510,36 @@ export default function TvControlPanel() {
                     }}
                     style={{ borderColor: isSelected ? '#00f0ff' : 'rgba(0, 240, 255, 0.25)' }}
                   >
-                    <span style={{ color: '#00f0ff' }}>📁 {vid.name}</span>
+                    <span style={{ color: '#00f0ff' }}>🎬 {vid.name}</span>
                     <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.45)' }}>Instant 0ms / {vid.sizeFormatted}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {localMedia.images.length > 0 && (
+          <div style={{ background: 'rgba(255, 0, 128, 0.05)', border: '1px solid rgba(255, 0, 128, 0.2)', borderRadius: '8px', padding: '10px 14px' }}>
+            <label style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#ff0080', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.5rem' }}>
+              <span>🖼️</span> Saved Lounge Photos & Posters (public/images/):
+            </label>
+            <div className={styles.presetGrid}>
+              {localMedia.images.map((img) => {
+                const isSelected = customVideoUrl === img.url;
+                return (
+                  <button
+                    key={img.url}
+                    type="button"
+                    className={`${styles.presetBtn} ${isSelected ? styles.presetBtnActive : ''}`}
+                    onClick={() => {
+                      setCustomVideoUrl(img.url);
+                      setCustomVideoTitle(img.name);
+                    }}
+                    style={{ borderColor: isSelected ? '#ff0080' : 'rgba(255, 0, 128, 0.25)' }}
+                  >
+                    <span style={{ color: '#ff77aa' }}>🖼️ {img.name}</span>
+                    <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.45)' }}>Instant / {img.sizeFormatted}</span>
                   </button>
                 );
               })}
@@ -565,7 +593,7 @@ export default function TvControlPanel() {
             className={styles.videoInput}
             value={customVideoUrl}
             onChange={(e) => setCustomVideoUrl(e.target.value)}
-            placeholder="Paste direct MP4 or YouTube URL..."
+            placeholder="Paste direct MP4, photo URL, or YouTube URL..."
           />
 
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#fff', cursor: 'pointer' }}>
@@ -583,7 +611,7 @@ export default function TvControlPanel() {
             disabled={isBroadcastingVideo}
             onClick={handlePlayVideo}
           >
-            {isBroadcastingVideo ? '⏳ Sending...' : '▶️ Play on Pod(s)'}
+            {isBroadcastingVideo ? '⏳ Sending...' : '▶️ Broadcast to Pod(s)'}
           </button>
 
           <button
@@ -591,7 +619,7 @@ export default function TvControlPanel() {
             className={styles.btnStopVideo}
             onClick={handleStopVideo}
           >
-            ⏹️ Stop Video & Return
+            ⏹️ Close Media & Return
           </button>
         </div>
       </div>

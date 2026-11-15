@@ -103,6 +103,16 @@
   transform: translateZ(0);
 }
 
+.imageElement {
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
+  background-color: #000;
+  transform: translateZ(0);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
 .iframeWrapper {
   width: 100vw;
   height: 100vh;
