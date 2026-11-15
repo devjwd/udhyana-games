@@ -66,10 +66,11 @@ import AssignWaitlistModal from './modals/AssignWaitlistModal';
 import PostpaidCheckoutModal from './modals/PostpaidCheckoutModal';
 import PodTestModal from './modals/PodTestModal';
 import TvControlPanel from './components/TvControlTab/TvControlPanel';
+import PodControlPanel from './components/PodControlTab/PodControlPanel';
 
 export default function ReceptionPortal() {
   const { data: session, status: authStatus } = useSession();
-  const [activeTab, setActiveTab] = useState<'register' | 'data' | 'tv'>('register');
+  const [activeTab, setActiveTab] = useState<'register' | 'data' | 'tv' | 'pods'>('register');
   const [isMuted, setIsMuted] = useState<boolean>(() => typeof window !== 'undefined' ? soundManager.getMuted() : false);
 
   // Business Rates & Catalog
@@ -854,7 +855,28 @@ export default function ReceptionPortal() {
             className={`${styles.navItem} ${activeTab === 'tv' ? styles.navItemActive : ''}`}
             onClick={() => setActiveTab('tv')}
           >
-            <span>📺 TV & Pod Controls</span>
+            <span>📺 Smart TV Controls</span>
+          </div>
+
+          <div
+            className={`${styles.navItem} ${activeTab === 'pods' ? styles.navItemActive : ''}`}
+            onClick={() => setActiveTab('pods')}
+          >
+            <span>🎮 Station Pods Test</span>
+            <span
+              style={{
+                marginLeft: 'auto',
+                fontSize: '0.62rem',
+                fontWeight: 900,
+                background: 'rgba(0, 240, 255, 0.2)',
+                color: '#00f0ff',
+                border: '1px solid rgba(0, 240, 255, 0.4)',
+                padding: '2px 6px',
+                borderRadius: '4px'
+              }}
+            >
+              PREVIEW
+            </span>
           </div>
         </nav>
 
@@ -877,7 +899,8 @@ export default function ReceptionPortal() {
             <h1 className={styles.pageTitle}>
               {activeTab === 'register' && 'Walk-In Registration & POS'}
               {activeTab === 'data' && 'Lounge Monitor & Data Dashboard'}
-              {activeTab === 'tv' && 'TV Network Control & Station Pod Media Broadcast'}
+              {activeTab === 'tv' && 'Smart TV Network Controls & Blackout'}
+              {activeTab === 'pods' && 'Station Pods — Live Interactive Simulator & Fleet Testing'}
             </h1>
           </div>
 
@@ -992,6 +1015,10 @@ export default function ReceptionPortal() {
 
           {activeTab === 'tv' && (
             <TvControlPanel />
+          )}
+
+          {activeTab === 'pods' && (
+            <PodControlPanel />
           )}
         </div>
       </main>
