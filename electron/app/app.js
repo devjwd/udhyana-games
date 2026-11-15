@@ -1822,6 +1822,7 @@ function switchTab(tabId) {
     history: ['Daily History', 'Today\'s player sessions and order activity log'],
     'tv-display': ['TV Entrance Screen & Standalone Timers', 'Live arena board for walk-in players and standalone staff timer monitor'],
     'tv-control': ['Smart TV Network Control & Diagnostics', 'Direct offline LAN control for LG webOS and Sony Bravia station screens'],
+    'pod-simulator': ['Station Pods Simulator & Fleet Diagnostics', 'Live interactive tablet preview and remote alert triggers for NEC VersaPro pods'],
     admin: ['Admin Controls & Analytics', 'Lounge revenue, station hardware, pricing rates & security'],
   };
 
@@ -1859,7 +1860,7 @@ const launchTvScreen = async (mode = 'visitor') => {
 const btnPodTester = document.getElementById('btn-open-pod-tester');
 if (btnPodTester) {
   btnPodTester.onclick = () => {
-    const navBtn = document.getElementById('nav-tv-control-btn');
+    const navBtn = document.getElementById('nav-pod-simulator-btn');
     if (navBtn) navBtn.click();
   };
 }
@@ -2353,4 +2354,148 @@ async function stopDesktopVideoOnPod() {
   }
 }
 window.stopDesktopVideoOnPod = stopDesktopVideoOnPod;
+
+// =========================================================
+// STATION PODS SIMULATOR & TESTING DECK
+// =========================================================
+let currentSimulatorStation = 'PS5';
+let currentSimulatorMediaTitle = 'Tekken 8 — The King of Iron Fist';
+
+function updateDesktopPodFrame() {
+  const frame = document.getElementById('desktop-pod-frame');
+  const title = document.getElementById('desktop-pod-preview-title');
+  if (!frame) return;
+
+  let url;
+  if (currentSimulatorStation === 'diagnostics') {
+    url = 'http://127.0.0.1:3000/station/test';
+    if (title) title.textContent = 'Live Simulator: Tablet Hardware Diagnostics';
+  } else {
+    url = `http://127.0.0.1:3000/station/${encodeURIComponent(currentSimulatorStation)}`;
+    if (title) title.textContent = `Live Simulator: ${currentSimulatorStation}`;
+  }
+  frame.src = url;
+}
+
+document.querySelectorAll('#desktop-pod-station-selector .chip-btn').forEach((btn) => {
+  btn.onclick = () => {
+    document.querySelectorAll('#desktop-pod-station-selector .chip-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentSimulatorStation = btn.dataset.station;
+    updateDesktopPodFrame();
+  };
+});
+
+const reloadPodBtn = document.getElementById('desktop-reload-pod-frame');
+if (reloadPodBtn) {
+  reloadPodBtn.onclick = () => {
+    const frame = document.getElementById('desktop-pod-frame');
+    if (frame) frame.src = frame.src;
+  };
+}
+
+const popoutPodBtn = document.getElementById('desktop-popout-pod-frame');
+if (popoutPodBtn) {
+  popoutPodBtn.onclick = () => {
+    const frame = document.getElementById('desktop-pod-frame');
+    if (frame && frame.src) window.open(frame.src, '_blank');
+  };
+}
+
+async function triggerDesktopPodAction(testType) {
+  const targetSelect = document.getElementById('desktop-action-target');
+  const stationId = targetSelect ? targetSelect.value : 'ALL';
+
+  addTvLog('info', `[${stationId}] Triggering remote test: ${testType}...`);
+  try {
+    const resp = await fetch('http://127.0.0.1:3000/api/station-display', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        stationId,
+        action: 'TRIGGER_TEST',
+        testType,
+        label: testType === 'LOCATE' ? `📍 LOCATE: ${stationId}` : undefined
+      })
+    });
+    const res = await resp.json();
+    if (res?.success) {
+      addTvLog('success', `[${stationId}] ⚡ Test [${testType}] sent! Tablet & simulator will react within 2s.`);
+      showNotification(`Test [${testType}] sent to ${stationId}!`, 'success');
+    } else {
+      addTvLog('error', `[${stationId}] ❌ Failed: ${res?.error}`);
+      showNotification('Action failed', 'error');
+    }
+  } catch (err) {
+    addTvLog('error', `[${stationId}] Error: ${err.message}`);
+    showNotification(err.message, 'error');
+  }
+}
+window.triggerDesktopPodAction = triggerDesktopPodAction;
+
+function setSimulatorMedia(url, title) {
+  const input = document.getElementById('desktop-simulator-media-url');
+  if (input) input.value = url;
+  currentSimulatorMediaTitle = title;
+  showNotification(`Selected: ${title}`, 'success');
+}
+window.setSimulatorMedia = setSimulatorMedia;
+
+async function playSimulatorMedia() {
+  const targetSelect = document.getElementById('desktop-action-target');
+  const input = document.getElementById('desktop-simulator-media-url');
+  const stationId = targetSelect ? targetSelect.value : 'ALL';
+  const url = input ? input.value.trim() : '';
+
+  if (!url) {
+    showNotification('Please enter a video or photo URL', 'error');
+    return;
+  }
+
+  addTvLog('info', `[${stationId}] Broadcasting media: "${currentSimulatorMediaTitle}"...`);
+  try {
+    const resp = await fetch('http://127.0.0.1:3000/api/station-display', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'PLAY_VIDEO',
+        stationId,
+        url,
+        title: currentSimulatorMediaTitle,
+        loop: true
+      })
+    });
+    const res = await resp.json();
+    if (res?.success) {
+      addTvLog('success', `[${stationId}] 🎬 Media broadcast active.`);
+      showNotification(`Media playing on ${stationId}!`, 'success');
+    }
+  } catch (err) {
+    addTvLog('error', `[${stationId}] Error: ${err.message}`);
+  }
+}
+window.playSimulatorMedia = playSimulatorMedia;
+
+async function stopSimulatorMedia() {
+  const targetSelect = document.getElementById('desktop-action-target');
+  const stationId = targetSelect ? targetSelect.value : 'ALL';
+
+  addTvLog('info', `[${stationId}] Stopping media broadcast...`);
+  try {
+    const resp = await fetch('http://127.0.0.1:3000/api/station-display', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'STOP_VIDEO', stationId })
+    });
+    const res = await resp.json();
+    if (res?.success) {
+      addTvLog('success', `[${stationId}] ⏹️ Media stopped. Returned to timer.`);
+      showNotification(`Media stopped on ${stationId}!`, 'success');
+    }
+  } catch (err) {
+    addTvLog('error', `[${stationId}] Error: ${err.message}`);
+  }
+}
+window.stopSimulatorMedia = stopSimulatorMedia;
+
 

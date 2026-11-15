@@ -66,8 +66,15 @@
             <rect x="2" y="7" width="20" height="15" rx="2" ry="2" />
             <polyline points="17 2 12 7 7 2" />
           </svg>
-          <span>TV & Pod Controls</span>
-          <span class="nav-pill" style="background: rgba(0, 229, 255, 0.15); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.4);">LIVE</span>
+          <span>Smart TV Controls</span>
+        </button>
+        <button class="nav-item" data-tab="pod-simulator" id="nav-pod-simulator-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
+            <circle cx="12" cy="18" r="1" />
+          </svg>
+          <span>Station Pods Test</span>
+          <span class="nav-pill" style="background: rgba(0, 229, 255, 0.2); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.4);">PREVIEW</span>
         </button>
         <button class="nav-item nav-admin" data-tab="admin" id="nav-admin-btn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -701,6 +708,129 @@
               <div class="tv-log-entry tv-log-info">
                 <span class="tv-log-time">[Ready]</span>
                 <span>Smart TV Control Engine initialized offline. Connected to local database.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- View: Station Pods Simulator & Fleet Testing -->
+      <section class="view-panel" id="view-pod-simulator">
+        <div class="panel-card" style="padding: 14px 20px; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-weight: 800; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">Station:</span>
+              <div class="chip-group" id="desktop-pod-station-selector">
+                <button type="button" class="chip-btn active" data-station="PS5">Station 1 (PS5)</button>
+                <button type="button" class="chip-btn" data-station="Xbox series X">Station 2 (Xbox Series X)</button>
+                <button type="button" class="chip-btn" data-station="Xbox series X(2)">Station 3 (Xbox Series X 2)</button>
+                <button type="button" class="chip-btn" data-station="steerin wheel + ps4">Station 4 (Steering Wheel)</button>
+                <button type="button" class="chip-btn" data-station="diagnostics" style="color: #00e5ff; border-color: rgba(0, 229, 255, 0.4);">🛠️ Diagnostics</button>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn btn-subtle btn-sm" id="desktop-reload-pod-frame">🔄 Reload Preview</button>
+              <button type="button" class="btn btn-primary btn-sm" id="desktop-popout-pod-frame" style="background: rgba(0, 229, 255, 0.2); border-color: #00e5ff; color: #00e5ff;">↗ Pop Out Simulator</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; align-items: start;">
+          <!-- Left: Tablet Frame Simulator -->
+          <div class="panel-card" style="padding: 16px; background: #08090d; border-radius: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h3 style="margin: 0; font-size: 0.95rem; color: #fff; display: flex; align-items: center; gap: 8px;">
+                <span>📱</span> <span id="desktop-pod-preview-title">Live Simulator: Station 1 (PS5)</span>
+              </h3>
+              <span class="badge-tag tag-avail" style="background: rgba(0, 229, 255, 0.15); color: #00e5ff; border-color: rgba(0, 229, 255, 0.4);">● LIVE SIMULATOR</span>
+            </div>
+
+            <!-- Realistic Bezel -->
+            <div style="background: #181a24; border: 10px solid #202433; border-radius: 20px; padding: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center;">
+              <div style="width: 6px; height: 6px; border-radius: 50%; background: #08090d; margin-bottom: 6px;"></div>
+              <div style="width: 100%; height: 440px; background: #000; border-radius: 10px; overflow: hidden; position: relative;">
+                <iframe id="desktop-pod-frame" src="http://127.0.0.1:3000/station/PS5" style="width: 100%; height: 100%; border: none; background: #000;"></iframe>
+              </div>
+            </div>
+            <div style="margin-top: 10px; font-size: 0.72rem; color: var(--text-muted); display: flex; justify-content: space-between;">
+              <span>Simulating 10.1" NEC VersaPro Screen</span>
+              <span style="color: #00e5ff;">Touch & click inside frame to test sleep/wake & staff call</span>
+            </div>
+          </div>
+
+          <!-- Right: Instant Action Deck -->
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- Alert Triggers -->
+            <div class="panel-card" style="padding: 16px; border-left: 4px solid #00e5ff;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="margin: 0; font-size: 0.95rem; color: #fff;">⚡ Hardware Alert Triggers</h4>
+                <span class="nav-pill" style="background: rgba(0, 229, 255, 0.15); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.4);">INSTANT LAN</span>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Target:</label>
+                <select id="desktop-action-target" style="flex: 1; background: #08090d; border: 1px solid #00e5ff; border-radius: 6px; color: #00e5ff; font-weight: 800; font-size: 0.82rem; padding: 6px 10px; outline: none;">
+                  <option value="ALL">📺 Broadcast to ALL Pods (and Simulator)</option>
+                  <option value="PS5">🎮 Station 1 (PS5)</option>
+                  <option value="Xbox series X">🎮 Station 2 (Xbox Series X)</option>
+                  <option value="Xbox series X(2)">🎮 Station 3 (Xbox Series X 2)</option>
+                  <option value="steerin wheel + ps4">🎮 Station 4 (Steering Wheel)</option>
+                </select>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <button type="button" class="btn btn-subtle" onclick="triggerDesktopPodAction('LOCATE')" style="border-color: rgba(0, 229, 255, 0.4); color: #00e5ff; text-align: left; padding: 10px; display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 1.2rem;">📍</span>
+                  <div>
+                    <div style="font-weight: 800; font-size: 0.8rem;">Locate Beacon</div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted);">Flashes screen & ping</div>
+                  </div>
+                </button>
+
+                <button type="button" class="btn btn-subtle" onclick="triggerDesktopPodAction('WARNING')" style="border-color: rgba(245, 158, 11, 0.4); color: #f59e0b; text-align: left; padding: 10px; display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 1.2rem;">🔔</span>
+                  <div>
+                    <div style="font-weight: 800; font-size: 0.8rem;">5-Min Warning</div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted);">Amber flash + chime</div>
+                  </div>
+                </button>
+
+                <button type="button" class="btn btn-subtle" onclick="triggerDesktopPodAction('EXPIRED')" style="border-color: rgba(255, 0, 85, 0.4); color: #ff0055; text-align: left; padding: 10px; display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 1.2rem;">🚨</span>
+                  <div>
+                    <div style="font-weight: 800; font-size: 0.8rem;">Time's Up Alarm</div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted);">Red flash + loud buzzer</div>
+                  </div>
+                </button>
+
+                <button type="button" class="btn btn-subtle" onclick="triggerDesktopPodAction('RELOAD')" style="text-align: left; padding: 10px; display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 1.2rem;">🔄</span>
+                  <div>
+                    <div style="font-weight: 800; font-size: 0.8rem;">Remote Reload</div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted);">Refreshes kiosk browser</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Media Broadcast (Video & Photo) -->
+            <div class="panel-card" style="padding: 16px; border-left: 4px solid #ff0055;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="margin: 0; font-size: 0.95rem; color: #fff;">🎬 Video & Photo Broadcast</h4>
+                <span class="nav-pill" style="background: rgba(255, 0, 85, 0.15); color: #ff0055; border: 1px solid rgba(255, 0, 85, 0.4);">1080P FULLSCREEN</span>
+              </div>
+
+              <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
+                <button type="button" class="btn btn-subtle btn-sm" onclick="setSimulatorMedia('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4', 'Tekken 8 — The King of Iron Fist')">🎬 Tekken 8</button>
+                <button type="button" class="btn btn-subtle btn-sm" onclick="setSimulatorMedia('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', 'Lounge Cafe Specials')">🎬 Red Bull Reel</button>
+                <button type="button" class="btn btn-subtle btn-sm" onclick="setSimulatorMedia('http://127.0.0.1:3000/images/champs.jpg', 'Tournament Champions Announcement')">🖼️ Champions Poster</button>
+                <button type="button" class="btn btn-subtle btn-sm" onclick="setSimulatorMedia('http://127.0.0.1:3000/images/lounge_interior.png', 'VIP Gaming Arena')">🖼️ Lounge Photo</button>
+              </div>
+
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" id="desktop-simulator-media-url" placeholder="Paste direct MP4, image URL, or YouTube..." style="flex: 1; background: #08090d; border: 1px solid var(--border); border-radius: 6px; color: #fff; padding: 7px 10px; font-size: 0.8rem; outline: none;" value="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4">
+                <button type="button" class="btn btn-primary btn-sm" onclick="playSimulatorMedia()" style="background: #ff0055; border-color: #ff0055; color: #fff; font-weight: 800;">▶️ Broadcast</button>
+                <button type="button" class="btn btn-subtle btn-sm" onclick="stopSimulatorMedia()">⏹️ Stop</button>
               </div>
             </div>
           </div>
