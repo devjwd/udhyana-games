@@ -852,7 +852,7 @@ export default function ReceptionPortal() {
             className={`${styles.navItem} ${activeTab === 'tv' ? styles.navItemActive : ''}`}
             onClick={() => setActiveTab('tv')}
           >
-            <span>📺 Smart TV Test</span>
+            <span>📺 TV & Pod Controls</span>
           </div>
         </nav>
 
@@ -875,7 +875,7 @@ export default function ReceptionPortal() {
             <h1 className={styles.pageTitle}>
               {activeTab === 'register' && 'Walk-In Registration & POS'}
               {activeTab === 'data' && 'Lounge Monitor & Data Dashboard'}
-              {activeTab === 'tv' && 'Smart TV Network Control & Testing'}
+              {activeTab === 'tv' && 'TV Network Control & Station Pod Media Broadcast'}
             </h1>
           </div>
 
